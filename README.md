@@ -1,2 +1,2 @@
-# media-pi.core
-Media Pi project core
+# Media Pi Core
+Media Pi System Core
