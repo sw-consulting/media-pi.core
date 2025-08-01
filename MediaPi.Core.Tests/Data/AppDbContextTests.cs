@@ -25,14 +25,14 @@
 
 using NUnit.Framework;
 using Microsoft.EntityFrameworkCore;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.Models;
-using Fuelflux.Core.Services;
+using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.Services;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
 
-namespace Fuelflux.Core.Tests.Data;
+namespace MediaPi.Core.Tests.Data;
 
 public class UserInformationServiceTests
 {

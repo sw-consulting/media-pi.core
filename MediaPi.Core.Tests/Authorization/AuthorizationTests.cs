@@ -39,15 +39,15 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
 
-using Fuelflux.Core.Authorization;
-using Fuelflux.Core.Models;
-using Fuelflux.Core.Settings;
-using Fuelflux.Core.RestModels;
+using MediaPi.Core.Authorization;
+using MediaPi.Core.Models;
+using MediaPi.Core.Settings;
+using MediaPi.Core.RestModels;
 using System.Threading.Tasks;
 using System;
 using System.Linq;
 
-namespace Fuelflux.Core.Tests.Authorization;
+namespace MediaPi.Core.Tests.Authorization;
 
 public class AuthorizeAttributeTests
 {

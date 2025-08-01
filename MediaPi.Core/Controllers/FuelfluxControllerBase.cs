@@ -24,10 +24,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 using Microsoft.AspNetCore.Mvc;
-using Fuelflux.Core.RestModels;
-using Fuelflux.Core.Data;
+using MediaPi.Core.RestModels;
+using MediaPi.Core.Data;
 
-namespace Fuelflux.Core.Controllers;
+namespace MediaPi.Core.Controllers;
 public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
 {
     protected readonly AppDbContext _db = db;

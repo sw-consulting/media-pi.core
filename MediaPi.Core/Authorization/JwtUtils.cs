@@ -31,10 +31,10 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-using Fuelflux.Core.Models;
-using Fuelflux.Core.Settings;
+using MediaPi.Core.Models;
+using MediaPi.Core.Settings;
 
-namespace Fuelflux.Core.Authorization;
+namespace MediaPi.Core.Authorization;
 public interface IJwtUtils
 {
     public string GenerateJwtToken(User user);

@@ -25,13 +25,13 @@
 
 using Microsoft.AspNetCore.Mvc;
 
-using Fuelflux.Core.Authorization;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.RestModels;
-using Fuelflux.Core;
+using MediaPi.Core.Authorization;
+using MediaPi.Core.Data;
+using MediaPi.Core.RestModels;
+using MediaPi.Core;
 using Microsoft.EntityFrameworkCore;
 
-namespace Fuelflux.Core.Controllers;
+namespace MediaPi.Core.Controllers;
 
 [ApiController]
 [Authorize]

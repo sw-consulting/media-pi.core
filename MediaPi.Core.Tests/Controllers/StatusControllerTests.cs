@@ -27,13 +27,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 
-using Fuelflux.Core.Controllers;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.RestModels;
-using Fuelflux.Core;
+using MediaPi.Core.Controllers;
+using MediaPi.Core.Data;
+using MediaPi.Core.RestModels;
+using MediaPi.Core;
 using System.Threading.Tasks;
 
-namespace Fuelflux.Core.Tests.Controllers;
+namespace MediaPi.Core.Tests.Controllers;
 
 [TestFixture]
 public class StatusControllerTests

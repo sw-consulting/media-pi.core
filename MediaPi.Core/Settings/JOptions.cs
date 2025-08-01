@@ -26,7 +26,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace Fuelflux.Core.Settings;
+namespace MediaPi.Core.Settings;
 
 public static class JOptions
 {

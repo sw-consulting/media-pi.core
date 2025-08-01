@@ -26,8 +26,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace Fuelflux.Core.Authorization;
-using Fuelflux.Core.RestModels;
+namespace MediaPi.Core.Authorization;
+using MediaPi.Core.RestModels;
 
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]

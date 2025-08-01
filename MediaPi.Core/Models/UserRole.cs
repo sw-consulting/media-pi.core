@@ -25,7 +25,7 @@
 
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Fuelflux.Core.Models
+namespace MediaPi.Core.Models
 {
     [Table("user_roles")]
     public class UserRole

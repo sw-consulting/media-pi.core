@@ -24,9 +24,9 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 using Microsoft.AspNetCore.Mvc;
-using Fuelflux.Core.RestModels;
+using MediaPi.Core.RestModels;
 
-namespace Fuelflux.Core.Services
+namespace MediaPi.Core.Services
 {
     public interface IUserInformationService
     {

@@ -23,10 +23,10 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-using Fuelflux.Core.Authorization;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.Services;
-using Fuelflux.Core.Settings;
+using MediaPi.Core.Authorization;
+using MediaPi.Core.Data;
+using MediaPi.Core.Services;
+using MediaPi.Core.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 

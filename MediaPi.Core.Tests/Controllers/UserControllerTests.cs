@@ -35,13 +35,13 @@ using System.Threading.Tasks;
 using Moq;
 using NUnit.Framework;
 
-using Fuelflux.Core.Controllers;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.Models;
-using Fuelflux.Core.RestModels;
-using Fuelflux.Core.Services;
+using MediaPi.Core.Controllers;
+using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.RestModels;
+using MediaPi.Core.Services;
 
-namespace Fuelflux.Core.Tests.Controllers;
+namespace MediaPi.Core.Tests.Controllers;
 
 [TestFixture]
 public class UsersControllerTests

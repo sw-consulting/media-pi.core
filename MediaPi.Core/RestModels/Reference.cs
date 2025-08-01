@@ -23,7 +23,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-namespace Fuelflux.Core.RestModels;
+namespace MediaPi.Core.RestModels;
 public class Reference
 {
     public required int Id { get; set; }

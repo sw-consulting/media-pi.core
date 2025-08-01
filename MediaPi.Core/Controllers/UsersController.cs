@@ -28,15 +28,15 @@ using Microsoft.EntityFrameworkCore;
 
 using System.Text.Json;
 
-using Fuelflux.Core.Authorization;
-using Fuelflux.Core.RestModels;
-using Fuelflux.Core.Settings;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.Models;
-using Fuelflux.Core.Services;
+using MediaPi.Core.Authorization;
+using MediaPi.Core.RestModels;
+using MediaPi.Core.Settings;
+using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.Services;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
-namespace Fuelflux.Core.Controllers;
+namespace MediaPi.Core.Controllers;
 
 [ApiController]
 [Authorize]

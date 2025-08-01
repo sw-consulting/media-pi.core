@@ -24,9 +24,9 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 using Microsoft.EntityFrameworkCore;
-using Fuelflux.Core.Models;
+using MediaPi.Core.Models;
 
-namespace Fuelflux.Core.Data
+namespace MediaPi.Core.Data
 {
     public class AppDbContext : DbContext
     {

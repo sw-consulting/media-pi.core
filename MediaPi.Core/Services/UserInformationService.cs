@@ -25,11 +25,11 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
-using Fuelflux.Core.Data;
-using Fuelflux.Core.Models;
-using Fuelflux.Core.RestModels;
+using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.RestModels;
 
-namespace Fuelflux.Core.Services
+namespace MediaPi.Core.Services
 {
     public class UserInformationService : IUserInformationService
     {

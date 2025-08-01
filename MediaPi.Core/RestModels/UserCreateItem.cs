@@ -24,10 +24,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 using System.Text.Json;
-using Fuelflux.Core.Models;
-using Fuelflux.Core.Settings;
+using MediaPi.Core.Models;
+using MediaPi.Core.Settings;
 
-namespace Fuelflux.Core.RestModels;
+namespace MediaPi.Core.RestModels;
 
 public class UserCreateItem
 {
