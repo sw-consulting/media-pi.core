@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 // All rights reserved.
-// This file is a part of Fuelflux Core application
+// This file is a part of MediaPi Core applicaiton
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -51,7 +51,7 @@ namespace MediaPi.Core.Services
             return user != null && user.IsAdministrator();
         }
 
-        public async Task<bool> CheckOperator(int cuid)
+        public async Task<bool> CheckManager(int cuid)
         {
             var user = await _context.Users
                 .AsNoTracking()
@@ -59,7 +59,7 @@ namespace MediaPi.Core.Services
                     .ThenInclude(ur => ur.Role)
                 .Where(x => x.Id == cuid)
                 .FirstOrDefaultAsync();
-            return user != null && user.IsOperator();
+            return user != null && user.IsManager();
         }
 
         public async Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid)

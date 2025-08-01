@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 // All rights reserved.
-// This file is a part of Fuelflux Core application
+// This file is a part of MediaPi Core applicaiton
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -57,8 +57,8 @@ namespace MediaPi.Core.Models
             return UserRoles.Any(ur => ur.Role!.RoleId == role);
         }
 
-        public bool IsAdministrator() => HasRole(UserRoleConstants.Admin);
-        public bool IsOperator() => HasRole(UserRoleConstants.Operator);
+        public bool IsAdministrator() => HasRole(UserRoleConstants.SystemAdministrator);
+        public bool IsManager() => HasRole(UserRoleConstants.AccountManager);
 
     }
 }

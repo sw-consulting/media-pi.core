@@ -64,7 +64,7 @@ public class AuthControllerTests
         _dbContext = new AppDbContext(options);
 
         // Add a role
-        _testRole = new Role { Id = (int)UserRoleConstants.Operator, Name = "Оператор" };
+        _testRole = new Role { Id = (int)UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" };
         _dbContext.Roles.Add(_testRole);
 
         // Setup mocks

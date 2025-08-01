@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 // All rights reserved.
-// This file is a part of Fuelflux Core application
+// This file is a part of MediaPi Core applicaiton
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -46,9 +46,9 @@ public class UserInformationServiceTests
 
         // Pre-seed the roles that are needed for tests
         context.Roles.AddRange(
-            new Role { RoleId = UserRoleConstants.Customer, Name = "Клиент" },
-            new Role { RoleId = UserRoleConstants.Operator, Name = "Оператор АЗС" },
-            new Role { RoleId = UserRoleConstants.Admin, Name = "Администратор системы" }
+            new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Инженер-установщик" },
+            new Role {RoleId = UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" },
+            new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" }
         );
 
         context.SaveChanges();
@@ -58,12 +58,12 @@ public class UserInformationServiceTests
 
     private static Role GetAdminRole(AppDbContext ctx)
     {
-        return ctx.Roles.Single(r => r.RoleId == UserRoleConstants.Admin);
+        return ctx.Roles.Single(r => r.RoleId == UserRoleConstants.SystemAdministrator);
     }
 
     private static Role GetOperatorRole(AppDbContext ctx)
     {
-        return ctx.Roles.Single(r => r.RoleId == UserRoleConstants.Operator);
+        return ctx.Roles.Single(r => r.RoleId == UserRoleConstants.AccountManager);
     }
 
     private static User CreateUser(int id, string email, string password, string firstName, string lastName, string? patronymic, IEnumerable<Role> roles)
@@ -186,7 +186,7 @@ public class UserInformationServiceTests
     #region CheckOperator Tests
 
     [Test]
-    public async Task CheckOperator_ReturnsTrue_WhenUserIsOperator()
+    public async Task CheckManager_ReturnsTrue_WhenUserIsOperator()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
@@ -194,13 +194,13 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckOperator(30);
+        var result = await service.CheckManager(30);
 
         Assert.That(result, Is.True);
     }
 
     [Test]
-    public async Task CheckOperator_ReturnsFalse_WhenUserIsNotOperator()
+    public async Task CheckManager_ReturnsFalse_WhenUserIsNotManager()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
@@ -208,24 +208,24 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckOperator(31);
+        var result = await service.CheckManager(31);
 
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task CheckOperator_ReturnsFalse_WhenUserDoesNotExist()
+    public async Task CheckManager_ReturnsFalse_WhenUserDoesNotExist()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
 
-        var result = await service.CheckOperator(999);
+        var result = await service.CheckManager(999);
 
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task CheckOperator_ReturnsFalse_WhenUserHasNoRoles()
+    public async Task CheckManager_ReturnsFalse_WhenUserHasNoRoles()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
@@ -233,7 +233,7 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckOperator(32);
+        var result = await service.CheckManager(32);
 
         Assert.That(result, Is.False);
     }

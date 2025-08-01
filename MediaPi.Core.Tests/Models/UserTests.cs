@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 // All rights reserved.
-// This file is a part of Fuelflux Core application
+// This file is a part of MediaPi Core applicaiton
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -41,7 +41,7 @@ public class UserTests
     [Test]
     public void HasAnyRole_ReturnsTrue_WhenRolesExist()
     {
-        var role = new Role { Id = 1, RoleId = UserRoleConstants.Admin, Name = "admin" };
+        var role = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "admin" };
         var user = new User
         {
             Email = "test@example.com",
@@ -54,7 +54,7 @@ public class UserTests
     [Test]
     public void HasRole_ReturnsTrue_WhenUserHasRole()
     {
-        var role = new Role { Id = 1, RoleId = UserRoleConstants.Admin, Name = "Admin" };
+        var role = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         var user = new User
         {
             Id = 1,
@@ -65,20 +65,20 @@ public class UserTests
                 new UserRole { UserId = 1, RoleId = role.Id, Role = role }
             ]
         };
-        Assert.That(user.HasRole(UserRoleConstants.Admin), Is.True);
+        Assert.That(user.HasRole(UserRoleConstants.SystemAdministrator), Is.True);
     }
 
     [Test]
     public void HasRole_ReturnsFalse_WhenRoleMissing()
     {
         var user = new User { Email = "test@example.com", Password = "password123" };
-        Assert.That(user.HasRole(UserRoleConstants.Admin), Is.False);
+        Assert.That(user.HasRole(UserRoleConstants.SystemAdministrator), Is.False);
     }
 
     [Test]
     public void IsAdministrator_ReturnsTrue_WhenAdminRolePresent()
     {
-        var role = new Role { Id = 1, RoleId = UserRoleConstants.Admin, Name = "administrator" };
+        var role = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "administrator" };
         var user = new User
         {
             Id = 1,
@@ -93,9 +93,9 @@ public class UserTests
     }
 
     [Test]
-    public void IsOperator_ReturnsTrue_WhenOperatorRolePresent()
+    public void IsManager_ReturnsTrue_WhenManagerRolePresent()
     {
-        var role = new Role { Id = 2, RoleId = UserRoleConstants.Operator, Name = "operator" };
+        var role = new Role { Id = 2, RoleId = UserRoleConstants.AccountManager, Name = "operator" };
         var user = new User
         {
             Id = 1,
@@ -106,13 +106,13 @@ public class UserTests
                 new UserRole { UserId = 1, RoleId = role.Id, Role = role }
             ]
         };
-        Assert.That(user.IsOperator(), Is.True);
+        Assert.That(user.IsManager(), Is.True);
     }
 
     [Test]
-    public void IsOperator_ReturnsFalse_WhenOperatorRoleNotPresent()
+    public void IsManager_ReturnsFalse_WhenManagerRoleNotPresent()
     {
-        var role = new Role { Id = 1, RoleId = UserRoleConstants.Admin, Name = "admin" };
+        var role = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "admin" };
         var user = new User
         {
             Id = 1,
@@ -123,6 +123,6 @@ public class UserTests
                 new UserRole { UserId = 1, RoleId = role.Id, Role = role }
             ]
         };
-        Assert.That(user.IsOperator(), Is.False);
+        Assert.That(user.IsManager(), Is.False);
     }
 }

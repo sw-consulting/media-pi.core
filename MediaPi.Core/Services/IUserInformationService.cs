@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 // All rights reserved.
-// This file is a part of Fuelflux Core application
+// This file is a part of MediaPi Core applicaiton
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -31,7 +31,7 @@ namespace MediaPi.Core.Services
     public interface IUserInformationService
     {
         Task<bool> CheckAdmin(int cuid);
-        Task<bool> CheckOperator(int cuid);
+        Task<bool> CheckManager(int cuid);
         Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid);
         bool CheckSameUser(int id, int cuid);
         bool Exists(int id);

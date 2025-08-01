@@ -71,9 +71,9 @@ public class UsersControllerTests
         _dbContext = new AppDbContext(options);
 
         // Add roles - only set RoleId, let database handle Id
-        _adminRole = new Role { RoleId = UserRoleConstants.Admin, Name = "Администратор" };
-        _operatorRole = new Role { RoleId = UserRoleConstants.Operator, Name = "Оператор" };
-        _customerRole = new Role { RoleId = UserRoleConstants.Customer, Name = "Клиент" };
+        _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор" };
+        _operatorRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Менеджер" };
+        _customerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Инженер-установшик" };
         _dbContext.Roles.AddRange(_adminRole, _operatorRole, _customerRole);
         _dbContext.SaveChanges(); // Save roles first to get their generated Ids
 
@@ -299,7 +299,7 @@ public class UsersControllerTests
             FirstName = "New",
             LastName = "User",
             Patronymic = "",
-            Roles = [ UserRoleConstants.Customer ] // Assigning role by enum value
+            Roles = [ UserRoleConstants.InstallationEngineer ] 
         };
 
         _mockUserInformationService.Setup(x => x.CheckAdmin(1)).ReturnsAsync(true);
@@ -400,7 +400,7 @@ public class UsersControllerTests
             FirstName = "Updated",
             LastName = "Name",
             Email = "updated@example.com",
-            Roles = [UserRoleConstants.Customer]
+            Roles = [UserRoleConstants.InstallationEngineer]
         };
 
         _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
@@ -423,7 +423,7 @@ public class UsersControllerTests
         Assert.That(updatedUser.LastName, Is.EqualTo("Name"));
         Assert.That(updatedUser.Email, Is.EqualTo("updated@example.com"));
         Assert.That(updatedUser.UserRoles, Has.Count.EqualTo(1));
-        Assert.That(updatedUser.UserRoles.First().Role!.RoleId, Is.EqualTo(UserRoleConstants.Customer));
+        Assert.That(updatedUser.UserRoles.First().Role!.RoleId, Is.EqualTo(UserRoleConstants.InstallationEngineer));
     }
 
     [Test]
@@ -567,7 +567,7 @@ public class UsersControllerTests
         var updateItem = new UserUpdateItem
         {
             FirstName = "Try",
-            Roles = [UserRoleConstants.Admin] // Trying to become admin
+            Roles = [UserRoleConstants.SystemAdministrator] // Trying to become admin
         };
 
         _mockUserInformationService.Setup(x => x.CheckAdmin(2)).ReturnsAsync(false);

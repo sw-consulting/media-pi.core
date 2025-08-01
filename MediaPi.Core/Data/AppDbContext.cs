@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 // All rights reserved.
-// This file is a part of Fuelflux Core application
+// This file is a part of MediaPi Core applicaiton
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -55,9 +55,9 @@ namespace MediaPi.Core.Data
                 .HasForeignKey(ur => ur.RoleId);
 
             modelBuilder.Entity<Role>().HasData(
-                new Role { Id = 1, RoleId = UserRoleConstants.Admin, Name = "Администратор системы" },
-                new Role { Id = 2, RoleId = UserRoleConstants.Operator, Name = "Оператор АЗС" },
-                new Role { Id = 3, RoleId = UserRoleConstants.Customer, Name = "Клиент" }
+                new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" },
+                new Role { Id = 2, RoleId = UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" },
+                new Role { Id = 3, RoleId = UserRoleConstants.InstallationEngineer, Name = "Инженер-установщик" }
             );
 
             modelBuilder.Entity<User>().HasData(
@@ -73,9 +73,7 @@ namespace MediaPi.Core.Data
             );
 
             modelBuilder.Entity<UserRole>().HasData(
-                new UserRole { UserId = 1, RoleId = 1 }, // Admin
-                new UserRole { UserId = 1, RoleId = 2 }, // Operator
-                new UserRole { UserId = 1, RoleId = 3 }  // Customer
+                new UserRole { UserId = 1, RoleId = 1 } // Admininstrator
             );
         }
     }
