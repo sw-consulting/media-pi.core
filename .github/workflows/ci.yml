@@ -1,0 +1,117 @@
+﻿# Copyright (c) 2025 Maxim [maxirmx] Samsonov (https://sw.consulting)
+# This file is a part of MediaPi project
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - docker-compose-ghrc.yml
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.ref_name }}'
+  cancel-in-progress: true
+
+env:
+  LANG: ru_RU.UTF-8
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore & build
+        run: |
+         dotnet restore MediaPi.Core.Tests/MediaPi.Core.Tests.csproj 
+         dotnet build MediaPi.Core.Tests/MediaPi.Core.Tests.csproj --no-restore --configuration Release
+
+      - name: Test & collect coverage
+        run: |
+         dotnet test MediaPi.Core.Tests/MediaPi.Core.Tests.csproj \
+          --configuration Release \
+          --verbosity normal \
+          --collect:"XPlat Code Coverage" \
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Migrations/*.cs"
+
+      - name: Show coverage files
+        run: |
+            echo "Coverage reports:"
+            find . -type f -name "coverage.cobertura.xml" || (echo "❌ no reports found" && exit 1)
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: TestResults/**/coverage.cobertura.xml
+          fail_ci_if_error: true
+
+      - name: Build Docker images
+        run: docker compose -f docker-compose.yml build
+
+      - name: Start services
+        run: docker compose -f docker-compose.yml up -d
+
+      - name: Wait for API
+        run: |
+          for i in {1..20}; do
+            if curl -fs http://localhost:8080/swagger > /dev/null; then
+              echo "API is up" && break
+            fi
+            sleep 5
+          done
+
+#      - name: Prepare Postman collection
+#        env:
+#          MAXIRMX_SECRET_PASSWORD: ${{ secrets.MAXIRMX_SECRET_PASSWORD }}
+#        run: sed -i "s/MAXIRMX_SECRET_PASSWORD/$MAXIRMX_SECRET_PASSWORD/g" tests/postman.json
+
+#      - name: Run Postman collection
+#        uses: anthonyvscode/newman-action@v1   
+#        with:
+#          collection: postman.json
+#          reporters: cli
+#          workingDir: tests                 
+
+#      - name: Output summary to console
+#        run: echo ${{ steps.run-newman.outputs.summary }}        
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f docker-compose.yml down
