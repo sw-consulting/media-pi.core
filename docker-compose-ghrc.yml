@@ -1,0 +1,74 @@
+# Copyright (c) 2025 Maxim [maxirmx] Samsonov (https://sw.consulting)
+# This file is a part of logibooks project
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: logibooks
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+
+  api:
+    image: ghcr.io/maxirmx/logibooks.core:latest
+    ports:
+      - "8085:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/status/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "https://+:8081;http://+:8080"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/certificate/s.pfx"
+      ASPNETCORE_Kestrel__Certificates__Default__Password_File: "/certificate/s.pwd"
+    volumes:
+      - ./certificate:/certificate:ro
+
+  ui:
+    image: ghcr.io/maxirmx/logibooks.ui:latest
+    ports:
+      - "8082:8082"
+      - "8083:8083"
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./certificate:/etc/nginx/certificate:ro
+    environment:
+      API_URL: https://logibooks.sw.consulting:8085/api
