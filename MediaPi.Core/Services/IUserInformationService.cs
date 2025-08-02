@@ -28,7 +28,7 @@ namespace MediaPi.Core.Services
     public interface IUserInformationService
     {
         Task<bool> CheckAdmin(int cuid);
-        Task<bool> IsManager(int cuid, int accountId);
+        Task<bool> CheckManager(int cuid, int accountId);
         Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid);
         bool CheckSameUser(int id, int cuid);
         bool Exists(int id);

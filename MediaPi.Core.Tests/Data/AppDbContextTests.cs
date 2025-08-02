@@ -193,7 +193,7 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.IsManager(30, 1);
+        var result = await service.CheckManager(30, 1);
 
         Assert.That(result, Is.True);
     }
@@ -210,7 +210,7 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.IsManager(31, 2);
+        var result = await service.CheckManager(31, 2);
 
         Assert.That(result, Is.True);
     }
@@ -226,7 +226,7 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.IsManager(32, 3);
+        var result = await service.CheckManager(32, 3);
 
         Assert.That(result, Is.False);
     }
@@ -242,7 +242,7 @@ public class UserInformationServiceTests
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.IsManager(33, 4);
+        var result = await service.CheckManager(33, 4);
 
         Assert.That(result, Is.False);
     }
@@ -256,7 +256,7 @@ public class UserInformationServiceTests
         ctx.Accounts.Add(account);
         await ctx.SaveChangesAsync();
 
-        var result = await service.IsManager(999, 5);
+        var result = await service.CheckManager(999, 5);
 
         Assert.That(result, Is.False);
     }

@@ -48,7 +48,7 @@ namespace MediaPi.Core.Services
             return user != null && user.IsAdministrator();
         }
 
-        public async Task<bool> IsManager(int cuid, int accountId)
+        public async Task<bool> CheckManager(int cuid, int accountId)
         {
             var user = await _context.Users
                 .AsNoTracking()
