@@ -58,6 +58,11 @@ public class DevicesController(
         return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
     }
 
+    private static List<int> GetUserAccountIds(User user)
+    {
+        return [.. user.UserAccounts.Select(ua => ua.AccountId)];
+    }
+
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
@@ -99,12 +104,101 @@ public class DevicesController(
         }
         else if (user.IsManager())
         {
-            var accountIds = user.UserAccounts.Select(ua => ua.AccountId).ToList();
+            var accountIds = GetUserAccountIds(user);
             query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
         }
         else if (user.HasRole(UserRoleConstants.InstallationEngineer))
         {
             query = query.Where(d => d.AccountId == null);
+        }
+        else
+        {
+            return _403();
+        }
+
+        var devices = await query.ToListAsync();
+        return devices.Select(d => d.ToViewItem()).ToList();
+    }
+
+    // GET: api/devices/by-account/{accountId?}
+    [HttpGet("by-account/{accountId?}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByAccount(int? accountId)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        IQueryable<Device> query = _db.Devices;
+        if (user.IsAdministrator())
+        {
+            if (accountId == null)
+                query = query.Where(d => d.AccountId == null);
+            else
+                query = query.Where(d => d.AccountId == accountId);
+        }
+        else if (user.IsManager())
+        {
+            if (accountId == null) return _403();
+            var accountIds = GetUserAccountIds(user);
+            if (!accountIds.Contains(accountId.Value)) return _403();
+            query = query.Where(d => d.AccountId == accountId.Value);
+        }
+        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        {
+            if (accountId != null) return _403();
+            query = query.Where(d => d.AccountId == null);
+        }
+        else
+        {
+            return _403();
+        }
+
+        var devices = await query.ToListAsync();
+        return devices.Select(d => d.ToViewItem()).ToList();
+    }
+
+    // GET: api/devices/by-device-group/{deviceGroupId?}
+    [HttpGet("by-device-group/{deviceGroupId?}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByDeviceGroup(int? deviceGroupId)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        IQueryable<Device> query = _db.Devices;
+        if (user.IsAdministrator())
+        {
+            if (deviceGroupId == null)
+                query = query.Where(d => d.DeviceGroupId == null);
+            else
+                query = query.Where(d => d.DeviceGroupId == deviceGroupId);
+        }
+        else if (user.IsManager())
+        {
+            var accountIds = GetUserAccountIds(user);
+            if (deviceGroupId != null)
+            {
+                // Check if the group belongs to the manager's accounts
+                bool ownsGroup = await _db.DeviceGroups.AnyAsync(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId));
+                if (!ownsGroup)
+                    return _403();
+            }
+            query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
+            if (deviceGroupId == null)
+            {
+                query = query.Where(d => d.DeviceGroupId == null);
+            }
+            else
+            {
+                query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value);
+            }
+        }
+        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        {
+            if (deviceGroupId != null) return _403();
+            query = query.Where(d => d.AccountId == null && d.DeviceGroupId == null);
         }
         else
         {
