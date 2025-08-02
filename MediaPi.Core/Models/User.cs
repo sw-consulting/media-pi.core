@@ -46,6 +46,7 @@ namespace MediaPi.Core.Models
         public required string Password { get; set; }
 
         public ICollection<UserRole> UserRoles { get; set; } = [];
+        public ICollection<UserAccount> UserAccounts { get; set; } = [];
 
         public bool HasAnyRole() => UserRoles.Count != 0;
 

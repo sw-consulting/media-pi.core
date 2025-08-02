@@ -38,6 +38,7 @@ namespace MediaPi.Core.Models
         public ICollection<Video> Videos { get; set; } = [];
         public ICollection<Playlist> Playlists { get; set; } = [];
         public ICollection<Subscription> Subscriptions { get; set; } = [];
+        public ICollection<UserAccount> UserAccounts { get; set; } = [];
     }
 }
 

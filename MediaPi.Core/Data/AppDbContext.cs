@@ -45,6 +45,7 @@ namespace MediaPi.Core.Data
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
         public DbSet<VideoStatus> VideoStatuses => Set<VideoStatus>();
+        public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -62,6 +63,19 @@ namespace MediaPi.Core.Data
                 .HasOne(ur => ur.Role)
                 .WithMany(r => r.UserRoles)
                 .HasForeignKey(ur => ur.RoleId);
+
+            modelBuilder.Entity<UserAccount>()
+                .HasKey(ua => new { ua.UserId, ua.AccountId });
+
+            modelBuilder.Entity<UserAccount>()
+                .HasOne(ua => ua.User)
+                .WithMany(u => u.UserAccounts)
+                .HasForeignKey(ua => ua.UserId);
+
+            modelBuilder.Entity<UserAccount>()
+                .HasOne(ua => ua.Account)
+                .WithMany(a => a.UserAccounts)
+                .HasForeignKey(ua => ua.AccountId);
 
             modelBuilder.Entity<VideoPlaylist>()
                 .HasKey(vp => new { vp.VideoId, vp.PlaylistId });

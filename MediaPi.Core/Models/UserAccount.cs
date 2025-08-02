@@ -20,20 +20,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Microsoft.AspNetCore.Mvc;
-using MediaPi.Core.RestModels;
+using System.ComponentModel.DataAnnotations.Schema;
 
-namespace MediaPi.Core.Services
+namespace MediaPi.Core.Models
 {
-    public interface IUserInformationService
+    [Table("user_accounts")]
+    public class UserAccount
     {
-        Task<bool> CheckAdmin(int cuid);
-        Task<bool> IsManager(int cuid, int accountId);
-        Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid);
-        bool CheckSameUser(int id, int cuid);
-        bool Exists(int id);
-        bool Exists(string email);
-        Task<UserViewItem?> UserViewItem(int id);
-        Task<List<UserViewItem>> UserViewItems();
+        [Column("user_id")]
+        public int UserId { get; set; }
+        public User User { get; set; } = null!;
+
+        [Column("account_id")]
+        public int AccountId { get; set; }
+        public Account Account { get; set; } = null!;
     }
 }

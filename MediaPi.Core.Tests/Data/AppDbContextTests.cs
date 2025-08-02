@@ -180,57 +180,83 @@ public class UserInformationServiceTests
 
     #endregion
 
-    #region CheckOperator Tests
+    #region IsManager Tests
 
     [Test]
-    public async Task CheckManager_ReturnsTrue_WhenUserIsOperator()
+    public async Task IsManager_ReturnsTrue_ForAdmin()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
-        var user = CreateUser(30, "operator@test.com", "password", "Operator", "User", null, [GetOperatorRole(ctx)]);
+        var account = new Account { Id = 1, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(30, "admin@test.com", "password", "Admin", "User", null, [GetAdminRole(ctx)]);
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(30);
+        var result = await service.IsManager(30, 1);
 
         Assert.That(result, Is.True);
     }
 
     [Test]
-    public async Task CheckManager_ReturnsFalse_WhenUserIsNotManager()
+    public async Task IsManager_ReturnsTrue_WhenManagerLinkedToAccount()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
-        var user = CreateUser(31, "adminonly@test.com", "password", "Admin", "User", null, [GetAdminRole(ctx)]);
+        var account = new Account { Id = 2, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(31, "manager@test.com", "password", "Manager", "User", null, [GetOperatorRole(ctx)]);
+        user.UserAccounts = [new UserAccount { UserId = 31, AccountId = 2, Account = account }];
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(31);
+        var result = await service.IsManager(31, 2);
+
+        Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public async Task IsManager_ReturnsFalse_WhenManagerNotLinkedToAccount()
+    {
+        using var ctx = CreateContext();
+        var service = new UserInformationService(ctx);
+        var account = new Account { Id = 3, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(32, "manager2@test.com", "password", "Manager", "User", null, [GetOperatorRole(ctx)]);
+        ctx.Users.Add(user);
+        await ctx.SaveChangesAsync();
+
+        var result = await service.IsManager(32, 3);
 
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task CheckManager_ReturnsFalse_WhenUserDoesNotExist()
+    public async Task IsManager_ReturnsFalse_WhenUserHasNoRoles()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
+        var account = new Account { Id = 4, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(33, "noroleoperator@test.com", "password", "No", "Role", null, []);
+        ctx.Users.Add(user);
+        await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(999);
+        var result = await service.IsManager(33, 4);
 
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task CheckManager_ReturnsFalse_WhenUserHasNoRoles()
+    public async Task IsManager_ReturnsFalse_WhenUserDoesNotExist()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
-        var user = CreateUser(32, "noroleoperator@test.com", "password", "No", "Role", null, []);
-        ctx.Users.Add(user);
+        var account = new Account { Id = 5, Name = "acc" };
+        ctx.Accounts.Add(account);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(32);
+        var result = await service.IsManager(999, 5);
 
         Assert.That(result, Is.False);
     }
