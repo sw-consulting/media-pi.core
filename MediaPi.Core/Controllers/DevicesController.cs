@@ -20,16 +20,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-
-using System.Net;
-
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
+using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Extensions;
+using MediaPi.Core.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Net;
 
 namespace MediaPi.Core.Controllers;
 
@@ -40,29 +39,10 @@ namespace MediaPi.Core.Controllers;
 [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
 public class DevicesController(
     IHttpContextAccessor httpContextAccessor,
+    IUserInformationService userInformationService,
     AppDbContext db,
     ILogger<DevicesController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
-    private async Task<User?> CurrentUser()
-    {
-        return await _db.Users
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
-            .Include(u => u.UserAccounts)
-            .FirstOrDefaultAsync(u => u.Id == _curUserId);
-    }
-
-    private static bool ManagerOwnsDevice(User user, Device device)
-    {
-        if (!user.IsManager()) return false;
-        var accountIds = user.UserAccounts.Select(ua => ua.AccountId);
-        return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
-    }
-
-    private static List<int> GetUserAccountIds(User user)
-    {
-        return [.. user.UserAccounts.Select(ua => ua.AccountId)];
-    }
-
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
@@ -104,7 +84,7 @@ public class DevicesController(
         }
         else if (user.IsManager())
         {
-            var accountIds = GetUserAccountIds(user);
+            var accountIds = userInformationService.GetUserAccountIds(user);
             query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
         }
         else if (user.HasRole(UserRoleConstants.InstallationEngineer))
@@ -140,7 +120,7 @@ public class DevicesController(
         else if (user.IsManager())
         {
             if (accountId == null) return _403();
-            var accountIds = GetUserAccountIds(user);
+            var accountIds = userInformationService.GetUserAccountIds(user);
             if (!accountIds.Contains(accountId.Value)) return _403();
             query = query.Where(d => d.AccountId == accountId.Value);
         }
@@ -177,7 +157,7 @@ public class DevicesController(
         }
         else if (user.IsManager())
         {
-            var accountIds = GetUserAccountIds(user);
+            var accountIds = userInformationService.GetUserAccountIds(user);
             if (deviceGroupId != null)
             {
                 // Check if the group belongs to the manager's accounts
@@ -222,7 +202,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync(id);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || ManagerOwnsDevice(user, device) ||
+        if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
             (user.HasRole(UserRoleConstants.InstallationEngineer) && device.AccountId == null))
         {
             return device.ToViewItem();
@@ -293,7 +273,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync(id);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || ManagerOwnsDevice(user, device))
+        if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device))
         {
             device.AssignGroupFrom(item);
             _db.Entry(device).State = EntityState.Modified;

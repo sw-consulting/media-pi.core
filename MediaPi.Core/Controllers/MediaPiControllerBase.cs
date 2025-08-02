@@ -20,9 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Microsoft.AspNetCore.Mvc;
-using MediaPi.Core.RestModels;
 using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.RestModels;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Controllers;
 public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
@@ -131,4 +133,13 @@ public class MediaPiControllerBase : FuelfluxControllerPreBase
             if (uid != null) _curUserId = (int)uid;
         }
     }
+
+    protected async Task<User?> CurrentUser()
+    {
+        return await _db.Users
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.UserAccounts)
+            .FirstOrDefaultAsync(u => u.Id == _curUserId);
+    }
+
 }

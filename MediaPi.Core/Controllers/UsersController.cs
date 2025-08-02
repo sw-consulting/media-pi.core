@@ -31,7 +31,6 @@ using MediaPi.Core.Settings;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.Services;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace MediaPi.Core.Controllers;
 

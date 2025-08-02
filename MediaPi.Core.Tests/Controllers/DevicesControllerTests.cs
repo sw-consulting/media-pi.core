@@ -36,6 +36,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -57,6 +58,7 @@ public class DevicesControllerTests
     private Account _account2;
     private DeviceGroup _group1;
     private DeviceGroup _group2;
+    private UserInformationService _userInformationService;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -88,7 +90,7 @@ public class DevicesControllerTests
             Id = 1,
             Email = "admin@example.com",
             Password = pass,
-            UserRoles = [ new UserRole { UserId = 1, RoleId = _adminRole.Id, Role = _adminRole } ]
+            UserRoles = [new UserRole { UserId = 1, RoleId = _adminRole.Id, Role = _adminRole }]
         };
 
         _manager = new User
@@ -96,8 +98,8 @@ public class DevicesControllerTests
             Id = 2,
             Email = "manager@example.com",
             Password = pass,
-            UserRoles = [ new UserRole { UserId = 2, RoleId = _managerRole.Id, Role = _managerRole } ],
-            UserAccounts = [ new UserAccount { UserId = 2, AccountId = _account1.Id, Account = _account1 } ]
+            UserRoles = [new UserRole { UserId = 2, RoleId = _managerRole.Id, Role = _managerRole }],
+            UserAccounts = [new UserAccount { UserId = 2, AccountId = _account1.Id, Account = _account1 }]
         };
 
         _engineer = new User
@@ -105,7 +107,7 @@ public class DevicesControllerTests
             Id = 3,
             Email = "eng@example.com",
             Password = pass,
-            UserRoles = [ new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole } ]
+            UserRoles = [new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole }]
         };
 
         var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
@@ -118,6 +120,7 @@ public class DevicesControllerTests
 
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         _mockLogger = new Mock<ILogger<DevicesController>>();
+        _userInformationService = new UserInformationService(_dbContext);
     }
 
     private void SetCurrentUser(int? id, string? ip = null)
@@ -126,7 +129,12 @@ public class DevicesControllerTests
         if (id.HasValue) context.Items["UserId"] = id.Value;
         if (ip != null) context.Connection.RemoteIpAddress = IPAddress.Parse(ip);
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(context);
-        _controller = new DevicesController(_mockHttpContextAccessor.Object, _dbContext, _mockLogger.Object)
+        _controller = new DevicesController(
+            _mockHttpContextAccessor.Object,
+            _userInformationService,
+            _dbContext,
+            _mockLogger.Object
+        )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };

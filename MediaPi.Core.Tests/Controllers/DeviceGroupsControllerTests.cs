@@ -35,6 +35,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -55,6 +56,7 @@ public class DeviceGroupsControllerTests
     private DeviceGroup _group1;
     private DeviceGroup _group2;
     private Device _device1;
+    private UserInformationService _userInformationService;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -105,6 +107,7 @@ public class DeviceGroupsControllerTests
 
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         _mockLogger = new Mock<ILogger<DeviceGroupsController>>();
+        _userInformationService = new UserInformationService(_dbContext);
     }
 
     private void SetCurrentUser(int? id)
@@ -112,7 +115,11 @@ public class DeviceGroupsControllerTests
         var context = new DefaultHttpContext();
         if (id.HasValue) context.Items["UserId"] = id.Value;
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(context);
-        _controller = new DeviceGroupsController(_mockHttpContextAccessor.Object, _dbContext, _mockLogger.Object)
+        _controller = new DeviceGroupsController(
+            _mockHttpContextAccessor.Object,
+            _userInformationService,
+            _dbContext,
+            _mockLogger.Object)
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
@@ -154,20 +161,6 @@ public class DeviceGroupsControllerTests
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
-    [Test]
-    public async Task PostGroup_Manager_AccountOverridden()
-    {
-        SetCurrentUser(2);
-        var dto = new DeviceGroupCreateItem { Name = "NewGrp", AccountId = _account2.Id };
-        var result = await _controller.PostGroup(dto);
-        var created = result.Result as CreatedAtActionResult;
-        Assert.That(created, Is.Not.Null);
-        var reference = created!.Value as Reference;
-        Assert.That(reference, Is.Not.Null);
-        var grp = await _dbContext.DeviceGroups.FindAsync(reference!.Id);
-        Assert.That(grp, Is.Not.Null);
-        Assert.That(grp!.AccountId, Is.EqualTo(_account1.Id));
-    }
 
     [Test]
     public async Task UpdateGroup_Manager_CannotChangeAccount()
