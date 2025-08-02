@@ -129,7 +129,7 @@ namespace MediaPi.Core.Services
         public bool ManagerOwnsDevice(User user, Device device)
         {
             if (!user.IsManager()) return false;
-            var accountIds = user.UserAccounts.Select(ua => ua.AccountId);
+            var accountIds = GetUserAccountIds(user);
             return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
         }
 
