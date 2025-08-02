@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Maxim [maxirmx] Samsonov (https://sw.consulting)
+iapi# Copyright (c) 2025 Maxim [maxirmx] Samsonov (https://sw.consulting)
 # This file is a part of logibooks project
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@ services:
       retries: 3
       start_period: 5s
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - ./pgdata:/var/lib/mediapi/data
 
   api:
     image: ghcr.io/maxirmx/mediapi.core:latest
