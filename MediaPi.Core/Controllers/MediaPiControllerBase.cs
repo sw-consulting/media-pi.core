@@ -89,12 +89,12 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
     }
 }
 
-public class FuelfluxControllerBase : FuelfluxControllerPreBase
+public class MediaPiControllerBase : FuelfluxControllerPreBase
 {
 
     protected readonly int _curUserId;
 
-    protected FuelfluxControllerBase(IHttpContextAccessor httpContextAccessor, AppDbContext db, ILogger logger): base(db, logger)
+    protected MediaPiControllerBase(IHttpContextAccessor httpContextAccessor, AppDbContext db, ILogger logger): base(db, logger)
     {
         _curUserId = 0;
         var htc = httpContextAccessor.HttpContext;

@@ -45,7 +45,7 @@ public class UsersController(
     IHttpContextAccessor httpContextAccessor,
     AppDbContext db,
     IUserInformationService userInformationService,
-    ILogger<UsersController> logger) : FuelfluxControllerBase(httpContextAccessor, db, logger)
+    ILogger<UsersController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     private readonly IUserInformationService _userInformationService = userInformationService;
 
