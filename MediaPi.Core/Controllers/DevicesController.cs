@@ -52,8 +52,9 @@ public class DevicesController(
             .FirstOrDefaultAsync(u => u.Id == _curUserId);
     }
 
-    private bool ManagerOwnsDevice(User user, Device device)
+    private static bool ManagerOwnsDevice(User user, Device device)
     {
+        if (!user.IsManager()) return false;
         var accountIds = user.UserAccounts.Select(ua => ua.AccountId);
         return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
     }
@@ -118,8 +119,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync(id);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() ||
-            (user.IsManager() && ManagerOwnsDevice(user, device)) ||
+        if (user.IsAdministrator() || ManagerOwnsDevice(user, device) ||
             (user.HasRole(UserRoleConstants.InstallationEngineer) && device.AccountId == null))
         {
             return device.ToViewItem();
@@ -186,7 +186,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync(id);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || (user.IsManager() && ManagerOwnsDevice(user, device)))
+        if (user.IsAdministrator() || ManagerOwnsDevice(user, device))
         {
             device.AssignGroupFrom(item);
             _db.Entry(device).State = EntityState.Modified;

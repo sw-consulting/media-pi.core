@@ -69,7 +69,7 @@ namespace MediaPi.Core.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("AccountId")
+                    b.Property<int?>("AccountId")
                         .HasColumnType("integer")
                         .HasColumnName("account_id");
 
@@ -489,9 +489,7 @@ namespace MediaPi.Core.Migrations
                 {
                     b.HasOne("MediaPi.Core.Models.Account", "Account")
                         .WithMany("Devices")
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("AccountId");
 
                     b.HasOne("MediaPi.Core.Models.DeviceGroup", "DeviceGroup")
                         .WithMany("Devices")

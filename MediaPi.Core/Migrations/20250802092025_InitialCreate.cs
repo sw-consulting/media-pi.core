@@ -236,7 +236,7 @@ namespace MediaPi.Core.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     name = table.Column<string>(type: "text", nullable: false),
                     ip_address = table.Column<string>(type: "text", nullable: false),
-                    account_id = table.Column<int>(type: "integer", nullable: false),
+                    account_id = table.Column<int>(type: "integer", nullable: true),
                     device_group_id = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
@@ -246,8 +246,7 @@ namespace MediaPi.Core.Migrations
                         name: "FK_devices_accounts_account_id",
                         column: x => x.account_id,
                         principalTable: "accounts",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "id");
                     table.ForeignKey(
                         name: "FK_devices_device_groups_device_group_id",
                         column: x => x.device_group_id,
