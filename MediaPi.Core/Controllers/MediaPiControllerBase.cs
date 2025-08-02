@@ -100,6 +100,12 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = $"Устройство с таким IP адресом уже зарегистрировано [ip = {ip}]" });
     }
 
+    protected ObjectResult _409Account(string name)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = $"Лицевой счёт с таким именем уже существует [name = {name}]" });
+    }
+
     protected ObjectResult _400Ip(string ip)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
