@@ -156,12 +156,6 @@ public class AccountsController(
             .FirstOrDefaultAsync(a => a.Id == id);
         if (account == null) return _404Account(id);
 
-        foreach (var device in account.Devices)
-        {
-            device.AccountId = null;
-            device.DeviceGroupId = null;
-        }
-
         _db.DeviceGroups.RemoveRange(account.DeviceGroups);
         _db.Videos.RemoveRange(account.Videos);
         _db.Playlists.RemoveRange(account.Playlists);

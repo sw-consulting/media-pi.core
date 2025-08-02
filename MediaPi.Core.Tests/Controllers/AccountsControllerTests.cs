@@ -46,8 +46,10 @@ public class AccountsControllerTests
     private AccountsController _controller;
     private User _admin;
     private User _manager;
+    private User _engineer;
     private Role _adminRole;
     private Role _managerRole;
+    private Role _engineerRole;
     private Account _account1;
     private Account _account2;
     private DeviceGroup _group1;
@@ -65,7 +67,8 @@ public class AccountsControllerTests
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
-        _dbContext.Roles.AddRange(_adminRole, _managerRole);
+        _engineerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Engineer" };
+        _dbContext.Roles.AddRange(_adminRole, _managerRole, _engineerRole);
 
         _account1 = new Account { Id = 1, Name = "Acc1" };
         _account2 = new Account { Id = 2, Name = "Acc2" };
@@ -96,7 +99,15 @@ public class AccountsControllerTests
             UserAccounts = [ new UserAccount { UserId = 2, AccountId = _account1.Id, Account = _account1 } ]
         };
 
-        _dbContext.Users.AddRange(_admin, _manager);
+        _engineer = new User
+        {
+            Id = 3,
+            Email = "engineer@example.com",
+            Password = pass,
+            UserRoles = [ new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole } ]
+        };
+
+        _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.SaveChanges();
 
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
@@ -190,5 +201,147 @@ public class AccountsControllerTests
         var acc = await _dbContext.Accounts.FindAsync(_account1.Id);
         Assert.That(acc, Is.Null);
     }
+
+    #region UpdateAccount Tests
+
+    [Test]
+    public async Task UpdateAccount_Admin_UpdatesAccount()
+    {
+        // Arrange
+        SetCurrentUser(1);
+        var updateItem = new AccountUpdateItem { Name = "UpdatedAccount" };
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var updatedAccount = await _dbContext.Accounts.FindAsync(_account1.Id);
+        Assert.That(updatedAccount, Is.Not.Null);
+        Assert.That(updatedAccount!.Name, Is.EqualTo("UpdatedAccount"));
+    }
+
+    [Test]
+    public async Task UpdateAccount_NoUser_Returns403()
+    {
+        // Arrange
+        SetCurrentUser(null);
+        var updateItem = new AccountUpdateItem { Name = "UpdatedAccount" };
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdateAccount_NotAdmin_Returns403()
+    {
+        // Arrange
+        SetCurrentUser(2); // Manager
+        var updateItem = new AccountUpdateItem { Name = "UpdatedAccount" };
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        
+        // Verify no change occurred
+        var account = await _dbContext.Accounts.FindAsync(_account1.Id);
+        Assert.That(account!.Name, Is.EqualTo("Acc1"));
+    }
+
+    [Test]
+    public async Task UpdateAccount_Engineer_Returns403()
+    {
+        // Arrange
+        SetCurrentUser(3); // Engineer
+        var updateItem = new AccountUpdateItem { Name = "UpdatedAccount" };
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdateAccount_NonExistentAccount_Returns404()
+    {
+        // Arrange
+        SetCurrentUser(1); // Admin
+        var updateItem = new AccountUpdateItem { Name = "UpdatedAccount" };
+        int nonExistentAccountId = 999;
+
+        // Act
+        var result = await _controller.UpdateAccount(nonExistentAccountId, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpdateAccount_DuplicateName_Returns409()
+    {
+        // Arrange
+        SetCurrentUser(1); // Admin
+        var updateItem = new AccountUpdateItem { Name = "Acc2" }; // Try to set account1's name to account2's name
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        
+        // Verify no change occurred
+        var account = await _dbContext.Accounts.FindAsync(_account1.Id);
+        Assert.That(account!.Name, Is.EqualTo("Acc1"));
+    }
+
+    [Test]
+    public async Task UpdateAccount_SameName_Succeeds()
+    {
+        // Arrange
+        SetCurrentUser(1); // Admin
+        var updateItem = new AccountUpdateItem { Name = "Acc1" }; // Same name should not cause conflict
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var account = await _dbContext.Accounts.FindAsync(_account1.Id);
+        Assert.That(account!.Name, Is.EqualTo("Acc1"));
+    }
+
+    [Test]
+    public async Task UpdateAccount_NullName_NoChanges()
+    {
+        // Arrange
+        SetCurrentUser(1); // Admin
+        var updateItem = new AccountUpdateItem { Name = null }; // Null values should not change existing data
+
+        // Act
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var account = await _dbContext.Accounts.FindAsync(_account1.Id);
+        Assert.That(account!.Name, Is.EqualTo("Acc1")); // Name remains unchanged
+    }
+
+    #endregion
 }
 
