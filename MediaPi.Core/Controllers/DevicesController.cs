@@ -179,6 +179,13 @@ public class DevicesController(
         else if (user.IsManager())
         {
             var accountIds = GetUserAccountIds(user);
+            if (deviceGroupId != null)
+            {
+                // Check if the group belongs to the manager's accounts
+                bool ownsGroup = await _db.DeviceGroups.AnyAsync(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId));
+                if (!ownsGroup)
+                    return _403();
+            }
             query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
             if (deviceGroupId == null)
             {
@@ -186,9 +193,7 @@ public class DevicesController(
             }
             else
             {
-                // Only allow devices in groups belonging to the manager's accounts
-                query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value &&
-                    _db.DeviceGroups.Any(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId)));
+                query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value);
             }
         }
         else if (user.HasRole(UserRoleConstants.InstallationEngineer))
