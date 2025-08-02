@@ -127,9 +127,16 @@ namespace MediaPi.Core.Data
                 .HasForeignKey(pd => pd.StatusId);
 
             modelBuilder.Entity<Device>()
+                .HasOne(d => d.Account)
+                .WithMany(a => a.Devices)
+                .HasForeignKey(d => d.AccountId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Device>()
                 .HasOne(d => d.DeviceGroup)
                 .WithMany(g => g.Devices)
-                .HasForeignKey(d => d.DeviceGroupId);
+                .HasForeignKey(d => d.DeviceGroupId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<Device>()
                 .HasIndex(d => d.IpAddress)
