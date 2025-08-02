@@ -59,6 +59,11 @@ public class DevicesController(
         return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
     }
 
+    private static List<int> GetUserAccountIds(User user)
+    {
+        return [.. user.UserAccounts.Select(ua => ua.AccountId)];
+    }
+
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
@@ -100,7 +105,7 @@ public class DevicesController(
         }
         else if (user.IsManager())
         {
-            var accountIds = user.UserAccounts.Select(ua => ua.AccountId).ToList();
+            var accountIds = GetUserAccountIds(user);
             query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
         }
         else if (user.HasRole(UserRoleConstants.InstallationEngineer))
@@ -136,7 +141,7 @@ public class DevicesController(
         else if (user.IsManager())
         {
             if (accountId == null) return _403();
-            var accountIds = user.UserAccounts.Select(ua => ua.AccountId).ToList();
+            var accountIds = GetUserAccountIds(user);
             if (!accountIds.Contains(accountId.Value)) return _403();
             query = query.Where(d => d.AccountId == accountId.Value);
         }
@@ -173,7 +178,7 @@ public class DevicesController(
         }
         else if (user.IsManager())
         {
-            var accountIds = user.UserAccounts.Select(ua => ua.AccountId).ToList();
+            var accountIds = GetUserAccountIds(user);
             query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
             if (deviceGroupId == null)
             {
@@ -184,7 +189,6 @@ public class DevicesController(
                 // Only allow devices in groups belonging to the manager's accounts
                 query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value &&
                     _db.DeviceGroups.Any(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId)));
-                // If no such device group exists for the manager, the query will return empty, so check for that after query execution
             }
         }
         else if (user.HasRole(UserRoleConstants.InstallationEngineer))
