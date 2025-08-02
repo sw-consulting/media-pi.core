@@ -181,12 +181,10 @@ public class DevicesController(
             }
             else
             {
-                var allowedGroupIds = await _db.DeviceGroups
-                    .Where(dg => accountIds.Contains(dg.AccountId))
-                    .Select(dg => dg.Id)
-                    .ToListAsync();
-                if (!allowedGroupIds.Contains(deviceGroupId.Value)) return _403();
-                query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value);
+                // Only allow devices in groups belonging to the manager's accounts
+                query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value &&
+                    _db.DeviceGroups.Any(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId)));
+                // If no such device group exists for the manager, the query will return empty, so check for that after query execution
             }
         }
         else if (user.HasRole(UserRoleConstants.InstallationEngineer))
