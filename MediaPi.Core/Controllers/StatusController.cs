@@ -69,7 +69,7 @@ public class StatusController(
 
         Status status = new()
         {
-            Msg = "Hello, world! Fuelflux Core status is fantastic!",
+            Msg = "Hello, world! MediaPi Core status is fantastic!",
             AppVersion = VersionInfo.AppVersion,
             DbVersion = dbVersion,
         };
