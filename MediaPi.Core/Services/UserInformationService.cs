@@ -48,15 +48,19 @@ namespace MediaPi.Core.Services
             return user != null && user.IsAdministrator();
         }
 
-        public async Task<bool> CheckManager(int cuid)
+        public async Task<bool> IsManager(int cuid, int accountId)
         {
             var user = await _context.Users
                 .AsNoTracking()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
+                .Include(u => u.UserAccounts)
                 .Where(x => x.Id == cuid)
                 .FirstOrDefaultAsync();
-            return user != null && user.IsManager();
+
+            if (user == null) return false;
+            if (user.IsAdministrator()) return true;
+            return user.IsManager() && user.UserAccounts.Any(ua => ua.AccountId == accountId);
         }
 
         public async Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid)
