@@ -38,7 +38,7 @@ services:
       retries: 3
       start_period: 5s
     volumes:
-      - pgdata:/var/lib/fuelflux/data
+      - pgdata:/var/lib/postgresql/data
 
   adminer:
     image: adminer
