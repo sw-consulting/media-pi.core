@@ -55,6 +55,8 @@ public class DevicesControllerTests
     private Role _engineerRole;
     private Account _account1;
     private Account _account2;
+    private DeviceGroup _group1;
+    private DeviceGroup _group2;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -74,6 +76,10 @@ public class DevicesControllerTests
         _account1 = new Account { Id = 1, Name = "Acc1" };
         _account2 = new Account { Id = 2, Name = "Acc2" };
         _dbContext.Accounts.AddRange(_account1, _account2);
+
+        _group1 = new DeviceGroup { Id = 1, Name = "Grp1", AccountId = _account1.Id, Account = _account1 };
+        _group2 = new DeviceGroup { Id = 2, Name = "Grp2", AccountId = _account2.Id, Account = _account2 };
+        _dbContext.DeviceGroups.AddRange(_group1, _group2);
 
         string pass = BCrypt.Net.BCrypt.HashPassword("pwd");
 
@@ -102,9 +108,9 @@ public class DevicesControllerTests
             UserRoles = [ new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole } ]
         };
 
-        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", AccountId = _account1.Id };
+        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
         var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2" };
-        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", AccountId = _account2.Id };
+        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
 
         _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.Devices.AddRange(d1, d2, d3);
@@ -213,6 +219,134 @@ public class DevicesControllerTests
         var list = result.Value!.ToList();
         Assert.That(list, Has.Count.EqualTo(1));
         Assert.That(list[0].Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Admin_SpecificAccount()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetAllByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Admin_Null_ReturnsUnassigned()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetAllByAccount(null);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Manager_OwnAccount()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Manager_OtherAccount_Forbidden()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByAccount(_account2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Engineer_Unassigned()
+    {
+        SetCurrentUser(3);
+        var result = await _controller.GetAllByAccount(null);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Engineer_NotNull_Forbidden()
+    {
+        SetCurrentUser(3);
+        var result = await _controller.GetAllByAccount(_account1.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetAllByDeviceGroup_Admin_SpecificGroup()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetAllByDeviceGroup(_group1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetAllByDeviceGroup_Admin_Null_ReturnsUngrouped()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetAllByDeviceGroup(null);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAllByDeviceGroup_Manager_OwnGroup()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByDeviceGroup(_group1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetAllByDeviceGroup_Manager_OtherGroup_Forbidden()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByDeviceGroup(_group2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetAllByDeviceGroup_Engineer_Unassigned()
+    {
+        SetCurrentUser(3);
+        var result = await _controller.GetAllByDeviceGroup(null);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAllByDeviceGroup_Engineer_Group_Forbidden()
+    {
+        SetCurrentUser(3);
+        var result = await _controller.GetAllByDeviceGroup(_group1.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
     [Test]

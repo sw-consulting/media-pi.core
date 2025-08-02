@@ -116,6 +116,93 @@ public class DevicesController(
         return devices.Select(d => d.ToViewItem()).ToList();
     }
 
+    // GET: api/devices/by-account/{accountId?}
+    [HttpGet("by-account/{accountId?}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByAccount(int? accountId)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        IQueryable<Device> query = _db.Devices;
+        if (user.IsAdministrator())
+        {
+            if (accountId == null)
+                query = query.Where(d => d.AccountId == null);
+            else
+                query = query.Where(d => d.AccountId == accountId);
+        }
+        else if (user.IsManager())
+        {
+            if (accountId == null) return _403();
+            var accountIds = user.UserAccounts.Select(ua => ua.AccountId).ToList();
+            if (!accountIds.Contains(accountId.Value)) return _403();
+            query = query.Where(d => d.AccountId == accountId.Value);
+        }
+        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        {
+            if (accountId != null) return _403();
+            query = query.Where(d => d.AccountId == null);
+        }
+        else
+        {
+            return _403();
+        }
+
+        var devices = await query.ToListAsync();
+        return devices.Select(d => d.ToViewItem()).ToList();
+    }
+
+    // GET: api/devices/by-device-group/{deviceGroupId?}
+    [HttpGet("by-device-group/{deviceGroupId?}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByDeviceGroup(int? deviceGroupId)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        IQueryable<Device> query = _db.Devices;
+        if (user.IsAdministrator())
+        {
+            if (deviceGroupId == null)
+                query = query.Where(d => d.DeviceGroupId == null);
+            else
+                query = query.Where(d => d.DeviceGroupId == deviceGroupId);
+        }
+        else if (user.IsManager())
+        {
+            var accountIds = user.UserAccounts.Select(ua => ua.AccountId).ToList();
+            query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
+            if (deviceGroupId == null)
+            {
+                query = query.Where(d => d.DeviceGroupId == null);
+            }
+            else
+            {
+                var allowedGroupIds = await _db.DeviceGroups
+                    .Where(dg => accountIds.Contains(dg.AccountId))
+                    .Select(dg => dg.Id)
+                    .ToListAsync();
+                if (!allowedGroupIds.Contains(deviceGroupId.Value)) return _403();
+                query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value);
+            }
+        }
+        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        {
+            if (deviceGroupId != null) return _403();
+            query = query.Where(d => d.AccountId == null && d.DeviceGroupId == null);
+        }
+        else
+        {
+            return _403();
+        }
+
+        var devices = await query.ToListAsync();
+        return devices.Select(d => d.ToViewItem()).ToList();
+    }
+
     // GET: api/devices/5
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceViewItem))]
