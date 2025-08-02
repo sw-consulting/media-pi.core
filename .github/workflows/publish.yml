@@ -60,7 +60,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/logibooks.core
+            ghcr.io/${{ github.repository_owner }}/mediapi.core
           tags: |
             type=semver,pattern={{version}},enable=${{ contains(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ contains(github.ref, 'refs/tags/v') }}
@@ -68,9 +68,9 @@ jobs:
             type=sha,enable=true
           labels: |
             org.opencontainers.image.vendor=sw.consulting
-            org.opencontainers.image.title=Logibooks Core
+            org.opencontainers.image.title=MediaPi Core
             org.opencontainers.image.source=${{ github.repositoryUrl }}
-            org.opencontainers.image.description=Logibooks core container
+            org.opencontainers.image.description=MediaPi core container
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
