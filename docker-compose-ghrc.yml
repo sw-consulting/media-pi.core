@@ -27,7 +27,7 @@ services:
   db:
     image: postgres:17
     environment:
-      POSTGRES_DB: logibooks
+      POSTGRES_DB: mediapi
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     healthcheck:
@@ -40,7 +40,7 @@ services:
       - ./pgdata:/var/lib/postgresql/data
 
   api:
-    image: ghcr.io/maxirmx/logibooks.core:latest
+    image: ghcr.io/maxirmx/mediapi.core:latest
     ports:
       - "8085:8081"
     healthcheck:
@@ -61,7 +61,7 @@ services:
       - ./certificate:/certificate:ro
 
   ui:
-    image: ghcr.io/maxirmx/logibooks.ui:latest
+    image: ghcr.io/maxirmx/mediapi.ui:latest
     ports:
       - "8082:8082"
       - "8083:8083"
@@ -71,4 +71,4 @@ services:
     volumes:
       - ./certificate:/etc/nginx/certificate:ro
     environment:
-      API_URL: https://logibooks.sw.consulting:8085/api
+      API_URL: https://mediapi.sw.consulting:8085/api
