@@ -49,8 +49,10 @@ public class DeviceGroupsControllerTests
     private DeviceGroupsController _controller;
     private User _admin;
     private User _manager;
+    private User _engineer;
     private Role _adminRole;
     private Role _managerRole;
+    private Role _engineerRole;
     private Account _account1;
     private Account _account2;
     private DeviceGroup _group1;
@@ -70,7 +72,8 @@ public class DeviceGroupsControllerTests
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
-        _dbContext.Roles.AddRange(_adminRole, _managerRole);
+        _engineerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Engineer" };
+        _dbContext.Roles.AddRange(_adminRole, _managerRole, _engineerRole);
 
         _account1 = new Account { Id = 1, Name = "Acc1" };
         _account2 = new Account { Id = 2, Name = "Acc2" };
@@ -102,7 +105,15 @@ public class DeviceGroupsControllerTests
             UserAccounts = [ new UserAccount { UserId = 2, AccountId = _account1.Id, Account = _account1 } ]
         };
 
-        _dbContext.Users.AddRange(_admin, _manager);
+        _engineer = new User
+        {
+            Id = 3,
+            Email = "eng@example.com",
+            Password = pass,
+            UserRoles = [ new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole } ]
+        };
+
+        _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.SaveChanges();
 
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
@@ -132,6 +143,7 @@ public class DeviceGroupsControllerTests
         _dbContext.Dispose();
     }
 
+    // Existing tests
     [Test]
     public async Task GetAll_Admin_ReturnsAll()
     {
@@ -161,7 +173,6 @@ public class DeviceGroupsControllerTests
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
-
     [Test]
     public async Task UpdateGroup_Manager_CannotChangeAccount()
     {
@@ -182,6 +193,206 @@ public class DeviceGroupsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var dev = await _dbContext.Devices.FindAsync(_device1.Id);
         Assert.That(dev!.DeviceGroupId, Is.Null);
+        var grp = await _dbContext.DeviceGroups.FindAsync(_group1.Id);
+        Assert.That(grp, Is.Null);
+    }
+
+    // New error case tests
+    [Test]
+    public async Task GetAll_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.GetAll();
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetAll_Engineer_Returns403()
+    {
+        SetCurrentUser(3); // Engineer
+        var result = await _controller.GetAll();
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetGroup_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.GetGroup(_group1.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetGroup_NotFound_Returns404()
+    {
+        SetCurrentUser(1); // Admin
+        var result = await _controller.GetGroup(999);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task GetGroup_Engineer_Returns403()
+    {
+        SetCurrentUser(3); // Engineer
+        var result = await _controller.GetGroup(_group1.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task PostGroup_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account1.Id };
+        var result = await _controller.PostGroup(dto);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task PostGroup_Engineer_Returns403()
+    {
+        SetCurrentUser(3); // Engineer
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account1.Id };
+        var result = await _controller.PostGroup(dto);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task PostGroup_Manager_OtherAccount_Returns403()
+    {
+        SetCurrentUser(2); // Manager with access to account1
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account2.Id };
+        var result = await _controller.PostGroup(dto);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task PostGroup_InvalidAccount_Returns404()
+    {
+        SetCurrentUser(1); // Admin
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = 999 };
+        var result = await _controller.PostGroup(dto);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpdateGroup_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var dto = new DeviceGroupUpdateItem { Name = "Updated" };
+        var result = await _controller.UpdateGroup(_group1.Id, dto);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdateGroup_NotFound_Returns404()
+    {
+        SetCurrentUser(1); // Admin
+        var dto = new DeviceGroupUpdateItem { Name = "Updated" };
+        var result = await _controller.UpdateGroup(999, dto);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpdateGroup_Engineer_Returns403()
+    {
+        SetCurrentUser(3); // Engineer
+        var dto = new DeviceGroupUpdateItem { Name = "Updated" };
+        var result = await _controller.UpdateGroup(_group1.Id, dto);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdateGroup_Manager_OtherGroup_Returns403()
+    {
+        SetCurrentUser(2); // Manager with access to account1
+        var dto = new DeviceGroupUpdateItem { Name = "Updated" };
+        var result = await _controller.UpdateGroup(_group2.Id, dto);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdateGroup_Admin_InvalidAccount_Returns404()
+    {
+        SetCurrentUser(1); // Admin
+        var dto = new DeviceGroupUpdateItem { AccountId = 999 };
+        var result = await _controller.UpdateGroup(_group1.Id, dto);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task DeleteGroup_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.DeleteGroup(_group1.Id);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteGroup_NotFound_Returns404()
+    {
+        SetCurrentUser(1); // Admin
+        var result = await _controller.DeleteGroup(999);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task DeleteGroup_Engineer_Returns403()
+    {
+        SetCurrentUser(3); // Engineer
+        var result = await _controller.DeleteGroup(_group1.Id);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteGroup_Manager_OtherGroup_Returns403()
+    {
+        SetCurrentUser(2); // Manager with access to account1
+        var result = await _controller.DeleteGroup(_group2.Id);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteGroup_Manager_OwnGroup_Succeeds()
+    {
+        SetCurrentUser(2); // Manager with access to account1
+        var result = await _controller.DeleteGroup(_group1.Id);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
         var grp = await _dbContext.DeviceGroups.FindAsync(_group1.Id);
         Assert.That(grp, Is.Null);
     }
