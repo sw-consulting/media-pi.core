@@ -71,10 +71,21 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status404NotFound,
                           new ErrMessage { Msg = $"Не удалось найти реестр [id={id}]" });
     }
+    protected ObjectResult _404Device(int id)
+    {
+        return StatusCode(StatusCodes.Status404NotFound,
+                          new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
+    }
     protected ObjectResult _409Email(string email)
     {
         return StatusCode(StatusCodes.Status409Conflict,
                           new ErrMessage { Msg = $"Пользователь с таким адресом электронной почты уже зарегистрирован [email = {email}]" });
+    }
+
+    protected ObjectResult _400Ip(string ip)
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = $"Неверный формат IP адреса [{ip}]" });
     }
     protected ObjectResult _500Mapping(string fname)
     {
