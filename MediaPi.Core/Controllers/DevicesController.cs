@@ -65,7 +65,15 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
     public async Task<ActionResult<Reference>> Register()
     {
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
+        var ipAddress = HttpContext.Connection.RemoteIpAddress;
+        if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
+        {
+            ipAddress = ipAddress.MapToIPv4();
+        }
+        var ip = ipAddress?.ToString() ?? "";
+
+        if (await _db.Devices.AnyAsync(d => d.IpAddress == ip)) return _409Ip(ip);
+
         var device = new Device { Name = string.Empty, IpAddress = ip };
         _db.Devices.Add(device);
         await _db.SaveChangesAsync();
@@ -139,13 +147,17 @@ public class DevicesController(
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        if (item.IpAddress != null && !IPAddress.TryParse(item.IpAddress, out _))
-        {
-            return _400Ip(item.IpAddress);
-        }
-
         var device = await _db.Devices.FindAsync(id);
         if (device == null) return _404Device(id);
+
+        if (item.IpAddress != null)
+        {
+            if (!IPAddress.TryParse(item.IpAddress, out var addr)) return _400Ip(item.IpAddress);
+            if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+            var ip = addr.ToString();
+            if (await _db.Devices.AnyAsync(d => d.IpAddress == ip && d.Id != id)) return _409Ip(ip);
+            device.IpAddress = ip;
+        }
 
         device.UpdateFrom(item);
         _db.Entry(device).State = EntityState.Modified;

@@ -131,6 +131,10 @@ namespace MediaPi.Core.Data
                 .WithMany(g => g.Devices)
                 .HasForeignKey(d => d.DeviceGroupId);
 
+            modelBuilder.Entity<Device>()
+                .HasIndex(d => d.IpAddress)
+                .IsUnique();
+
             modelBuilder.Entity<VideoStatus>().HasData(
                 new VideoStatus { Id = StatusConstants.Queued, Name = "Queued" },
                 new VideoStatus { Id = StatusConstants.Loading, Name = "Loading" },
