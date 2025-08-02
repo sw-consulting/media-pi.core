@@ -20,26 +20,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Text.Json;
+
 using MediaPi.Core.Models;
-using MediaPi.Core.RestModels;
-using Microsoft.AspNetCore.Mvc;
+using MediaPi.Core.Settings;
 
-namespace MediaPi.Core.Services
+namespace MediaPi.Core.RestModels;
+
+public class DeviceGroupViewItem(DeviceGroup group)
 {
-    public interface IUserInformationService
-    {
-        Task<bool> CheckAdmin(int cuid);
-        Task<bool> CheckManager(int cuid, int accountId);
-        Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid);
-        bool CheckSameUser(int id, int cuid);
-        bool Exists(int id);
-        bool Exists(string email);
-        Task<UserViewItem?> UserViewItem(int id);
-        Task<List<UserViewItem>> UserViewItems();
-        public List<int> GetUserAccountIds(User user);
-        public bool ManagerOwnsAccount(User user, Account account);
-        public bool ManagerOwnsGroup(User user, DeviceGroup group);
-        public bool ManagerOwnsDevice(User user, Device device);
+    public int Id { get; set; } = group.Id;
+    public string Name { get; set; } = group.Name;
+    public int AccountId { get; set; } = group.AccountId;
 
+    public override string ToString()
+    {
+        return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
     }
 }
+

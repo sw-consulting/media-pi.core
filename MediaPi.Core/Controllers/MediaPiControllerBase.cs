@@ -20,9 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Microsoft.AspNetCore.Mvc;
-using MediaPi.Core.RestModels;
 using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.RestModels;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Controllers;
 public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
@@ -76,6 +78,16 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status404NotFound,
                           new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
     }
+    protected ObjectResult _404DeviceGroup(int id)
+    {
+        return StatusCode(StatusCodes.Status404NotFound,
+                          new ErrMessage { Msg = $"Не удалось найти группу устройств [id={id}]" });
+    }
+    protected ObjectResult _404Account(int id)
+    {
+        return StatusCode(StatusCodes.Status404NotFound,
+                          new ErrMessage { Msg = $"Не удалось найти лицевой счёт [id={id}]" });
+    }
     protected ObjectResult _409Email(string email)
     {
         return StatusCode(StatusCodes.Status409Conflict,
@@ -121,4 +133,13 @@ public class MediaPiControllerBase : FuelfluxControllerPreBase
             if (uid != null) _curUserId = (int)uid;
         }
     }
+
+    protected async Task<User?> CurrentUser()
+    {
+        return await _db.Users
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.UserAccounts)
+            .FirstOrDefaultAsync(u => u.Id == _curUserId);
+    }
+
 }

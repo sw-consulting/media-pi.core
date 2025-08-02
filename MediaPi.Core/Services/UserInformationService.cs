@@ -108,5 +108,30 @@ namespace MediaPi.Core.Services
                 .Select(x => new UserViewItem(x))
                 .ToListAsync();
         }
+
+        public List<int> GetUserAccountIds(User user)
+        {
+            return [.. user.UserAccounts.Select(ua => ua.AccountId)];
+        }
+
+        public bool ManagerOwnsAccount(User user, Account account)
+        {
+            if (!user.IsManager()) return false;
+            var accountIds = GetUserAccountIds(user);
+            return accountIds.Contains(account.Id);
+        }
+        public bool ManagerOwnsGroup(User user, DeviceGroup group)
+        {
+            if (!user.IsManager()) return false;
+            var accountIds = GetUserAccountIds(user);
+            return accountIds.Contains(group.AccountId);
+        }
+        public bool ManagerOwnsDevice(User user, Device device)
+        {
+            if (!user.IsManager()) return false;
+            var accountIds = user.UserAccounts.Select(ua => ua.AccountId);
+            return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
+        }
+
     }
 }
