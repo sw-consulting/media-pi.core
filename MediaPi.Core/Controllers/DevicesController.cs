@@ -24,7 +24,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using System.Net;
-using System.Linq;
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
