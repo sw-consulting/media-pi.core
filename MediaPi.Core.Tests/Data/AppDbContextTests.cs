@@ -1,27 +1,24 @@
-// Copyright (C) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
-// All rights reserved.
-// This file is a part of MediaPi Core applicaiton
+// MIT License
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-// 1. Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-// 2. Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
+// Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
-// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 using NUnit.Framework;
 using Microsoft.EntityFrameworkCore;
@@ -183,57 +180,83 @@ public class UserInformationServiceTests
 
     #endregion
 
-    #region CheckOperator Tests
+    #region IsManager Tests
 
     [Test]
-    public async Task CheckManager_ReturnsTrue_WhenUserIsOperator()
+    public async Task IsManager_ReturnsTrue_ForAdmin()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
-        var user = CreateUser(30, "operator@test.com", "password", "Operator", "User", null, [GetOperatorRole(ctx)]);
+        var account = new Account { Id = 1, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(30, "admin@test.com", "password", "Admin", "User", null, [GetAdminRole(ctx)]);
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(30);
+        var result = await service.CheckManager(30, 1);
 
         Assert.That(result, Is.True);
     }
 
     [Test]
-    public async Task CheckManager_ReturnsFalse_WhenUserIsNotManager()
+    public async Task IsManager_ReturnsTrue_WhenManagerLinkedToAccount()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
-        var user = CreateUser(31, "adminonly@test.com", "password", "Admin", "User", null, [GetAdminRole(ctx)]);
+        var account = new Account { Id = 2, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(31, "manager@test.com", "password", "Manager", "User", null, [GetOperatorRole(ctx)]);
+        user.UserAccounts = [new UserAccount { UserId = 31, AccountId = 2, Account = account }];
         ctx.Users.Add(user);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(31);
+        var result = await service.CheckManager(31, 2);
+
+        Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public async Task IsManager_ReturnsFalse_WhenManagerNotLinkedToAccount()
+    {
+        using var ctx = CreateContext();
+        var service = new UserInformationService(ctx);
+        var account = new Account { Id = 3, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(32, "manager2@test.com", "password", "Manager", "User", null, [GetOperatorRole(ctx)]);
+        ctx.Users.Add(user);
+        await ctx.SaveChangesAsync();
+
+        var result = await service.CheckManager(32, 3);
 
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task CheckManager_ReturnsFalse_WhenUserDoesNotExist()
+    public async Task IsManager_ReturnsFalse_WhenUserHasNoRoles()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
+        var account = new Account { Id = 4, Name = "acc" };
+        ctx.Accounts.Add(account);
+        var user = CreateUser(33, "noroleoperator@test.com", "password", "No", "Role", null, []);
+        ctx.Users.Add(user);
+        await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(999);
+        var result = await service.CheckManager(33, 4);
 
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task CheckManager_ReturnsFalse_WhenUserHasNoRoles()
+    public async Task IsManager_ReturnsFalse_WhenUserDoesNotExist()
     {
         using var ctx = CreateContext();
         var service = new UserInformationService(ctx);
-        var user = CreateUser(32, "noroleoperator@test.com", "password", "No", "Role", null, []);
-        ctx.Users.Add(user);
+        var account = new Account { Id = 5, Name = "acc" };
+        ctx.Accounts.Add(account);
         await ctx.SaveChangesAsync();
 
-        var result = await service.CheckManager(32);
+        var result = await service.CheckManager(999, 5);
 
         Assert.That(result, Is.False);
     }
