@@ -175,6 +175,16 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task Register_NoIp_ReturnsBadRequest()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.Register();
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
     public async Task GetAll_Admin_ReturnsAll()
     {
         SetCurrentUser(1);

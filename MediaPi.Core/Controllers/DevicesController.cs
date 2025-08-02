@@ -72,6 +72,8 @@ public class DevicesController(
         }
         var ip = ipAddress?.ToString() ?? "";
 
+        if (string.IsNullOrWhiteSpace(ip)) return _400Ip(ip);
+
         if (await _db.Devices.AnyAsync(d => d.IpAddress == ip)) return _409Ip(ip);
 
         var device = new Device { Name = string.Empty, IpAddress = ip };
