@@ -36,6 +36,18 @@ namespace MediaPi.Core.Data
         public DbSet<User> Users => Set<User>();
         public DbSet<Role> Roles => Set<Role>();
         public DbSet<UserRole> UserRoles => Set<UserRole>();
+        public DbSet<Video> Videos => Set<Video>();
+        public DbSet<Playlist> Playlists => Set<Playlist>();
+        public DbSet<VideoPlaylist> VideoPlaylists => Set<VideoPlaylist>();
+        public DbSet<Screenshot> Screenshots => Set<Screenshot>();
+        public DbSet<Device> Devices => Set<Device>();
+        public DbSet<DeviceGroup> DeviceGroups => Set<DeviceGroup>();
+        public DbSet<VideoAtDevice> VideoAtDevices => Set<VideoAtDevice>();
+        public DbSet<PlaylistAtDeviceGroup> PlaylistAtDeviceGroups => Set<PlaylistAtDeviceGroup>();
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<Account> Accounts => Set<Account>();
+        public DbSet<Subscription> Subscriptions => Set<Subscription>();
+        public DbSet<VideoStatus> VideoStatuses => Set<VideoStatus>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -53,6 +65,67 @@ namespace MediaPi.Core.Data
                 .HasOne(ur => ur.Role)
                 .WithMany(r => r.UserRoles)
                 .HasForeignKey(ur => ur.RoleId);
+
+            modelBuilder.Entity<VideoPlaylist>()
+                .HasKey(vp => new { vp.VideoId, vp.PlaylistId });
+
+            modelBuilder.Entity<VideoPlaylist>()
+                .HasOne(vp => vp.Video)
+                .WithMany(v => v.VideoPlaylists)
+                .HasForeignKey(vp => vp.VideoId);
+
+            modelBuilder.Entity<VideoPlaylist>()
+                .HasOne(vp => vp.Playlist)
+                .WithMany(p => p.VideoPlaylists)
+                .HasForeignKey(vp => vp.PlaylistId);
+
+            modelBuilder.Entity<VideoAtDevice>()
+                .HasKey(vd => new { vd.DeviceId, vd.VideoId });
+
+            modelBuilder.Entity<VideoAtDevice>()
+                .HasOne(vd => vd.Device)
+                .WithMany(d => d.VideoAtDevices)
+                .HasForeignKey(vd => vd.DeviceId);
+
+            modelBuilder.Entity<VideoAtDevice>()
+                .HasOne(vd => vd.Video)
+                .WithMany(v => v.VideoAtDevices)
+                .HasForeignKey(vd => vd.VideoId);
+
+            modelBuilder.Entity<VideoAtDevice>()
+                .HasOne(vd => vd.Status)
+                .WithMany(s => s.VideoAtDevices)
+                .HasForeignKey(vd => vd.StatusId);
+
+            modelBuilder.Entity<PlaylistAtDeviceGroup>()
+                .HasKey(pd => new { pd.DeviceGroupId, pd.PlaylistId });
+
+            modelBuilder.Entity<PlaylistAtDeviceGroup>()
+                .HasOne(pd => pd.DeviceGroup)
+                .WithMany(dg => dg.PlaylistAtDeviceGroups)
+                .HasForeignKey(pd => pd.DeviceGroupId);
+
+            modelBuilder.Entity<PlaylistAtDeviceGroup>()
+                .HasOne(pd => pd.Playlist)
+                .WithMany(p => p.PlaylistAtDeviceGroups)
+                .HasForeignKey(pd => pd.PlaylistId);
+
+            modelBuilder.Entity<PlaylistAtDeviceGroup>()
+                .HasOne(pd => pd.Status)
+                .WithMany(s => s.PlaylistAtDeviceGroups)
+                .HasForeignKey(pd => pd.StatusId);
+
+            modelBuilder.Entity<Device>()
+                .HasOne(d => d.DeviceGroup)
+                .WithMany(g => g.Devices)
+                .HasForeignKey(d => d.DeviceGroupId);
+
+            modelBuilder.Entity<VideoStatus>().HasData(
+                new VideoStatus { Id = StatusConstants.Queued, Name = "Queued" },
+                new VideoStatus { Id = StatusConstants.Loading, Name = "Loading" },
+                new VideoStatus { Id = StatusConstants.Loaded, Name = "Loaded" },
+                new VideoStatus { Id = StatusConstants.Playing, Name = "Playing" }
+            );
 
             modelBuilder.Entity<Role>().HasData(
                 new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" },
