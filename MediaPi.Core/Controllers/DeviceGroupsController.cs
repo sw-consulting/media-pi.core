@@ -173,7 +173,7 @@ public class DeviceGroupsController(
             return _403();
         }
 
-        if (item.Name != null) group.Name = item.Name;
+        group.UpdateFrom(item);
 
         _db.Entry(group).State = EntityState.Modified;
         await _db.SaveChangesAsync();
