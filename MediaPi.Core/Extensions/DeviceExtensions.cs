@@ -32,7 +32,6 @@ public static class DeviceExtensions
     public static void UpdateFrom(this Device device, DeviceUpdateItem item)
     {
         if (item.Name != null) device.Name = item.Name;
-        if (item.IpAddress != null) device.IpAddress = item.IpAddress;
         if (item.AccountId.HasValue) device.AccountId = item.AccountId;
         if (item.DeviceGroupId.HasValue) device.DeviceGroupId = item.DeviceGroupId;
     }
