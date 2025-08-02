@@ -73,7 +73,7 @@ public class StatusControllerTests
         var status = okResult!.Value as Status;
         Assert.That(status, Is.Not.Null);
 
-        Assert.That(status!.Msg, Does.Contain("Fuelflux Core"));
+        Assert.That(status!.Msg, Does.Contain("MediaPi Core"));
         Assert.That(status.AppVersion, Is.EqualTo(VersionInfo.AppVersion));
         Assert.That(status.DbVersion, Is.Not.Null.And.Not.Empty);
     }

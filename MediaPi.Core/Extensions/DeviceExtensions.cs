@@ -20,32 +20,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System.ComponentModel.DataAnnotations.Schema;
+using MediaPi.Core.Models;
+using MediaPi.Core.RestModels;
 
-namespace MediaPi.Core.Models
+namespace MediaPi.Core.Extensions;
+
+public static class DeviceExtensions
 {
-    [Table("devices")]
-    public class Device
+    public static DeviceViewItem ToViewItem(this Device device) => new(device);
+
+    public static void UpdateFrom(this Device device, DeviceUpdateItem item)
     {
-        [Column("id")]
-        public int Id { get; set; }
+        if (item.Name != null) device.Name = item.Name;
+        if (item.IpAddress != null) device.IpAddress = item.IpAddress;
+        if (item.AccountId.HasValue) device.AccountId = item.AccountId;
+        if (item.DeviceGroupId.HasValue) device.DeviceGroupId = item.DeviceGroupId;
+    }
 
-        [Column("name")]
-        public required string Name { get; set; }
+    public static void AssignGroupFrom(this Device device, DeviceAssignGroupItem item)
+    {
+        device.DeviceGroupId = item.DeviceGroupId;
+    }
 
-        [Column("ip_address")]
-        public required string IpAddress { get; set; }
-
-        [Column("account_id")]
-        public int? AccountId { get; set; }
-        public Account? Account { get; set; }
-
-        [Column("device_group_id")]
-        public int? DeviceGroupId { get; set; }
-        public DeviceGroup? DeviceGroup { get; set; }
-
-        public ICollection<Screenshot> Screenshots { get; set; } = [];
-        public ICollection<VideoAtDevice> VideoAtDevices { get; set; } = [];
+    public static void InitialAssignAccountFrom(this Device device, DeviceInitialAssignAccountItem item)
+    {
+        device.Name = item.Name;
+        device.AccountId = item.AccountId;
     }
 }
 

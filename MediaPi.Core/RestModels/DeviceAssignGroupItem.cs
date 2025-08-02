@@ -20,32 +20,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
-namespace MediaPi.Core.Models
+using MediaPi.Core.Settings;
+
+namespace MediaPi.Core.RestModels;
+
+public class DeviceAssignGroupItem
 {
-    [Table("devices")]
-    public class Device
+    public int? DeviceGroupId { get; set; }
+
+    public override string ToString()
     {
-        [Column("id")]
-        public int Id { get; set; }
-
-        [Column("name")]
-        public required string Name { get; set; }
-
-        [Column("ip_address")]
-        public required string IpAddress { get; set; }
-
-        [Column("account_id")]
-        public int? AccountId { get; set; }
-        public Account? Account { get; set; }
-
-        [Column("device_group_id")]
-        public int? DeviceGroupId { get; set; }
-        public DeviceGroup? DeviceGroup { get; set; }
-
-        public ICollection<Screenshot> Screenshots { get; set; } = [];
-        public ICollection<VideoAtDevice> VideoAtDevices { get; set; } = [];
+        return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
     }
 }
 
