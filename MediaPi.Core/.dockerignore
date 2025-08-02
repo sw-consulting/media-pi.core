@@ -1,0 +1,8 @@
+
+**/bin/
+**/obj/
+**/*.mdf
+**/*.ldf
+.vscode
+.dockerignore
+.git

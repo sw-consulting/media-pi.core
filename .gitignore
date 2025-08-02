@@ -416,3 +416,17 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+
+bin/
+obj/
+pgdata/
+certificate/
+.vscode/
+*.user
+*.suo
+*.DS_Store
+*.db
+.env
+.env.*
+.vs/
