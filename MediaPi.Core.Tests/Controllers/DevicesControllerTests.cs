@@ -151,6 +151,40 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task Register_Ipv4Mapped_IpStoredAsIpv4()
+    {
+        SetCurrentUser(null, "::ffff:9.8.7.6");
+        var result = await _controller.Register();
+        var created = result.Result as CreatedAtActionResult;
+        Assert.That(created, Is.Not.Null);
+        var reference = created!.Value as Reference;
+        Assert.That(reference, Is.Not.Null);
+        var dev = await _dbContext.Devices.FindAsync(reference!.Id);
+        Assert.That(dev, Is.Not.Null);
+        Assert.That(dev!.IpAddress, Is.EqualTo("9.8.7.6"));
+    }
+
+    [Test]
+    public async Task Register_DuplicateIp_ReturnsConflict()
+    {
+        SetCurrentUser(null, "1.1.1.1");
+        var result = await _controller.Register();
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task Register_NoIp_ReturnsBadRequest()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.Register();
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
     public async Task GetAll_Admin_ReturnsAll()
     {
         SetCurrentUser(1);
@@ -235,6 +269,28 @@ public class DevicesControllerTests
         Assert.That(response, Is.TypeOf<NoContentResult>());
         var dev = await _dbContext.Devices.FindAsync(1);
         Assert.That(dev!.IpAddress, Is.EqualTo("10.0.0.1"));
+    }
+
+    [Test]
+    public async Task Update_Admin_Ipv4MappedIp_StoredAsIpv4()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceUpdateItem { IpAddress = "::ffff:10.0.0.2" };
+        var response = await _controller.UpdateDevice(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.IpAddress, Is.EqualTo("10.0.0.2"));
+    }
+
+    [Test]
+    public async Task Update_Admin_DuplicateIp_ReturnsConflict()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceUpdateItem { IpAddress = "2.2.2.2" }; // existing ip of device 2
+        var response = await _controller.UpdateDevice(1, dto);
+        Assert.That(response, Is.TypeOf<ObjectResult>());
+        var obj = response as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
     }
 
     [Test]
