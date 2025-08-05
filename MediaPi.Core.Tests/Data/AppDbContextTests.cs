@@ -44,7 +44,7 @@ public class UserInformationServiceTests
         // Pre-seed the roles that are needed for tests
         context.Roles.AddRange(
             new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Инженер-установщик" },
-            new Role {RoleId = UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" },
+            new Role { RoleId = UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" },
             new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" }
         );
 
@@ -429,7 +429,7 @@ public class UserInformationServiceTests
         Assert.That(result.LastName, Is.EqualTo("Item"));
         Assert.That(result.Patronymic, Is.EqualTo("Test"));
         Assert.That(result.Roles, Has.Count.EqualTo(1));
-        Assert.That(result.Roles.First(), Is.EqualTo(GetOperatorRole(ctx).Name));
+        Assert.That(result.Roles.First(), Is.EqualTo(GetOperatorRole(ctx).RoleId));
     }
 
     [Test]
@@ -462,8 +462,8 @@ public class UserInformationServiceTests
         // Assert
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.Roles, Has.Count.EqualTo(2));
-        Assert.That(result.Roles, Contains.Item(GetOperatorRole(ctx).Name));
-        Assert.That(result.Roles, Contains.Item(GetAdminRole(ctx).Name));
+        Assert.That(result.Roles, Contains.Item(GetOperatorRole(ctx).RoleId));
+        Assert.That(result.Roles, Contains.Item(GetAdminRole(ctx).RoleId));
     }
 
     #endregion
@@ -492,8 +492,8 @@ public class UserInformationServiceTests
         var user1 = results.FirstOrDefault(u => u.Id == 50);
         var user2 = results.FirstOrDefault(u => u.Id == 51);
 
-        Assert.That(user1?.Roles.Contains(GetOperatorRole(ctx).Name), Is.True);
-        Assert.That(user2?.Roles.Contains(GetAdminRole(ctx).Name), Is.True);
+        Assert.That(user1?.Roles.Contains(GetOperatorRole(ctx).RoleId), Is.True);
+        Assert.That(user2?.Roles.Contains(GetAdminRole(ctx).RoleId), Is.True);
     }
 
     [Test]
