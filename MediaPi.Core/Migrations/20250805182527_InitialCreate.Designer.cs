@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250802181507_DeviceAccountOnDeleteSetNull")]
-    partial class DeviceAccountOnDeleteSetNull
+    [Migration("20250805182527_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -155,29 +155,6 @@ namespace MediaPi.Core.Migrations
                     b.HasIndex("AccountId");
 
                     b.ToTable("playlists");
-                });
-
-            modelBuilder.Entity("MediaPi.Core.Models.PlaylistAtDeviceGroup", b =>
-                {
-                    b.Property<int>("DeviceGroupId")
-                        .HasColumnType("integer")
-                        .HasColumnName("device_group_id");
-
-                    b.Property<int>("PlaylistId")
-                        .HasColumnType("integer")
-                        .HasColumnName("playlist_id");
-
-                    b.Property<int>("StatusId")
-                        .HasColumnType("integer")
-                        .HasColumnName("status_id");
-
-                    b.HasKey("DeviceGroupId", "PlaylistId");
-
-                    b.HasIndex("PlaylistId");
-
-                    b.HasIndex("StatusId");
-
-                    b.ToTable("playlist_at_device_groups");
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Role", b =>
@@ -413,29 +390,6 @@ namespace MediaPi.Core.Migrations
                     b.ToTable("videos");
                 });
 
-            modelBuilder.Entity("MediaPi.Core.Models.VideoAtDevice", b =>
-                {
-                    b.Property<int>("DeviceId")
-                        .HasColumnType("integer")
-                        .HasColumnName("device_id");
-
-                    b.Property<int>("VideoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("video_id");
-
-                    b.Property<int>("StatusId")
-                        .HasColumnType("integer")
-                        .HasColumnName("status_id");
-
-                    b.HasKey("DeviceId", "VideoId");
-
-                    b.HasIndex("StatusId");
-
-                    b.HasIndex("VideoId");
-
-                    b.ToTable("video_at_devices");
-                });
-
             modelBuilder.Entity("MediaPi.Core.Models.VideoPlaylist", b =>
                 {
                     b.Property<int>("VideoId")
@@ -530,33 +484,6 @@ namespace MediaPi.Core.Migrations
                     b.Navigation("Account");
                 });
 
-            modelBuilder.Entity("MediaPi.Core.Models.PlaylistAtDeviceGroup", b =>
-                {
-                    b.HasOne("MediaPi.Core.Models.DeviceGroup", "DeviceGroup")
-                        .WithMany("PlaylistAtDeviceGroups")
-                        .HasForeignKey("DeviceGroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediaPi.Core.Models.Playlist", "Playlist")
-                        .WithMany("PlaylistAtDeviceGroups")
-                        .HasForeignKey("PlaylistId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediaPi.Core.Models.VideoStatus", "Status")
-                        .WithMany("PlaylistAtDeviceGroups")
-                        .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DeviceGroup");
-
-                    b.Navigation("Playlist");
-
-                    b.Navigation("Status");
-                });
-
             modelBuilder.Entity("MediaPi.Core.Models.Screenshot", b =>
                 {
                     b.HasOne("MediaPi.Core.Models.Device", "Device")
@@ -642,33 +569,6 @@ namespace MediaPi.Core.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("MediaPi.Core.Models.VideoAtDevice", b =>
-                {
-                    b.HasOne("MediaPi.Core.Models.Device", "Device")
-                        .WithMany("VideoAtDevices")
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediaPi.Core.Models.VideoStatus", "Status")
-                        .WithMany("VideoAtDevices")
-                        .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediaPi.Core.Models.Video", "Video")
-                        .WithMany("VideoAtDevices")
-                        .HasForeignKey("VideoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Device");
-
-                    b.Navigation("Status");
-
-                    b.Navigation("Video");
-                });
-
             modelBuilder.Entity("MediaPi.Core.Models.VideoPlaylist", b =>
                 {
                     b.HasOne("MediaPi.Core.Models.Playlist", "Playlist")
@@ -713,21 +613,15 @@ namespace MediaPi.Core.Migrations
             modelBuilder.Entity("MediaPi.Core.Models.Device", b =>
                 {
                     b.Navigation("Screenshots");
-
-                    b.Navigation("VideoAtDevices");
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.DeviceGroup", b =>
                 {
                     b.Navigation("Devices");
-
-                    b.Navigation("PlaylistAtDeviceGroups");
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Playlist", b =>
                 {
-                    b.Navigation("PlaylistAtDeviceGroups");
-
                     b.Navigation("VideoPlaylists");
                 });
 
@@ -745,16 +639,7 @@ namespace MediaPi.Core.Migrations
 
             modelBuilder.Entity("MediaPi.Core.Models.Video", b =>
                 {
-                    b.Navigation("VideoAtDevices");
-
                     b.Navigation("VideoPlaylists");
-                });
-
-            modelBuilder.Entity("MediaPi.Core.Models.VideoStatus", b =>
-                {
-                    b.Navigation("PlaylistAtDeviceGroups");
-
-                    b.Navigation("VideoAtDevices");
                 });
 #pragma warning restore 612, 618
         }
