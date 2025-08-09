@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +26,7 @@ namespace MediaPi.Core.RestModels;
 public class AccountUpdateItem
 {
     public string? Name { get; set; }
+    public List<int> UserIds { get; set; } = [];
 
     public override string ToString()
     {

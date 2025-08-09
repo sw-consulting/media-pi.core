@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,6 +17,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
 using System.Text.Json;
 
@@ -34,11 +34,17 @@ public class UserViewItem(User user)
     public string LastName { get; set; } = user.LastName;
     public string Patronymic { get; set; } = user.Patronymic;
     public string Email { get; set; } = user.Email;
-    public List<string> Roles { get; set; } =
-        [.. user.UserRoles.Select(ur => ur.Role!.Name)];
+    public List<UserRoleConstants> Roles { get; set; } =
+        [.. user.UserRoles.Select(ur => ur.Role!.RoleId)];
+    public List<int> AccountIds { get; set; } =
+        user.HasRole(UserRoleConstants.AccountManager)
+            ? [.. user.UserAccounts
+                .Where(ua => ua.UserId == user.Id)
+                .Select(ua => ua.AccountId)]
+            : [];
+
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
     }
-
 }

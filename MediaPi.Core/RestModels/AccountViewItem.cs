@@ -30,7 +30,10 @@ public class AccountViewItem(Account account)
 {
     public int Id { get; set; } = account.Id;
     public string Name { get; set; } = account.Name;
-
+    public List<int> UserIds { get; set; } =
+        [.. account.UserAccounts
+            .Where(ua => ua.AccountId == account.Id && ua.User.HasRole(UserRoleConstants.AccountManager))
+            .Select(ua => ua.UserId)];
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);

@@ -39,8 +39,6 @@ namespace MediaPi.Core.Data
         public DbSet<Screenshot> Screenshots => Set<Screenshot>();
         public DbSet<Device> Devices => Set<Device>();
         public DbSet<DeviceGroup> DeviceGroups => Set<DeviceGroup>();
-        public DbSet<VideoAtDevice> VideoAtDevices => Set<VideoAtDevice>();
-        public DbSet<PlaylistAtDeviceGroup> PlaylistAtDeviceGroups => Set<PlaylistAtDeviceGroup>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
@@ -89,42 +87,6 @@ namespace MediaPi.Core.Data
                 .HasOne(vp => vp.Playlist)
                 .WithMany(p => p.VideoPlaylists)
                 .HasForeignKey(vp => vp.PlaylistId);
-
-            modelBuilder.Entity<VideoAtDevice>()
-                .HasKey(vd => new { vd.DeviceId, vd.VideoId });
-
-            modelBuilder.Entity<VideoAtDevice>()
-                .HasOne(vd => vd.Device)
-                .WithMany(d => d.VideoAtDevices)
-                .HasForeignKey(vd => vd.DeviceId);
-
-            modelBuilder.Entity<VideoAtDevice>()
-                .HasOne(vd => vd.Video)
-                .WithMany(v => v.VideoAtDevices)
-                .HasForeignKey(vd => vd.VideoId);
-
-            modelBuilder.Entity<VideoAtDevice>()
-                .HasOne(vd => vd.Status)
-                .WithMany(s => s.VideoAtDevices)
-                .HasForeignKey(vd => vd.StatusId);
-
-            modelBuilder.Entity<PlaylistAtDeviceGroup>()
-                .HasKey(pd => new { pd.DeviceGroupId, pd.PlaylistId });
-
-            modelBuilder.Entity<PlaylistAtDeviceGroup>()
-                .HasOne(pd => pd.DeviceGroup)
-                .WithMany(dg => dg.PlaylistAtDeviceGroups)
-                .HasForeignKey(pd => pd.DeviceGroupId);
-
-            modelBuilder.Entity<PlaylistAtDeviceGroup>()
-                .HasOne(pd => pd.Playlist)
-                .WithMany(p => p.PlaylistAtDeviceGroups)
-                .HasForeignKey(pd => pd.PlaylistId);
-
-            modelBuilder.Entity<PlaylistAtDeviceGroup>()
-                .HasOne(pd => pd.Status)
-                .WithMany(s => s.PlaylistAtDeviceGroups)
-                .HasForeignKey(pd => pd.StatusId);
 
             modelBuilder.Entity<Device>()
                 .HasOne(d => d.Account)

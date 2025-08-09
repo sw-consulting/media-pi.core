@@ -246,43 +246,14 @@ namespace MediaPi.Core.Migrations
                         name: "FK_devices_accounts_account_id",
                         column: x => x.account_id,
                         principalTable: "accounts",
-                        principalColumn: "id");
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_devices_device_groups_device_group_id",
                         column: x => x.device_group_id,
                         principalTable: "device_groups",
-                        principalColumn: "id");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "playlist_at_device_groups",
-                columns: table => new
-                {
-                    device_group_id = table.Column<int>(type: "integer", nullable: false),
-                    playlist_id = table.Column<int>(type: "integer", nullable: false),
-                    status_id = table.Column<int>(type: "integer", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_playlist_at_device_groups", x => new { x.device_group_id, x.playlist_id });
-                    table.ForeignKey(
-                        name: "FK_playlist_at_device_groups_device_groups_device_group_id",
-                        column: x => x.device_group_id,
-                        principalTable: "device_groups",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_playlist_at_device_groups_playlists_playlist_id",
-                        column: x => x.playlist_id,
-                        principalTable: "playlists",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_playlist_at_device_groups_video_statuses_status_id",
-                        column: x => x.status_id,
-                        principalTable: "video_statuses",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -325,37 +296,6 @@ namespace MediaPi.Core.Migrations
                         name: "FK_screenshots_devices_device_id",
                         column: x => x.device_id,
                         principalTable: "devices",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "video_at_devices",
-                columns: table => new
-                {
-                    device_id = table.Column<int>(type: "integer", nullable: false),
-                    video_id = table.Column<int>(type: "integer", nullable: false),
-                    status_id = table.Column<int>(type: "integer", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_video_at_devices", x => new { x.device_id, x.video_id });
-                    table.ForeignKey(
-                        name: "FK_video_at_devices_devices_device_id",
-                        column: x => x.device_id,
-                        principalTable: "devices",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_video_at_devices_video_statuses_status_id",
-                        column: x => x.status_id,
-                        principalTable: "video_statuses",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_video_at_devices_videos_video_id",
-                        column: x => x.video_id,
-                        principalTable: "videos",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -407,14 +347,10 @@ namespace MediaPi.Core.Migrations
                 column: "device_group_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_playlist_at_device_groups_playlist_id",
-                table: "playlist_at_device_groups",
-                column: "playlist_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_playlist_at_device_groups_status_id",
-                table: "playlist_at_device_groups",
-                column: "status_id");
+                name: "IX_devices_ip_address",
+                table: "devices",
+                column: "ip_address",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_playlists_account_id",
@@ -447,16 +383,6 @@ namespace MediaPi.Core.Migrations
                 column: "role_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_video_at_devices_status_id",
-                table: "video_at_devices",
-                column: "status_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_video_at_devices_video_id",
-                table: "video_at_devices",
-                column: "video_id");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_video_playlists_playlist_id",
                 table: "video_playlists",
                 column: "playlist_id");
@@ -476,9 +402,6 @@ namespace MediaPi.Core.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "playlist_at_device_groups");
-
-            migrationBuilder.DropTable(
                 name: "screenshots");
 
             migrationBuilder.DropTable(
@@ -491,22 +414,19 @@ namespace MediaPi.Core.Migrations
                 name: "user_roles");
 
             migrationBuilder.DropTable(
-                name: "video_at_devices");
+                name: "video_playlists");
 
             migrationBuilder.DropTable(
-                name: "video_playlists");
+                name: "video_statuses");
+
+            migrationBuilder.DropTable(
+                name: "devices");
 
             migrationBuilder.DropTable(
                 name: "roles");
 
             migrationBuilder.DropTable(
                 name: "users");
-
-            migrationBuilder.DropTable(
-                name: "devices");
-
-            migrationBuilder.DropTable(
-                name: "video_statuses");
 
             migrationBuilder.DropTable(
                 name: "playlists");

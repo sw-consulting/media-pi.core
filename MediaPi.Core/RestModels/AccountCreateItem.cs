@@ -29,6 +29,8 @@ public class AccountCreateItem
 {
     public string Name { get; set; } = string.Empty;
 
+    public List<int> UserIds { get; set; } = [];
+
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);

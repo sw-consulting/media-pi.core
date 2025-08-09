@@ -343,5 +343,73 @@ public class AccountsControllerTests
     }
 
     #endregion
+
+    #region Additional Tests for UserIds Handling
+
+    [Test]
+    public async Task PostAccount_Admin_CreatesWithUserIds()
+    {
+        SetCurrentUser(1);
+        // Add another manager user
+        var manager2 = new User
+        {
+            Id = 4,
+            Email = "manager2@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("pwd"),
+            UserRoles = [ new UserRole { UserId = 4, RoleId = _managerRole.Id, Role = _managerRole } ]
+        };
+        _dbContext.Users.Add(manager2);
+        await _dbContext.SaveChangesAsync();
+
+        var dto = new AccountCreateItem { Name = "NewAcc", UserIds = new() { 2, 4, 3 } };
+        var result = await _controller.PostAccount(dto);
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (result.Result as CreatedAtActionResult)!.Value as Reference;
+        Assert.That(reference, Is.Not.Null);
+        var accId = reference!.Id;
+        // Only manager users should be linked
+        var userAccounts = _dbContext.UserAccounts.Where(ua => ua.AccountId == accId).ToList();
+        Assert.That(userAccounts.Select(ua => ua.UserId), Is.EquivalentTo(new[] { 2, 4 }));
+    }
+
+    [Test]
+    public async Task UpdateAccount_Admin_UpdatesUserIds()
+    {
+        SetCurrentUser(1);
+        // Add another manager user
+        var manager2 = new User
+        {
+            Id = 5,
+            Email = "manager5@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("pwd"),
+            UserRoles = [ new UserRole { UserId = 5, RoleId = _managerRole.Id, Role = _managerRole } ]
+        };
+        _dbContext.Users.Add(manager2);
+        await _dbContext.SaveChangesAsync();
+        // The UserAccount for user 2 and account1 is already present via _manager.UserAccounts in Setup
+        // No need to add it again here
+
+        var updateItem = new AccountUpdateItem { Name = "Acc1", UserIds = new() { 5 } };
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var userAccounts = _dbContext.UserAccounts.Where(ua => ua.AccountId == _account1.Id).ToList();
+        Assert.That(userAccounts.Select(ua => ua.UserId), Is.EquivalentTo(new[] { 5 }));
+    }
+
+    [Test]
+    public async Task UpdateAccount_Admin_RemovesUserAccountsIfNoManagers()
+    {
+        SetCurrentUser(1);
+        // The UserAccount for user 2 and account1 is already present via _manager.UserAccounts in Setup
+        // No need to add it again here
+        // Update with only engineer user
+        var updateItem = new AccountUpdateItem { Name = "Acc1", UserIds = new() { 3 } };
+        var result = await _controller.UpdateAccount(_account1.Id, updateItem);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var userAccounts = _dbContext.UserAccounts.Where(ua => ua.AccountId == _account1.Id).ToList();
+        Assert.That(userAccounts, Is.Empty);
+    }
+
+    #endregion
 }
 

@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,6 +17,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
@@ -260,8 +260,8 @@ public class DevicesController(
         return NoContent();
     }
 
-    // PATCH: api/devices/{id}/assign-group
-    [HttpPatch("{id}/assign-group")]
+    // PATCH: api/devices/assign-group/{id}
+    [HttpPatch("assign-group/{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
@@ -284,8 +284,8 @@ public class DevicesController(
         return _403();
     }
 
-    // PATCH: api/devices/{id}/initial-assign-account
-    [HttpPatch("{id}/initial-assign-account")]
+    // PATCH: api/devices/initial-assign-accoun/{id}t
+    [HttpPatch("initial-assign-account/{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]

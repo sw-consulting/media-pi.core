@@ -45,7 +45,6 @@ namespace MediaPi.Core.Models
         public DeviceGroup? DeviceGroup { get; set; }
 
         public ICollection<Screenshot> Screenshots { get; set; } = [];
-        public ICollection<VideoAtDevice> VideoAtDevices { get; set; } = [];
     }
 }
 
