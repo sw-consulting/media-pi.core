@@ -167,21 +167,21 @@ public class AccountsControllerTests
     }
 
     [Test]
-    public async Task PostAccount_Admin_Creates()
+    public async Task AddAccount_Admin_Creates()
     {
         SetCurrentUser(1);
         var dto = new AccountCreateItem { Name = "NewAcc" };
-        var result = await _controller.PostAccount(dto);
+        var result = await _controller.AddAccount(dto);
         Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
         Assert.That(_dbContext.Accounts.Count(), Is.EqualTo(3));
     }
 
     [Test]
-    public async Task PostAccount_Manager_Forbidden()
+    public async Task AddAccount_Manager_Forbidden()
     {
         SetCurrentUser(2);
         var dto = new AccountCreateItem { Name = "NewAcc" };
-        var result = await _controller.PostAccount(dto);
+        var result = await _controller.AddAccount(dto);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
@@ -347,7 +347,7 @@ public class AccountsControllerTests
     #region Additional Tests for UserIds Handling
 
     [Test]
-    public async Task PostAccount_Admin_CreatesWithUserIds()
+    public async Task AddAccount_Admin_CreatesWithUserIds()
     {
         SetCurrentUser(1);
         // Add another manager user
@@ -362,7 +362,7 @@ public class AccountsControllerTests
         await _dbContext.SaveChangesAsync();
 
         var dto = new AccountCreateItem { Name = "NewAcc", UserIds = new() { 2, 4, 3 } };
-        var result = await _controller.PostAccount(dto);
+        var result = await _controller.AddAccount(dto);
         Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
         var reference = (result.Result as CreatedAtActionResult)!.Value as Reference;
         Assert.That(reference, Is.Not.Null);
@@ -408,6 +408,70 @@ public class AccountsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var userAccounts = _dbContext.UserAccounts.Where(ua => ua.AccountId == _account1.Id).ToList();
         Assert.That(userAccounts, Is.Empty);
+    }
+
+    #endregion
+
+    #region New Tests for UserIds Handling in Get and Update
+
+    [Test]
+    public async Task GetAll_Admin_FillsUserIds()
+    {
+        SetCurrentUser(1); // Admin
+        // Add another manager user and link to account2
+        var manager2 = new User
+        {
+            Id = 4,
+            Email = "manager2@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("pwd"),
+            UserRoles = [ new UserRole { UserId = 4, RoleId = _managerRole.Id, Role = _managerRole } ],
+            UserAccounts = [ new UserAccount { UserId = 4, AccountId = _account2.Id, Account = _account2 } ]
+        };
+        _dbContext.Users.Add(manager2);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.GetAll();
+        Assert.That(result.Value, Is.Not.Null);
+        foreach (var acc in result.Value!)
+        {
+            if (acc.Id == _account1.Id)
+                Assert.That(acc.UserIds, Is.EquivalentTo(new[] { 2 }));
+            if (acc.Id == _account2.Id)
+                Assert.That(acc.UserIds, Is.EquivalentTo(new[] { 4 }));
+        }
+    }
+
+    [Test]
+    public async Task GetAccount_Admin_FillsUserIds()
+    {
+        SetCurrentUser(1); // Admin
+        var result = await _controller.GetAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!.UserIds, Is.EquivalentTo(new[] { 2 }));
+    }
+
+    [Test]
+    public async Task UpdateAccount_Admin_UserIdsReflectedInGet()
+    {
+        SetCurrentUser(1); // Admin
+        // Add another manager user
+        var manager2 = new User
+        {
+            Id = 5,
+            Email = "manager5@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("pwd"),
+            UserRoles = [ new UserRole { UserId = 5, RoleId = _managerRole.Id, Role = _managerRole } ]
+        };
+        _dbContext.Users.Add(manager2);
+        await _dbContext.SaveChangesAsync();
+        // Update account1 to only have manager2
+        var updateItem = new AccountUpdateItem { Name = "Acc1", UserIds = new() { 5 } };
+        var updateResult = await _controller.UpdateAccount(_account1.Id, updateItem);
+        Assert.That(updateResult, Is.TypeOf<NoContentResult>());
+        // Now GetAccount should reflect new UserIds
+        var getResult = await _controller.GetAccount(_account1.Id);
+        Assert.That(getResult.Value, Is.Not.Null);
+        Assert.That(getResult.Value!.UserIds, Is.EquivalentTo(new[] { 5 }));
     }
 
     #endregion

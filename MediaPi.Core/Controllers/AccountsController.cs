@@ -53,7 +53,7 @@ public class AccountsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        IQueryable<Account> query = _db.Accounts;
+        IQueryable<Account> query = _db.Accounts.Include(a => a.UserAccounts);
         if (user.IsAdministrator())
         {
             // all accounts
@@ -69,7 +69,13 @@ public class AccountsController(
         }
 
         var accounts = await query.ToListAsync();
-        return accounts.Select(a => a.ToViewItem()).ToList();
+        var result = accounts.Select(a => {
+            var viewItem = a.ToViewItem();
+            if (user.IsAdministrator())
+                viewItem.UserIds = a.UserAccounts.Select(ua => ua.UserId).ToList();
+            return viewItem;
+        }).ToList();
+        return result;
     }
 
     // GET: api/accounts/{id}
@@ -82,12 +88,15 @@ public class AccountsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var account = await _db.Accounts.FindAsync(id);
+        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id);
         if (account == null) return _404Account(id);
 
         if (user.IsAdministrator() || _userInformationService.ManagerOwnsAccount(user, account))
         {
-            return account.ToViewItem();
+            var viewItem = account.ToViewItem();
+            if (user.IsAdministrator())
+                viewItem.UserIds = account.UserAccounts.Select(ua => ua.UserId).ToList();
+            return viewItem;
         }
 
         return _403();
@@ -98,7 +107,7 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> PostAccount(AccountCreateItem item)
+    public async Task<ActionResult<Reference>> AddAccount(AccountCreateItem item)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
