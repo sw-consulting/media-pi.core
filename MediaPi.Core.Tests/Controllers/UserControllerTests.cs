@@ -578,6 +578,32 @@ public class UsersControllerTests
         Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
+    [Test]
+    public async Task PutUser_EmptyRoles_RemovesAllUserRoles()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_operatorUser);
+        await _dbContext.SaveChangesAsync();
+
+        var userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == 2).ToList();
+        Assert.That(userRoles, Is.Not.Empty);
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = []
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
+        // Act
+        var result = await _controller.PutUser(2, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == 2).ToList();
+        Assert.That(userRoles, Is.Empty);
+    }
+
     #endregion
 
     #region DeleteUser Tests

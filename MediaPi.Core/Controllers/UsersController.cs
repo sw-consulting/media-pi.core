@@ -182,17 +182,20 @@ public class UsersController(
         if (update.Patronymic != null) user.Patronymic = update.Patronymic;
 
         // Copy user roles from update to database
-        if (update.Roles != null && update.Roles.Count > 0)
+        if (update.Roles != null)
         {
-            // Remove existing roles
+            // Remove all existing roles
             var existingUserRoles = _db.UserRoles.Where(ur => ur.UserId == user.Id);
             _db.UserRoles.RemoveRange(existingUserRoles);
 
-            // Add new roles
-            var rolesInDb = _db.Roles.Where(r => update.Roles.Contains(r.RoleId)).ToList();
-            foreach (var role in rolesInDb)
+            // Add new roles only if there are any
+            if (update.Roles.Count > 0)
             {
-                _db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id });
+                var rolesInDb = _db.Roles.Where(r => update.Roles.Contains(r.RoleId)).ToList();
+                foreach (var role in rolesInDb)
+                {
+                    _db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id });
+                }
             }
         }
 
