@@ -380,6 +380,45 @@ public class UsersControllerTests
         Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
     }
 
+    [Test]
+    public async Task PostUser_CreatesAccountManagerWithAccounts()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_adminUser);
+        _dbContext.Accounts.Add(new Account { Id = 10, Name = "Acc10" });
+        _dbContext.Accounts.Add(new Account { Id = 11, Name = "Acc11" });
+        await _dbContext.SaveChangesAsync();
+
+        var newUser = new UserCreateItem
+        {
+            Email = "manager@example.com",
+            Password = "newpassword",
+            FirstName = "Manager",
+            LastName = "User",
+            Patronymic = "",
+            Roles = [ UserRoleConstants.AccountManager ],
+            AccountIds = new List<int> { 10, 11 }
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdmin(1)).ReturnsAsync(true);
+        _mockUserInformationService.Setup(x => x.Exists("manager@example.com")).Returns(false);
+
+        // Act
+        var result = await _controller.PostUser(newUser);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var createdAtActionResult = result.Result as CreatedAtActionResult;
+        var reference = createdAtActionResult!.Value as Reference;
+        Assert.That(reference!.Id, Is.GreaterThan(0));
+
+        // Verify user was added to database
+        var savedUser = await _dbContext.Users.Include(u => u.UserAccounts).FirstOrDefaultAsync(u => u.Id == reference.Id);
+        Assert.That(savedUser, Is.Not.Null);
+        Assert.That(savedUser!.UserAccounts.Select(ua => ua.AccountId), Is.EquivalentTo(new[] { 10, 11 }));
+    }
+
     #endregion
 
     #region PutUser Tests
@@ -602,6 +641,66 @@ public class UsersControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == 2).ToList();
         Assert.That(userRoles, Is.Empty);
+    }
+
+    [Test]
+    public async Task PutUser_AccountManager_UpdatesAccountIds()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_operatorUser);
+        _dbContext.Accounts.Add(new Account { Id = 20, Name = "Acc20" });
+        _dbContext.Accounts.Add(new Account { Id = 21, Name = "Acc21" });
+        await _dbContext.SaveChangesAsync();
+        // Add initial UserAccount
+        _dbContext.UserAccounts.Add(new UserAccount { UserId = 2, AccountId = 20 });
+        await _dbContext.SaveChangesAsync();
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = [ UserRoleConstants.AccountManager ],
+            AccountIds = new List<int> { 21 }
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
+
+        // Act
+        var result = await _controller.PutUser(2, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var updatedUser = await _dbContext.Users.Include(u => u.UserAccounts).FirstOrDefaultAsync(u => u.Id == 2);
+        Assert.That(updatedUser, Is.Not.Null);
+        Assert.That(updatedUser!.UserAccounts.Select(ua => ua.AccountId), Is.EquivalentTo(new[] { 21 }));
+    }
+
+    [Test]
+    public async Task PutUser_RemovesAccounts_WhenNotAccountManager()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_operatorUser);
+        _dbContext.Accounts.Add(new Account { Id = 30, Name = "Acc30" });
+        await _dbContext.SaveChangesAsync();
+        _dbContext.UserAccounts.Add(new UserAccount { UserId = 2, AccountId = 30 });
+        await _dbContext.SaveChangesAsync();
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = [ UserRoleConstants.InstallationEngineer ],
+            AccountIds = new List<int> { 30 } // Should be ignored
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
+
+        // Act
+        var result = await _controller.PutUser(2, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var updatedUser = await _dbContext.Users.Include(u => u.UserAccounts).FirstOrDefaultAsync(u => u.Id == 2);
+        Assert.That(updatedUser, Is.Not.Null);
+        Assert.That(updatedUser!.UserAccounts, Is.Empty);
     }
 
     #endregion

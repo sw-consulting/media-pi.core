@@ -129,7 +129,7 @@ public class UsersController(
         };
 
         _db.Users.Add(ur);
-        await _db.SaveChangesAsync(); // This assigns ur.Id
+        await _db.SaveChangesAsync();
 
         if (user.Roles != null && user.Roles.Count > 0)
         {
@@ -138,7 +138,18 @@ public class UsersController(
             {
                 _db.UserRoles.Add(new UserRole { UserId = ur.Id, RoleId = role.Id });
             }
-            await _db.SaveChangesAsync(); // Save the user roles
+            await _db.SaveChangesAsync(); 
+        }
+
+        bool isManager = user.HasRole(UserRoleConstants.AccountManager);
+        if (isManager && user.AccountIds != null && user.AccountIds.Count > 0)
+        {
+            var validAccountIds = _db.Accounts.Where(a => user.AccountIds.Contains(a.Id)).Select(a => a.Id).ToList();
+            foreach (var accId in validAccountIds)
+            {
+                _db.UserAccounts.Add(new UserAccount { UserId = ur.Id, AccountId = accId });
+            }
+            await _db.SaveChangesAsync();
         }
 
         var reference = new Reference { Id = ur.Id };
@@ -196,6 +207,19 @@ public class UsersController(
                 {
                     _db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id });
                 }
+            }
+        }
+
+        // Handle AccountIds for AccountManager role
+        bool isManager = update.HasRole(UserRoleConstants.AccountManager);
+        var existingAccounts = _db.UserAccounts.Where(ua => ua.UserId == user.Id);
+        _db.UserAccounts.RemoveRange(existingAccounts);
+        if (isManager && update.AccountIds != null && update.AccountIds.Count > 0)
+        {
+            var validAccountIds = _db.Accounts.Where(a => update.AccountIds.Contains(a.Id)).Select(a => a.Id).ToList();
+            foreach (var accId in validAccountIds)
+            {
+                _db.UserAccounts.Add(new UserAccount { UserId = user.Id, AccountId = accId });
             }
         }
 

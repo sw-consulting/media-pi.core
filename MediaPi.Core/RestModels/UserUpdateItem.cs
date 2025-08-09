@@ -34,6 +34,7 @@ public class UserUpdateItem
     public string? Email { get; set; }
     public string? Password { get; set; }
     public List<UserRoleConstants> Roles { get; set; } = [];
+    public List<int> AccountIds { get; set; } = [];
     
     public override string ToString()
     {

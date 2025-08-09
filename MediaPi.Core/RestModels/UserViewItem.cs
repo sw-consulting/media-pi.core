@@ -36,6 +36,13 @@ public class UserViewItem(User user)
     public string Email { get; set; } = user.Email;
     public List<UserRoleConstants> Roles { get; set; } =
         [.. user.UserRoles.Select(ur => ur.Role!.RoleId)];
+    public List<int> AccountIds { get; set; } =
+        user.HasRole(UserRoleConstants.AccountManager)
+            ? [.. user.UserAccounts
+                .Where(ua => ua.UserId == user.Id)
+                .Select(ua => ua.AccountId)]
+            : [];
+
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);

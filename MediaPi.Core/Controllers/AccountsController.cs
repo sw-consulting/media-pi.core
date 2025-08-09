@@ -108,6 +108,22 @@ public class AccountsController(
         var account = new Account { Name = item.Name };
         _db.Accounts.Add(account);
         await _db.SaveChangesAsync();
+
+        // Handle UserIds for AccountManager role
+        if (item.UserIds != null && item.UserIds.Count > 0)
+        {
+            var managerIds = _db.Users
+                .Include(u => u.UserRoles)
+                .Where(u => item.UserIds.Contains(u.Id) && u.UserRoles.Any(ur => ur.Role.RoleId == UserRoleConstants.AccountManager))
+                .Select(u => u.Id)
+                .ToList();
+            foreach (var userId in managerIds)
+            {
+                _db.UserAccounts.Add(new UserAccount { UserId = userId, AccountId = account.Id });
+            }
+            await _db.SaveChangesAsync();
+        }
+
         return CreatedAtAction(nameof(GetAccount), new { id = account.Id }, new Reference { Id = account.Id });
     }
 
@@ -122,7 +138,7 @@ public class AccountsController(
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        var account = await _db.Accounts.FindAsync(id);
+        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id);
         if (account == null) return _404Account(id);
 
         if (item.Name != null && await _db.Accounts.AnyAsync(a => a.Name == item.Name && a.Id != id))
@@ -132,6 +148,23 @@ public class AccountsController(
 
         account.UpdateFrom(item);
         _db.Entry(account).State = EntityState.Modified;
+        await _db.SaveChangesAsync();
+
+        // Handle UserIds for AccountManager role
+        var existingUserAccounts = _db.UserAccounts.Where(ua => ua.AccountId == id);
+        _db.UserAccounts.RemoveRange(existingUserAccounts);
+        if (item.UserIds != null && item.UserIds.Count > 0)
+        {
+            var managerIds = _db.Users
+                .Include(u => u.UserRoles)
+                .Where(u => item.UserIds.Contains(u.Id) && u.UserRoles.Any(ur => ur.Role.RoleId == UserRoleConstants.AccountManager))
+                .Select(u => u.Id)
+                .ToList();
+            foreach (var userId in managerIds)
+            {
+                _db.UserAccounts.Add(new UserAccount { UserId = userId, AccountId = id });
+            }
+        }
         await _db.SaveChangesAsync();
         return NoContent();
     }
