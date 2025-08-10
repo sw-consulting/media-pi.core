@@ -77,7 +77,7 @@ public class UsersController(
     {
         _logger.LogDebug("GetUser for id={id}", id);
         var ch = await _userInformationService.CheckAdminOrSameUser(id, _curUserId);
-        if (ch == null || !ch.Value)
+        if (!ch)
         {
             _logger.LogDebug("GetUser returning '403 Forbidden'");
             return _403();
@@ -100,19 +100,19 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> PostUser(UserCreateItem user)
+    public async Task<ActionResult<Reference>> AddUser(UserCreateItem user)
     {
-        _logger.LogDebug("PostUser (create) for {user}", user.ToString());
+        _logger.LogDebug("AddUser (create) for {user}", user.ToString());
         var ch = await _userInformationService.CheckAdmin(_curUserId);
         if (!ch)
         {
-            _logger.LogDebug("PostUser returning '403 Forbidden'");
+            _logger.LogDebug("AddUser returning '403 Forbidden'");
             return _403();
         }
 
         if (_userInformationService.Exists(user.Email))
         {
-            _logger.LogDebug("PostUser returning '409 Conflict'");
+            _logger.LogDebug("AddUser returning '409 Conflict'");
             return _409Email(user.Email);
         }
 
@@ -153,8 +153,8 @@ public class UsersController(
         }
 
         var reference = new Reference { Id = ur.Id };
-        _logger.LogDebug("PostUser returning: {res}", reference.ToString());
-        return CreatedAtAction(nameof(PostUser), new { id = ur.Id }, reference);
+        _logger.LogDebug("AddUser returning: {res}", reference.ToString());
+        return CreatedAtAction(nameof(AddUser), new { id = ur.Id }, reference);
     }
 
     // PUT: api/users/5
@@ -162,23 +162,22 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> PutUser(int id, UserUpdateItem update)
+    public async Task<IActionResult> ChangeUser(int id, UserUpdateItem update)
     {
-        _logger.LogDebug("PutUser (update) for id={id} with {update}", id, update.ToString());
+        _logger.LogDebug("ChangeUser (update) for id={id} with {update}", id, update.ToString());
         var user = await _db.Users.FindAsync(id);
         if (user == null)
         {
-            _logger.LogDebug("PutUser returning '404 Not Found'");
+            _logger.LogDebug("ChangeUser returning '404 Not Found'");
             return _404User(id);
         }
         bool adminRequired = update.IsAdministrator() && !user.IsAdministrator();
 
-        ActionResult<bool> ch;
-        ch = adminRequired ? await _userInformationService.CheckAdmin(_curUserId) :
-                             await _userInformationService.CheckAdminOrSameUser(id, _curUserId);
-        if (ch == null || !ch.Value)
+        bool ch = adminRequired ? await _userInformationService.CheckAdmin(_curUserId) :
+                                  await _userInformationService.CheckAdminOrSameUser(id, _curUserId);
+        if (!ch)
         {
-            _logger.LogDebug("PutUser returning '403 Forbidden'");
+            _logger.LogDebug("ChangeUser returning '403 Forbidden'");
             return _403();
         }
 
@@ -210,16 +209,19 @@ public class UsersController(
             }
         }
 
-        // Handle AccountIds for AccountManager role
-        bool isManager = update.HasRole(UserRoleConstants.AccountManager);
-        var existingAccounts = _db.UserAccounts.Where(ua => ua.UserId == user.Id);
-        _db.UserAccounts.RemoveRange(existingAccounts);
-        if (isManager && update.AccountIds != null && update.AccountIds.Count > 0)
+        if (update.AccountIds != null)
         {
-            var validAccountIds = _db.Accounts.Where(a => update.AccountIds.Contains(a.Id)).Select(a => a.Id).ToList();
-            foreach (var accId in validAccountIds)
+            // Handle AccountIds for AccountManager role
+            bool isManager = update.HasRole(UserRoleConstants.AccountManager);
+            var existingAccounts = _db.UserAccounts.Where(ua => ua.UserId == user.Id);
+            _db.UserAccounts.RemoveRange(existingAccounts);
+            if (isManager && update.AccountIds.Count > 0)
             {
-                _db.UserAccounts.Add(new UserAccount { UserId = user.Id, AccountId = accId });
+                var validAccountIds = _db.Accounts.Where(a => update.AccountIds.Contains(a.Id)).Select(a => a.Id).ToList();
+                foreach (var accId in validAccountIds)
+                {
+                    _db.UserAccounts.Add(new UserAccount { UserId = user.Id, AccountId = accId });
+                }
             }
         }
 
@@ -228,7 +230,7 @@ public class UsersController(
         _db.Entry(user).State = EntityState.Modified;
         await _db.SaveChangesAsync();
         
-        _logger.LogDebug("PutUser returning '204 No content'");
+        _logger.LogDebug("ChangeUser returning '204 No content'");
         return NoContent();
     }
 

@@ -63,7 +63,7 @@ namespace MediaPi.Core.Services
             return user.IsManager() && user.UserAccounts.Any(ua => ua.AccountId == accountId);
         }
 
-        public async Task<ActionResult<bool>> CheckAdminOrSameUser(int id, int cuid)
+        public async Task<bool> CheckAdminOrSameUser(int id, int cuid)
         {
             if (cuid == 0) return false;
             if (cuid == id) return true;
@@ -93,6 +93,7 @@ namespace MediaPi.Core.Services
                 .AsNoTracking()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
+                .Include(u => u.UserAccounts)
                 .Where(x => x.Id == id)
                 .Select(x => new UserViewItem(x))
                 .FirstOrDefaultAsync();
@@ -105,6 +106,7 @@ namespace MediaPi.Core.Services
                 .AsNoTracking()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
+                .Include(u => u.UserAccounts)
                 .Select(x => new UserViewItem(x))
                 .ToListAsync();
         }

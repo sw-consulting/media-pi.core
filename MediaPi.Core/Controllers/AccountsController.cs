@@ -54,6 +54,7 @@ public class AccountsController(
         if (user == null) return _403();
 
         IQueryable<Account> query = _db.Accounts.Include(a => a.UserAccounts);
+
         if (user.IsAdministrator())
         {
             // all accounts
@@ -72,7 +73,7 @@ public class AccountsController(
         var result = accounts.Select(a => {
             var viewItem = a.ToViewItem();
             if (user.IsAdministrator())
-                viewItem.UserIds = a.UserAccounts.Select(ua => ua.UserId).ToList();
+                viewItem.UserIds = [.. a.UserAccounts.Select(ua => ua.UserId)];
             return viewItem;
         }).ToList();
         return result;
@@ -95,7 +96,7 @@ public class AccountsController(
         {
             var viewItem = account.ToViewItem();
             if (user.IsAdministrator())
-                viewItem.UserIds = account.UserAccounts.Select(ua => ua.UserId).ToList();
+                viewItem.UserIds = [.. account.UserAccounts.Select(ua => ua.UserId)];
             return viewItem;
         }
 
