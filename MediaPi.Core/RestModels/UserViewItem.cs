@@ -27,21 +27,34 @@ using MediaPi.Core.Settings;
 
 namespace MediaPi.Core.RestModels;
 
-public class UserViewItem(User user)
+public class UserViewItem
 {
-    public int Id { get; set; } = user.Id;
-    public string FirstName { get; set; } = user.FirstName;
-    public string LastName { get; set; } = user.LastName;
-    public string Patronymic { get; set; } = user.Patronymic;
-    public string Email { get; set; } = user.Email;
-    public List<UserRoleConstants> Roles { get; set; } =
-        [.. user.UserRoles.Select(ur => ur.Role!.RoleId)];
-    public List<int> AccountIds { get; set; } =
-        user.HasRole(UserRoleConstants.AccountManager)
+    public int Id { get; set; }
+    public string FirstName { get; set; } = "";
+    public string LastName { get; set; } = "";
+    public string Patronymic { get; set; } = "";
+    public string Email { get; set; } = "";
+    public List<UserRoleConstants> Roles { get; set; } = [];
+    public List<int> AccountIds { get; set; } = [];
+
+    // Parameterless constructor for object initialization
+    public UserViewItem() { }
+
+    // Constructor with User parameter
+    public UserViewItem(User user)
+    {
+        Id = user.Id;
+        FirstName = user.FirstName;
+        LastName = user.LastName;
+        Patronymic = user.Patronymic;
+        Email = user.Email;
+        Roles = [.. user.UserRoles.Select(ur => ur.Role!.RoleId)];
+        AccountIds = user.HasRole(UserRoleConstants.AccountManager)
             ? [.. user.UserAccounts
                 .Where(ua => ua.UserId == user.Id)
                 .Select(ua => ua.AccountId)]
             : [];
+    }
 
     public override string ToString()
     {

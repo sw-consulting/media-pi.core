@@ -796,6 +796,225 @@ public class UsersControllerTests
 
     #endregion
 
+    #region GetUsersByAccount Tests
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsManagers_WhenManagerAccessesOwnAccount()
+    {
+        // Arrange
+        SetCurrentUserId(2); // Manager user
+        var account = new Account { Id = 100, Name = "TestAccount" };
+        var manager1 = new User
+        {
+            Id = 4,
+            FirstName = "Manager1",
+            LastName = "User",
+            Patronymic = "Patronymic1",
+            Email = "manager1@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 4, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 4, AccountId = 100, Account = account }]
+        };
+        var manager2 = new User
+        {
+            Id = 5,
+            FirstName = "Manager2",
+            LastName = "User",
+            Patronymic = "Patronymic2",
+            Email = "manager2@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 5, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 5, AccountId = 100, Account = account }]
+        };
+
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.AddRange(_operatorUser, manager1, manager2);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(2, 100)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(100);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Has.Count.EqualTo(2));
+        Assert.That(managers.All(m => m.Email == ""));
+        Assert.That(managers.All(m => m.Roles.Count == 0));
+        Assert.That(managers.All(m => m.AccountIds.Count == 0));
+        Assert.That(managers.Any(m => m.FirstName == "Manager1" && m.Patronymic == "Patronymic1"));
+        Assert.That(managers.Any(m => m.FirstName == "Manager2" && m.Patronymic == "Patronymic2"));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsManagers_WhenAdminAccesses()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        var account = new Account { Id = 101, Name = "TestAccount2" };
+        var manager = new User
+        {
+            Id = 6,
+            FirstName = "Manager3",
+            LastName = "User",
+            Patronymic = "Patronymic3",
+            Email = "manager3@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 6, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 6, AccountId = 101, Account = account }]
+        };
+
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.AddRange(_adminUser, manager);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 101)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(101);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Has.Count.EqualTo(1));
+        Assert.That(managers[0].FirstName, Is.EqualTo("Manager3"));
+        Assert.That(managers[0].LastName, Is.EqualTo("User"));
+        Assert.That(managers[0].Patronymic, Is.EqualTo("Patronymic3"));
+        Assert.That(managers[0].Email, Is.EqualTo(""));
+        Assert.That(managers[0].Roles.Count, Is.EqualTo(0));
+        Assert.That(managers[0].AccountIds.Count, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsForbidden_WhenManagerAccessesOtherAccount()
+    {
+        // Arrange
+        SetCurrentUserId(2); // Manager user
+        var account = new Account { Id = 102, Name = "OtherAccount" };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.Add(_operatorUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(2, 102)).ReturnsAsync(false);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(102);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var objectResult = result.Result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsForbidden_WhenNonManagerAccesses()
+    {
+        // Arrange
+        SetCurrentUserId(3); // Customer user (not manager)
+        var account = new Account { Id = 103, Name = "TestAccount3" };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.Add(_customerUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(3, 103)).ReturnsAsync(false);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(103);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var objectResult = result.Result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsNotFound_WhenAccountDoesNotExist()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_adminUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 999)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(999);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var objectResult = result.Result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsEmptyList_WhenNoManagersAssigned()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        var account = new Account { Id = 104, Name = "EmptyAccount" };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.Add(_adminUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 104)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(104);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Is.Empty);
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ExcludesNonManagers_WhenUsersAssignedToAccount()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        var account = new Account { Id = 105, Name = "MixedAccount" };
+        var manager = new User
+        {
+            Id = 7,
+            FirstName = "Manager4",
+            LastName = "User",
+            Patronymic = "Patronymic4",
+            Email = "manager4@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 7, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 7, AccountId = 105, Account = account }]
+        };
+        var engineer = new User
+        {
+            Id = 8,
+            FirstName = "Engineer",
+            LastName = "User",
+            Patronymic = "PatronymicEng",
+            Email = "engineer@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 8, RoleId = _customerRole.Id, Role = _customerRole }],
+            UserAccounts = [new UserAccount { UserId = 8, AccountId = 105, Account = account }]
+        };
+
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.AddRange(_adminUser, manager, engineer);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 105)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(105);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Has.Count.EqualTo(1));
+        Assert.That(managers[0].FirstName, Is.EqualTo("Manager4"));
+    }
+
+    #endregion
+
     private void SetCurrentUserId(int userId)
     {
         var httpContext = new DefaultHttpContext();

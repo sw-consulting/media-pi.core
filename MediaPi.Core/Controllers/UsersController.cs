@@ -94,6 +94,55 @@ public class UsersController(
         return user;
     }
 
+    // GET: api/users/by-account/{accountId}
+    [HttpGet("by-account/{accountId}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<UserViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<UserViewItem>>> GetUsersByAccount(int accountId)
+    {
+        _logger.LogDebug("GetUsersByAccount for accountId={accountId}", accountId);
+        
+        // Check if the current user is a manager for this account
+        var ch = await _userInformationService.CheckManager(_curUserId, accountId);
+        if (!ch)
+        {
+            _logger.LogDebug("GetUsersByAccount returning '403 Forbidden'");
+            return _403();
+        }
+
+        // Check if the account exists
+        var accountExists = await _db.Accounts.AnyAsync(a => a.Id == accountId);
+        if (!accountExists)
+        {
+            _logger.LogDebug("GetUsersByAccount returning '404 Not Found'");
+            return _404Account(accountId);
+        }
+
+        // Get all users with manager role assigned to this account
+        var managers = await _db.Users
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Include(u => u.UserAccounts)
+            .Where(u => u.UserRoles.Any(ur => ur.Role!.RoleId == UserRoleConstants.AccountManager) &&
+                       u.UserAccounts.Any(ua => ua.AccountId == accountId))
+            .Select(u => new UserViewItem
+            {
+                Id = u.Id, 
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                Patronymic = u.Patronymic,
+                Email = "", // Empty string
+                Roles = new List<UserRoleConstants>(), // Empty list
+                AccountIds = new List<int>() // Empty list
+            })
+            .ToListAsync();
+
+        _logger.LogDebug("GetUsersByAccount returning {count} managers", managers.Count);
+        return managers;
+    }
+
     // POST: api/users
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
