@@ -31,6 +31,7 @@ using MediaPi.Core.Settings;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.Services;
+using MediaPi.Core.Extensions;
 
 namespace MediaPi.Core.Controllers;
 

@@ -103,6 +103,57 @@ public class AccountsController(
         return _403();
     }
 
+    // GET: api/accounts/by-manager/{userId}
+    [HttpGet("by-manager/{userId}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AccountViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<AccountViewItem>>> GetAccountsByManager(int userId)
+    {
+        _logger.LogDebug("GetAccountsByManager for userId={userId}", userId);
+
+        var currentUser = await CurrentUser();
+        if (currentUser == null) return _403();
+
+        // Only admin or the user themselves can access this endpoint
+        if (!currentUser.IsAdministrator() && currentUser.Id != userId)
+        {
+            _logger.LogDebug("GetAccountsByManager returning '403 Forbidden' - insufficient permissions");
+            return _403();
+        }
+
+        // Check if the user exists
+        var user = await _db.Users
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Include(u => u.UserAccounts)
+                .ThenInclude(ua => ua.Account)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+        {
+            _logger.LogDebug("GetAccountsByManager returning '404 Not Found'");
+            return _404User(userId);
+        }
+
+        // Check if user has AccountManager role
+        var hasManagerRole = user.UserRoles.Any(ur => ur.Role!.RoleId == UserRoleConstants.AccountManager);
+        if (!hasManagerRole)
+        {
+            _logger.LogDebug("GetAccountsByManager returning empty array - user does not have AccountManager role");
+            return new List<AccountViewItem>();
+        }
+
+        // Get accounts managed by this user
+        var accounts = user.UserAccounts
+            .Select(ua => ua.Account.ToViewItem())
+            .ToList();
+
+        _logger.LogDebug("GetAccountsByManager returning {count} accounts", accounts.Count);
+        return accounts;
+    }
+
     // POST: api/accounts
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
