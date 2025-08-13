@@ -20,24 +20,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System.ComponentModel.DataAnnotations.Schema;
+using MediaPi.Core.Models;
 
-namespace MediaPi.Core.Models
+namespace MediaPi.Core.RestModels
 {
-    [Table("video_at_devices")]
-    public class VideoAtDevice
+    public class RoleViewItem
     {
-        [Column("device_id")]
-        public int DeviceId { get; set; }
-        public Device Device { get; set; } = null!;
-
-        [Column("video_id")]
-        public int VideoId { get; set; }
-        public Video Video { get; set; } = null!;
-
-        [Column("status_id")]
-        public StatusConstants StatusId { get; set; }
-        public VideoStatus Status { get; set; } = null!;
+        public int Id { get; set; }
+        public UserRoleConstants RoleId { get; set; }
+        public required string Name { get; set; }
     }
 }
-

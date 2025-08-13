@@ -38,7 +38,6 @@ namespace MediaPi.Core.Models
         public Account Account { get; set; } = null!;
 
         public ICollection<Device> Devices { get; set; } = [];
-        public ICollection<PlaylistAtDeviceGroup> PlaylistAtDeviceGroups { get; set; } = [];
     }
 }
 

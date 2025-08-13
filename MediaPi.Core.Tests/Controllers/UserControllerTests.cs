@@ -198,7 +198,7 @@ public class UsersControllerTests
 
         var expectedUser = new UserViewItem(_customerUser);
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(3, 1)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(3, 1)).ReturnsAsync(true);
         _mockUserInformationService.Setup(x => x.UserViewItem(3)).ReturnsAsync(expectedUser);
 
         // Act
@@ -222,7 +222,7 @@ public class UsersControllerTests
 
         var expectedUser = new UserViewItem(_operatorUser);
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 2)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 2)).ReturnsAsync(true);
         _mockUserInformationService.Setup(x => x.UserViewItem(2)).ReturnsAsync(expectedUser);
 
         // Act
@@ -244,7 +244,7 @@ public class UsersControllerTests
         _dbContext.Users.AddRange(_adminUser, _operatorUser, _customerUser);
         await _dbContext.SaveChangesAsync();
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(1, 2)).ReturnsAsync(new ActionResult<bool>(false));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(1, 2)).ReturnsAsync(false);
 
         // Act
         var result = await _controller.GetUser(1); // Getting admin user
@@ -264,7 +264,7 @@ public class UsersControllerTests
         _dbContext.Users.AddRange(_adminUser, _operatorUser, _customerUser);
         await _dbContext.SaveChangesAsync();
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(999, 1)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(999, 1)).ReturnsAsync(true);
         _mockUserInformationService.Setup(x => x.UserViewItem(999)).ReturnsAsync((UserViewItem?)null);
 
         // Act
@@ -279,7 +279,7 @@ public class UsersControllerTests
 
     #endregion
 
-    #region PostUser Tests
+    #region AddUser Tests
 
     [Test]
     public async Task PostUser_CreatesUser_WhenUserIsAdmin()
@@ -303,12 +303,12 @@ public class UsersControllerTests
         _mockUserInformationService.Setup(x => x.Exists("new@example.com")).Returns(false);
 
         // Act
-        var result = await _controller.PostUser(newUser);
+        var result = await _controller.AddUser(newUser);
 
         // Assert
         Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
         var createdAtActionResult = result.Result as CreatedAtActionResult;
-        Assert.That(createdAtActionResult!.ActionName, Is.EqualTo(nameof(UsersController.PostUser)));
+        Assert.That(createdAtActionResult!.ActionName, Is.EqualTo(nameof(UsersController.AddUser)));
         Assert.That(createdAtActionResult.Value, Is.TypeOf<Reference>());
 
         var reference = createdAtActionResult.Value as Reference;
@@ -343,7 +343,7 @@ public class UsersControllerTests
         _mockUserInformationService.Setup(x => x.CheckAdmin(2)).ReturnsAsync(false);
 
         // Act
-        var result = await _controller.PostUser(newUser);
+        var result = await _controller.AddUser(newUser);
 
         // Assert
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
@@ -372,7 +372,7 @@ public class UsersControllerTests
         _mockUserInformationService.Setup(x => x.Exists("customer@example.com")).Returns(true);
 
         // Act
-        var result = await _controller.PostUser(newUser);
+        var result = await _controller.AddUser(newUser);
 
         // Assert
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
@@ -380,9 +380,48 @@ public class UsersControllerTests
         Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
     }
 
+    [Test]
+    public async Task PostUser_CreatesAccountManagerWithAccounts()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_adminUser);
+        _dbContext.Accounts.Add(new Account { Id = 10, Name = "Acc10" });
+        _dbContext.Accounts.Add(new Account { Id = 11, Name = "Acc11" });
+        await _dbContext.SaveChangesAsync();
+
+        var newUser = new UserCreateItem
+        {
+            Email = "manager@example.com",
+            Password = "newpassword",
+            FirstName = "Manager",
+            LastName = "User",
+            Patronymic = "",
+            Roles = [ UserRoleConstants.AccountManager ],
+            AccountIds = new List<int> { 10, 11 }
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdmin(1)).ReturnsAsync(true);
+        _mockUserInformationService.Setup(x => x.Exists("manager@example.com")).Returns(false);
+
+        // Act
+        var result = await _controller.AddUser(newUser);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var createdAtActionResult = result.Result as CreatedAtActionResult;
+        var reference = createdAtActionResult!.Value as Reference;
+        Assert.That(reference!.Id, Is.GreaterThan(0));
+
+        // Verify user was added to database
+        var savedUser = await _dbContext.Users.Include(u => u.UserAccounts).FirstOrDefaultAsync(u => u.Id == reference.Id);
+        Assert.That(savedUser, Is.Not.Null);
+        Assert.That(savedUser!.UserAccounts.Select(ua => ua.AccountId), Is.EquivalentTo(new[] { 10, 11 }));
+    }
+
     #endregion
 
-    #region PutUser Tests
+    #region ChangeUser Tests
 
     [Test]
     public async Task PutUser_UpdatesUser_WhenUserIsAdmin()
@@ -400,11 +439,11 @@ public class UsersControllerTests
             Roles = [UserRoleConstants.InstallationEngineer]
         };
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(true);
         _mockUserInformationService.Setup(x => x.Exists("updated@example.com")).Returns(false);
 
         // Act
-        var result = await _controller.PutUser(2, updateItem);
+        var result = await _controller.ChangeUser(2, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
@@ -438,10 +477,10 @@ public class UsersControllerTests
             // Not changing roles as non-admin
         };
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 2)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 2)).ReturnsAsync(true);
 
         // Act
-        var result = await _controller.PutUser(2, updateItem);
+        var result = await _controller.ChangeUser(2, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
@@ -467,10 +506,10 @@ public class UsersControllerTests
             LastName = "Update"
         };
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(1, 2)).ReturnsAsync(new ActionResult<bool>(false));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(1, 2)).ReturnsAsync(false);
 
         // Act
-        var result = await _controller.PutUser(1, updateItem);
+        var result = await _controller.ChangeUser(1, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<ObjectResult>());
@@ -493,7 +532,7 @@ public class UsersControllerTests
         };
 
         // Act
-        var result = await _controller.PutUser(999, updateItem);
+        var result = await _controller.ChangeUser(999, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<ObjectResult>());
@@ -514,11 +553,11 @@ public class UsersControllerTests
             Email = "admin@example.com" // Already exists
         };
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(true);
         _mockUserInformationService.Setup(x => x.Exists("admin@example.com")).Returns(true);
 
         // Act
-        var result = await _controller.PutUser(2, updateItem);
+        var result = await _controller.ChangeUser(2, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<ObjectResult>());
@@ -539,10 +578,10 @@ public class UsersControllerTests
             Password = "newpassword123"
         };
 
-        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(new ActionResult<bool>(true));
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(true);
 
         // Act
-        var result = await _controller.PutUser(2, updateItem);
+        var result = await _controller.ChangeUser(2, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
@@ -570,12 +609,126 @@ public class UsersControllerTests
         _mockUserInformationService.Setup(x => x.CheckAdmin(2)).ReturnsAsync(false);
 
         // Act
-        var result = await _controller.PutUser(2, updateItem);
+        var result = await _controller.ChangeUser(2, updateItem);
 
         // Assert
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var objectResult = result as ObjectResult;
         Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task PutUser_EmptyRoles_RemovesAllUserRoles()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_operatorUser);
+        await _dbContext.SaveChangesAsync();
+
+        var userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == 2).ToList();
+        Assert.That(userRoles, Is.Not.Empty);
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = []
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(true);
+        // Act
+        var result = await _controller.ChangeUser(2, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        userRoles = _dbContext.UserRoles.Where(ur => ur.UserId == 2).ToList();
+        Assert.That(userRoles, Is.Empty);
+    }
+
+    [Test]
+    public async Task PutUser_AccountManager_UpdatesAccountIds()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_operatorUser);
+        _dbContext.Accounts.Add(new Account { Id = 20, Name = "Acc20" });
+        _dbContext.Accounts.Add(new Account { Id = 21, Name = "Acc21" });
+        await _dbContext.SaveChangesAsync();
+        // Add initial UserAccount
+        _dbContext.UserAccounts.Add(new UserAccount { UserId = 2, AccountId = 20 });
+        await _dbContext.SaveChangesAsync();
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = [ UserRoleConstants.AccountManager ],
+            AccountIds = new List<int> { 21 }
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.ChangeUser(2, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var updatedUser = await _dbContext.Users.Include(u => u.UserAccounts).FirstOrDefaultAsync(u => u.Id == 2);
+        Assert.That(updatedUser, Is.Not.Null);
+        Assert.That(updatedUser!.UserAccounts.Select(ua => ua.AccountId), Is.EquivalentTo(new[] { 21 }));
+    }
+
+    [Test]
+    public async Task PutUser_RemovesAccounts_WhenNotAccountManager()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_operatorUser);
+        _dbContext.Accounts.Add(new Account { Id = 30, Name = "Acc30" });
+        await _dbContext.SaveChangesAsync();
+        _dbContext.UserAccounts.Add(new UserAccount { UserId = 2, AccountId = 30 });
+        await _dbContext.SaveChangesAsync();
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = [ UserRoleConstants.InstallationEngineer ],
+            AccountIds = new List<int> { 30 } // Should be ignored
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(2, 1)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.ChangeUser(2, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var updatedUser = await _dbContext.Users.Include(u => u.UserAccounts).FirstOrDefaultAsync(u => u.Id == 2);
+        Assert.That(updatedUser, Is.Not.Null);
+        Assert.That(updatedUser!.UserAccounts, Is.Empty);
+    }
+
+    [Test]
+    public async Task PutUser_RolesNull_DoesNotChangeUserRoles()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_customerUser);
+        await _dbContext.SaveChangesAsync();
+
+        var updateItem = new UserUpdateItem
+        {
+            Roles = null, // Explicitly null
+            FirstName = "UpdatedName"
+        };
+
+        _mockUserInformationService.Setup(x => x.CheckAdminOrSameUser(_customerUser.Id, 1)).ReturnsAsync(true);
+        // Act
+        var result = await _controller.ChangeUser(_customerUser.Id, updateItem);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var updatedUser = await _dbContext.Users.Include(u => u.UserRoles).FirstOrDefaultAsync(u => u.Id == _customerUser.Id);
+        Assert.That(updatedUser, Is.Not.Null);
+        // Roles should remain unchanged
+        Assert.That(updatedUser!.UserRoles.Count, Is.EqualTo(1));
+        Assert.That(updatedUser.UserRoles.First().RoleId, Is.EqualTo(_customerRole.Id));
+        Assert.That(updatedUser.FirstName, Is.EqualTo("UpdatedName"));
     }
 
     #endregion
@@ -639,6 +792,225 @@ public class UsersControllerTests
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var objectResult = result as ObjectResult;
         Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    #endregion
+
+    #region GetUsersByAccount Tests
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsManagers_WhenManagerAccessesOwnAccount()
+    {
+        // Arrange
+        SetCurrentUserId(2); // Manager user
+        var account = new Account { Id = 100, Name = "TestAccount" };
+        var manager1 = new User
+        {
+            Id = 4,
+            FirstName = "Manager1",
+            LastName = "User",
+            Patronymic = "Patronymic1",
+            Email = "manager1@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 4, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 4, AccountId = 100, Account = account }]
+        };
+        var manager2 = new User
+        {
+            Id = 5,
+            FirstName = "Manager2",
+            LastName = "User",
+            Patronymic = "Patronymic2",
+            Email = "manager2@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 5, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 5, AccountId = 100, Account = account }]
+        };
+
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.AddRange(_operatorUser, manager1, manager2);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(2, 100)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(100);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Has.Count.EqualTo(2));
+        Assert.That(managers.All(m => m.Email == ""));
+        Assert.That(managers.All(m => m.Roles.Count == 0));
+        Assert.That(managers.All(m => m.AccountIds.Count == 0));
+        Assert.That(managers.Any(m => m.FirstName == "Manager1" && m.Patronymic == "Patronymic1"));
+        Assert.That(managers.Any(m => m.FirstName == "Manager2" && m.Patronymic == "Patronymic2"));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsManagers_WhenAdminAccesses()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        var account = new Account { Id = 101, Name = "TestAccount2" };
+        var manager = new User
+        {
+            Id = 6,
+            FirstName = "Manager3",
+            LastName = "User",
+            Patronymic = "Patronymic3",
+            Email = "manager3@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 6, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 6, AccountId = 101, Account = account }]
+        };
+
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.AddRange(_adminUser, manager);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 101)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(101);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Has.Count.EqualTo(1));
+        Assert.That(managers[0].FirstName, Is.EqualTo("Manager3"));
+        Assert.That(managers[0].LastName, Is.EqualTo("User"));
+        Assert.That(managers[0].Patronymic, Is.EqualTo("Patronymic3"));
+        Assert.That(managers[0].Email, Is.EqualTo(""));
+        Assert.That(managers[0].Roles.Count, Is.EqualTo(0));
+        Assert.That(managers[0].AccountIds.Count, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsForbidden_WhenManagerAccessesOtherAccount()
+    {
+        // Arrange
+        SetCurrentUserId(2); // Manager user
+        var account = new Account { Id = 102, Name = "OtherAccount" };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.Add(_operatorUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(2, 102)).ReturnsAsync(false);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(102);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var objectResult = result.Result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsForbidden_WhenNonManagerAccesses()
+    {
+        // Arrange
+        SetCurrentUserId(3); // Customer user (not manager)
+        var account = new Account { Id = 103, Name = "TestAccount3" };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.Add(_customerUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(3, 103)).ReturnsAsync(false);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(103);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var objectResult = result.Result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsNotFound_WhenAccountDoesNotExist()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        _dbContext.Users.Add(_adminUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 999)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(999);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var objectResult = result.Result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ReturnsEmptyList_WhenNoManagersAssigned()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        var account = new Account { Id = 104, Name = "EmptyAccount" };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.Add(_adminUser);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 104)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(104);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Is.Empty);
+    }
+
+    [Test]
+    public async Task GetUsersByAccount_ExcludesNonManagers_WhenUsersAssignedToAccount()
+    {
+        // Arrange
+        SetCurrentUserId(1); // Admin user
+        var account = new Account { Id = 105, Name = "MixedAccount" };
+        var manager = new User
+        {
+            Id = 7,
+            FirstName = "Manager4",
+            LastName = "User",
+            Patronymic = "Patronymic4",
+            Email = "manager4@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 7, RoleId = _operatorRole.Id, Role = _operatorRole }],
+            UserAccounts = [new UserAccount { UserId = 7, AccountId = 105, Account = account }]
+        };
+        var engineer = new User
+        {
+            Id = 8,
+            FirstName = "Engineer",
+            LastName = "User",
+            Patronymic = "PatronymicEng",
+            Email = "engineer@example.com",
+            Password = BCrypt.Net.BCrypt.HashPassword("password"),
+            UserRoles = [new UserRole { UserId = 8, RoleId = _customerRole.Id, Role = _customerRole }],
+            UserAccounts = [new UserAccount { UserId = 8, AccountId = 105, Account = account }]
+        };
+
+        _dbContext.Accounts.Add(account);
+        _dbContext.Users.AddRange(_adminUser, manager, engineer);
+        await _dbContext.SaveChangesAsync();
+
+        _mockUserInformationService.Setup(x => x.CheckManager(1, 105)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.GetUsersByAccount(105);
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        var managers = result.Value!.ToList();
+        Assert.That(managers, Has.Count.EqualTo(1));
+        Assert.That(managers[0].FirstName, Is.EqualTo("Manager4"));
     }
 
     #endregion

@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,6 +17,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
@@ -53,7 +53,8 @@ public class AccountsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        IQueryable<Account> query = _db.Accounts;
+        IQueryable<Account> query = _db.Accounts.Include(a => a.UserAccounts);
+
         if (user.IsAdministrator())
         {
             // all accounts
@@ -69,7 +70,13 @@ public class AccountsController(
         }
 
         var accounts = await query.ToListAsync();
-        return accounts.Select(a => a.ToViewItem()).ToList();
+        var result = accounts.Select(a => {
+            var viewItem = a.ToViewItem();
+            if (user.IsAdministrator())
+                viewItem.UserIds = [.. a.UserAccounts.Select(ua => ua.UserId)];
+            return viewItem;
+        }).ToList();
+        return result;
     }
 
     // GET: api/accounts/{id}
@@ -82,15 +89,69 @@ public class AccountsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var account = await _db.Accounts.FindAsync(id);
+        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id);
         if (account == null) return _404Account(id);
 
         if (user.IsAdministrator() || _userInformationService.ManagerOwnsAccount(user, account))
         {
-            return account.ToViewItem();
+            var viewItem = account.ToViewItem();
+            if (user.IsAdministrator())
+                viewItem.UserIds = [.. account.UserAccounts.Select(ua => ua.UserId)];
+            return viewItem;
         }
 
         return _403();
+    }
+
+    // GET: api/accounts/by-manager/{userId}
+    [HttpGet("by-manager/{userId}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AccountViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<AccountViewItem>>> GetAccountsByManager(int userId)
+    {
+        _logger.LogDebug("GetAccountsByManager for userId={userId}", userId);
+
+        var currentUser = await CurrentUser();
+        if (currentUser == null) return _403();
+
+        // Only admin or the user themselves can access this endpoint
+        if (!currentUser.IsAdministrator() && currentUser.Id != userId)
+        {
+            _logger.LogDebug("GetAccountsByManager returning '403 Forbidden' - insufficient permissions");
+            return _403();
+        }
+
+        // Check if the user exists
+        var user = await _db.Users
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Include(u => u.UserAccounts)
+                .ThenInclude(ua => ua.Account)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+        {
+            _logger.LogDebug("GetAccountsByManager returning '404 Not Found'");
+            return _404User(userId);
+        }
+
+        // Check if user has AccountManager role
+        var hasManagerRole = user.UserRoles.Any(ur => ur.Role!.RoleId == UserRoleConstants.AccountManager);
+        if (!hasManagerRole)
+        {
+            _logger.LogDebug("GetAccountsByManager returning empty array - user does not have AccountManager role");
+            return new List<AccountViewItem>();
+        }
+
+        // Get accounts managed by this user
+        var accounts = user.UserAccounts
+            .Select(ua => ua.Account.ToViewItem())
+            .ToList();
+
+        _logger.LogDebug("GetAccountsByManager returning {count} accounts", accounts.Count);
+        return accounts;
     }
 
     // POST: api/accounts
@@ -98,7 +159,7 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> PostAccount(AccountCreateItem item)
+    public async Task<ActionResult<Reference>> AddAccount(AccountCreateItem item)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
@@ -108,6 +169,22 @@ public class AccountsController(
         var account = new Account { Name = item.Name };
         _db.Accounts.Add(account);
         await _db.SaveChangesAsync();
+
+        // Handle UserIds for AccountManager role
+        if (item.UserIds != null && item.UserIds.Count > 0)
+        {
+            var managerIds = _db.Users
+                .Include(u => u.UserRoles)
+                .Where(u => item.UserIds.Contains(u.Id) && u.UserRoles.Any(ur => ur.Role.RoleId == UserRoleConstants.AccountManager))
+                .Select(u => u.Id)
+                .ToList();
+            foreach (var userId in managerIds)
+            {
+                _db.UserAccounts.Add(new UserAccount { UserId = userId, AccountId = account.Id });
+            }
+            await _db.SaveChangesAsync();
+        }
+
         return CreatedAtAction(nameof(GetAccount), new { id = account.Id }, new Reference { Id = account.Id });
     }
 
@@ -122,7 +199,7 @@ public class AccountsController(
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        var account = await _db.Accounts.FindAsync(id);
+        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id);
         if (account == null) return _404Account(id);
 
         if (item.Name != null && await _db.Accounts.AnyAsync(a => a.Name == item.Name && a.Id != id))
@@ -132,6 +209,23 @@ public class AccountsController(
 
         account.UpdateFrom(item);
         _db.Entry(account).State = EntityState.Modified;
+        await _db.SaveChangesAsync();
+
+        // Handle UserIds for AccountManager role
+        var existingUserAccounts = _db.UserAccounts.Where(ua => ua.AccountId == id);
+        _db.UserAccounts.RemoveRange(existingUserAccounts);
+        if (item.UserIds != null && item.UserIds.Count > 0)
+        {
+            var managerIds = _db.Users
+                .Include(u => u.UserRoles)
+                .Where(u => item.UserIds.Contains(u.Id) && u.UserRoles.Any(ur => ur.Role.RoleId == UserRoleConstants.AccountManager))
+                .Select(u => u.Id)
+                .ToList();
+            foreach (var userId in managerIds)
+            {
+                _db.UserAccounts.Add(new UserAccount { UserId = userId, AccountId = id });
+            }
+        }
         await _db.SaveChangesAsync();
         return NoContent();
     }

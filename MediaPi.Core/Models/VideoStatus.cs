@@ -33,8 +33,6 @@ namespace MediaPi.Core.Models
         [Column("name")]
         public required string Name { get; set; }
 
-        public ICollection<VideoAtDevice> VideoAtDevices { get; set; } = [];
-        public ICollection<PlaylistAtDeviceGroup> PlaylistAtDeviceGroups { get; set; } = [];
     }
 }
 

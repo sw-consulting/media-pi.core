@@ -34,12 +34,12 @@ public class UserCreateItem
     public string Email { get; set; } = "";
     public string Password { get; set; } = "";
     public List<UserRoleConstants> Roles { get; set; } = [];
-    
+    public List<int> AccountIds { get; set; } = [];
+  
     public bool HasRole(UserRoleConstants roleConstant)
     {
         return Roles != null && Roles.Contains(roleConstant);
     }
-
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);

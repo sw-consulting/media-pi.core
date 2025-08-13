@@ -30,7 +30,7 @@ public class AccountViewItem(Account account)
 {
     public int Id { get; set; } = account.Id;
     public string Name { get; set; } = account.Name;
-
+    public List<int> UserIds { get; set; } = [];
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);

@@ -33,7 +33,8 @@ public class UserUpdateItem
     public string? Patronymic { get; set; }
     public string? Email { get; set; }
     public string? Password { get; set; }
-    public List<UserRoleConstants> Roles { get; set; } = [];
+    public List<UserRoleConstants>? Roles { get; set; } = null;
+    public List<int>? AccountIds { get; set; } = null;
     
     public override string ToString()
     {
