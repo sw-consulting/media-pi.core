@@ -265,7 +265,8 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> AssignGroup(int id, DeviceAssignGroupItem item)
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
+    public async Task<IActionResult> AssignGroup(int id, Reference item)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -275,6 +276,19 @@ public class DevicesController(
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device))
         {
+            // Validate device group assignment if not setting to null
+            if (item.Id != 0)
+            {
+                var deviceGroup = await _db.DeviceGroups.FindAsync(item.Id);
+                if (deviceGroup == null) return _404DeviceGroup(item.Id);
+
+                // Check if device group belongs to the same account as the device
+                if (device.AccountId != deviceGroup.AccountId)
+                {
+                    return _409DeviceGroupAccountMismatch(item.Id, device.AccountId);
+                }
+            }
+
             device.AssignGroupFrom(item);
             _db.Entry(device).State = EntityState.Modified;
             await _db.SaveChangesAsync();
@@ -284,12 +298,12 @@ public class DevicesController(
         return _403();
     }
 
-    // PATCH: api/devices/initial-assign-accoun/{id}t
-    [HttpPatch("initial-assign-account/{id}")]
+    // PATCH: api/devices/assign-account/{id}
+    [HttpPatch("assign-account/{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> InitialAssignAccount(int id, DeviceInitialAssignAccountItem item)
+    public async Task<IActionResult> AssignAccount(int id, Reference item)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -300,7 +314,7 @@ public class DevicesController(
         if (user.IsAdministrator() ||
             (user.HasRole(UserRoleConstants.InstallationEngineer) && device.AccountId == null))
         {
-            device.InitialAssignAccountFrom(item);
+            device.AssignAccountFrom(item);
             _db.Entry(device).State = EntityState.Modified;
             await _db.SaveChangesAsync();
             return NoContent();

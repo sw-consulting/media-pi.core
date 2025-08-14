@@ -32,7 +32,6 @@ public static class DeviceGroupExtensions
     public static void UpdateFrom(this DeviceGroup group, DeviceGroupUpdateItem item)
     {
         if (item.Name != null) group.Name = item.Name;
-        if (item.AccountId.HasValue) group.AccountId = item.AccountId.Value;
     }
 }
 

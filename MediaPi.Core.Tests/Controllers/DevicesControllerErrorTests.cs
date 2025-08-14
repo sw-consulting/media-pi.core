@@ -309,7 +309,7 @@ public class DevicesControllerErrorTests
     public async Task AssignGroup_NoUser_Returns403()
     {
         SetCurrentUser(null);
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 1 };
+        var dto = new Reference { Id = 1 };
         var result = await _controller.AssignGroup(1, dto);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
@@ -320,42 +320,42 @@ public class DevicesControllerErrorTests
     public async Task AssignGroup_RegularUser_Returns403()
     {
         SetCurrentUser(4); // Regular user
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 1 };
+        var dto = new Reference { Id = 1 };
         var result = await _controller.AssignGroup(1, dto);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
-    // Error case tests for InitialAssignAccount endpoint
+    // Error case tests for AssignAccount endpoint
     [Test]
-    public async Task InitialAssignAccount_NoUser_Returns403()
+    public async Task AssignAccount_NoUser_Returns403()
     {
         SetCurrentUser(null);
-        var dto = new DeviceInitialAssignAccountItem { Name = "NewName", AccountId = 1 };
-        var result = await _controller.InitialAssignAccount(1, dto);
+        var dto = new Reference { Id = 1 };
+        var result = await _controller.AssignAccount(1, dto);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
     [Test]
-    public async Task InitialAssignAccount_RegularUser_Returns403()
+    public async Task AssignAccount_RegularUser_Returns403()
     {
         SetCurrentUser(4); // Regular user
-        var dto = new DeviceInitialAssignAccountItem { Name = "NewName", AccountId = 1 };
-        var result = await _controller.InitialAssignAccount(1, dto);
+        var dto = new Reference { Id = 1 };
+        var result = await _controller.AssignAccount(1, dto);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
     [Test]
-    public async Task InitialAssignAccount_ManagerCannotAssign_Returns403()
+    public async Task AssignAccount_ManagerCannotAssign_Returns403()
     {
         SetCurrentUser(2); // Manager
-        var dto = new DeviceInitialAssignAccountItem { Name = "NewName", AccountId = 1 };
-        var result = await _controller.InitialAssignAccount(2, dto);
+        var dto = new Reference { Id = 1 };
+        var result = await _controller.AssignAccount(2, dto);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
