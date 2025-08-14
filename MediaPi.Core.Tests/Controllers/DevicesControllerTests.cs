@@ -458,32 +458,130 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task Update_Admin_AccountIdZero_SetsAccountIdToNull()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceUpdateItem { AccountId = 0 };
+        var response = await _controller.UpdateDevice(1, dto); // Device 1 has AccountId = _account1.Id
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.Null);
+    }
+
+    [Test]
+    public async Task Update_Admin_AccountIdValid_SetsAccountId()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceUpdateItem { AccountId = _account2.Id };
+        var response = await _controller.UpdateDevice(2, dto); // Device 2 initially has no account
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(2);
+        Assert.That(dev!.AccountId, Is.EqualTo(_account2.Id));
+    }
+
+    [Test]
+    public async Task Update_Admin_AccountIdZero_OnUnassignedDevice_RemainsNull()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceUpdateItem { AccountId = 0 };
+        var response = await _controller.UpdateDevice(2, dto); // Device 2 initially has no account
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(2);
+        Assert.That(dev!.AccountId, Is.Null);
+    }
+
+    [Test]
+    public async Task Update_Admin_CombinedUpdate_UpdatesMultipleFields()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceUpdateItem 
+        { 
+            Name = "UpdatedDevice", 
+            IpAddress = "192.168.1.100",
+            AccountId = 0, // Unassign from account
+            DeviceGroupId = 0 // Unassign from group
+        };
+        var response = await _controller.UpdateDevice(1, dto); // Device 1 has all fields set
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.Name, Is.EqualTo("UpdatedDevice"));
+        Assert.That(dev.IpAddress, Is.EqualTo("192.168.1.100"));
+        Assert.That(dev.AccountId, Is.Null);
+        Assert.That(dev.DeviceGroupId, Is.Null);
+    }
+
+    [Test]
+    public async Task Update_Admin_AccountChange_ClearsDeviceGroupId()
+    {
+        SetCurrentUser(1);
+        // Device 1 initially has AccountId = _account1.Id and DeviceGroupId = _group1.Id
+        var dto = new DeviceUpdateItem { AccountId = _account2.Id }; // Change to different account
+        var response = await _controller.UpdateDevice(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.EqualTo(_account2.Id));
+        Assert.That(dev.DeviceGroupId, Is.Null); // Should be null when account changes
+    }
+
+    [Test]
+    public async Task Update_Admin_SameAccountId_KeepsDeviceGroupId()
+    {
+        SetCurrentUser(1);
+        // Device 1 initially has AccountId = _account1.Id and DeviceGroupId = _group1.Id
+        var dto = new DeviceUpdateItem { AccountId = _account1.Id, Name = "UpdatedName" }; // Same account, update name
+        var response = await _controller.UpdateDevice(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.EqualTo(_account1.Id));
+        Assert.That(dev.DeviceGroupId, Is.EqualTo(_group1.Id)); // Should keep the group when account doesn't change
+        Assert.That(dev.Name, Is.EqualTo("UpdatedName"));
+    }
+
+    [Test]
+    public async Task Update_Admin_AccountIdZero_ClearsDeviceGroupId()
+    {
+        SetCurrentUser(1);
+        // Device 1 initially has AccountId = _account1.Id and DeviceGroupId = _group1.Id
+        var dto = new DeviceUpdateItem { AccountId = 0 }; // Unassign account
+        var response = await _controller.UpdateDevice(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.Null);
+        Assert.That(dev.DeviceGroupId, Is.Null); // Should be null when account changes to null
+    }
+
+    [Test]
     public async Task AssignGroup_Admin_Succeeds()
     {
         SetCurrentUser(1);
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 5 };
+        // First change device 1 to account 2, so we can assign group 2 (which belongs to account 2)
+        var device = await _dbContext.Devices.FindAsync(1);
+        device!.AccountId = _account2.Id;
+        await _dbContext.SaveChangesAsync();
+        
+        var dto = new Reference { Id = _group2.Id }; // Group2 belongs to Account2, Device1 now belongs to Account2
         var response = await _controller.AssignGroup(1, dto);
         Assert.That(response, Is.TypeOf<NoContentResult>());
         var dev = await _dbContext.Devices.FindAsync(1);
-        Assert.That(dev!.DeviceGroupId, Is.EqualTo(5));
+        Assert.That(dev!.DeviceGroupId, Is.EqualTo(_group2.Id));
     }
 
     [Test]
     public async Task AssignGroup_Manager_OwnDevice_Succeeds()
     {
         SetCurrentUser(2);
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 7 };
+        var dto = new Reference { Id = _group1.Id }; // Group1 belongs to Account1, Device1 belongs to Account1 (manager owns both)
         var response = await _controller.AssignGroup(1, dto);
         Assert.That(response, Is.TypeOf<NoContentResult>());
         var dev = await _dbContext.Devices.FindAsync(1);
-        Assert.That(dev!.DeviceGroupId, Is.EqualTo(7));
+        Assert.That(dev!.DeviceGroupId, Is.EqualTo(_group1.Id));
     }
 
     [Test]
     public async Task AssignGroup_Manager_OtherDevice_Forbidden()
     {
         SetCurrentUser(2);
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 7 };
+        var dto = new Reference { Id = _group1.Id }; // Valid group, but device 3 doesn't belong to manager
         var response = await _controller.AssignGroup(3, dto);
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
@@ -494,7 +592,7 @@ public class DevicesControllerTests
     public async Task AssignGroup_Engineer_Forbidden()
     {
         SetCurrentUser(3);
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 7 };
+        var dto = new Reference { Id = _group1.Id }; // Valid group, but engineer doesn't have permission
         var response = await _controller.AssignGroup(2, dto);
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
@@ -502,43 +600,53 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task InitialAssignAccount_Admin_Succeeds()
+    public async Task AssignGroup_NotFound_Returns404()
     {
         SetCurrentUser(1);
-        var dto = new DeviceInitialAssignAccountItem { Name = "NewName", AccountId = _account1.Id };
-        var response = await _controller.InitialAssignAccount(2, dto);
+        var dto = new Reference { Id = 1 };
+        var response = await _controller.AssignGroup(999, dto);
+        Assert.That(response, Is.TypeOf<ObjectResult>());
+        var obj = response as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task AssignAccount_Admin_Succeeds()
+    {
+        SetCurrentUser(1);
+        var dto = new Reference { Id = _account1.Id };
+        var response = await _controller.AssignAccount(2, dto);
         Assert.That(response, Is.TypeOf<NoContentResult>());
         var dev = await _dbContext.Devices.FindAsync(2);
         Assert.That(dev!.AccountId, Is.EqualTo(_account1.Id));
-        Assert.That(dev.Name, Is.EqualTo("NewName"));
     }
 
     [Test]
-    public async Task InitialAssignAccount_Engineer_Unassigned_Succeeds()
+    public async Task AssignAccount_Engineer_Unassigned_Succeeds()
     {
         SetCurrentUser(3);
-        var dto = new DeviceInitialAssignAccountItem { Name = "Init", AccountId = _account1.Id };
-        var response = await _controller.InitialAssignAccount(2, dto);
+        var dto = new Reference { Id = _account1.Id };
+        var response = await _controller.AssignAccount(2, dto);
         Assert.That(response, Is.TypeOf<NoContentResult>());
     }
 
     [Test]
-    public async Task InitialAssignAccount_Engineer_Assigned_Forbidden()
+    public async Task AssignAccount_Engineer_Assigned_Forbidden()
     {
         SetCurrentUser(3);
-        var dto = new DeviceInitialAssignAccountItem { Name = "Init", AccountId = _account1.Id };
-        var response = await _controller.InitialAssignAccount(1, dto);
+        var dto = new Reference { Id = _account1.Id };
+        var response = await _controller.AssignAccount(1, dto);
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
     [Test]
-    public async Task InitialAssignAccount_Manager_Forbidden()
+    public async Task AssignAccount_Manager_Forbidden()
     {
         SetCurrentUser(2);
-        var dto = new DeviceInitialAssignAccountItem { Name = "Init", AccountId = _account1.Id };
-        var response = await _controller.InitialAssignAccount(2, dto);
+        var dto = new Reference { Id = _account1.Id };
+        var response = await _controller.AssignAccount(2, dto);
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
@@ -594,25 +702,159 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task AssignGroup_NotFound_Returns404()
+    public async Task AssignAccount_NotFound_Returns404()
     {
         SetCurrentUser(1);
-        var dto = new DeviceAssignGroupItem { DeviceGroupId = 1 };
-        var response = await _controller.AssignGroup(999, dto);
+        var dto = new Reference { Id = _account1.Id };
+        var response = await _controller.AssignAccount(999, dto);
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
     }
 
     [Test]
-    public async Task InitialAssignAccount_NotFound_Returns404()
+    public async Task AssignAccount_Admin_ZeroId_SetsAccountIdToNull()
     {
         SetCurrentUser(1);
-        var dto = new DeviceInitialAssignAccountItem { Name = "N", AccountId = _account1.Id };
-        var response = await _controller.InitialAssignAccount(999, dto);
+        var dto = new Reference { Id = 0 };
+        var response = await _controller.AssignAccount(1, dto); // Device 1 has AccountId = _account1.Id
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.Null);
+    }
+
+    [Test]
+    public async Task AssignAccount_Engineer_ZeroId_SetsAccountIdToNull()
+    {
+        SetCurrentUser(3);
+        // First assign an account to device 2 so we can test unassignment
+        var assignDevice = await _dbContext.Devices.FindAsync(2);
+        assignDevice!.AccountId = _account1.Id;
+        await _dbContext.SaveChangesAsync();
+        
+        // Now try to unassign with engineer (should be forbidden since device is now assigned)
+        var dto = new Reference { Id = 0 };
+        var response = await _controller.AssignAccount(2, dto);
+        Assert.That(response, Is.TypeOf<ObjectResult>());
+        var obj = response as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task AssignAccount_Admin_AccountChange_SetsDeviceGroupIdToNull()
+    {
+        SetCurrentUser(1);
+        // Device 1 initially has AccountId = _account1.Id and DeviceGroupId = _group1.Id
+        var dto = new Reference { Id = _account2.Id }; // Change to different account
+        var response = await _controller.AssignAccount(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.EqualTo(_account2.Id));
+        Assert.That(dev.DeviceGroupId, Is.Null); // Should be null when account changes
+    }
+
+    [Test]
+    public async Task AssignAccount_Admin_SameAccount_KeepsDeviceGroupId()
+    {
+        SetCurrentUser(1);
+        // Device 1 initially has AccountId = _account1.Id and DeviceGroupId = _group1.Id
+        var dto = new Reference { Id = _account1.Id }; // Same account
+        var response = await _controller.AssignAccount(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.EqualTo(_account1.Id));
+        Assert.That(dev.DeviceGroupId, Is.EqualTo(_group1.Id)); // Should keep the group when account doesn't change
+    }
+
+    [Test]
+    public async Task AssignAccount_Admin_ZeroIdFromAccount_ClearsDeviceGroupId()
+    {
+        SetCurrentUser(1);
+        // Device 1 initially has AccountId = _account1.Id and DeviceGroupId = _group1.Id
+        var dto = new Reference { Id = 0 }; // Unassign account
+        var response = await _controller.AssignAccount(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.AccountId, Is.Null);
+        Assert.That(dev.DeviceGroupId, Is.Null); // Should be null when account changes to null
+    }
+
+    [Test]
+    public async Task AssignGroup_Admin_ZeroId_SetsDeviceGroupIdToNull()
+    {
+        SetCurrentUser(1);
+        var dto = new Reference { Id = 0 };
+        var response = await _controller.AssignGroup(1, dto); // Device 1 has DeviceGroupId = _group1.Id
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.DeviceGroupId, Is.Null);
+    }
+
+    [Test]
+    public async Task AssignGroup_Manager_ZeroId_SetsDeviceGroupIdToNull()
+    {
+        SetCurrentUser(2);
+        var dto = new Reference { Id = 0 };
+        var response = await _controller.AssignGroup(1, dto); // Device 1 is owned by manager and has DeviceGroupId = _group1.Id
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.DeviceGroupId, Is.Null);
+    }
+
+    [Test]
+    public async Task AssignGroup_Admin_ValidGroupSameAccount_Succeeds()
+    {
+        SetCurrentUser(1);
+        var dto = new Reference { Id = _group1.Id }; // Group1 belongs to Account1, Device1 belongs to Account1
+        var response = await _controller.AssignGroup(1, dto);
+        Assert.That(response, Is.TypeOf<NoContentResult>());
+        var dev = await _dbContext.Devices.FindAsync(1);
+        Assert.That(dev!.DeviceGroupId, Is.EqualTo(_group1.Id));
+    }
+
+    [Test]
+    public async Task AssignGroup_Admin_GroupAccountMismatch_ReturnsConflict()
+    {
+        SetCurrentUser(1);
+        var dto = new Reference { Id = _group2.Id }; // Group2 belongs to Account2, but Device1 belongs to Account1
+        var response = await _controller.AssignGroup(1, dto);
+        Assert.That(response, Is.TypeOf<ObjectResult>());
+        var obj = response as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task AssignGroup_Admin_DeviceUnassigned_GroupAssigned_ReturnsConflict()
+    {
+        SetCurrentUser(1);
+        var dto = new Reference { Id = _group1.Id }; // Group1 belongs to Account1, but Device2 has no account
+        var response = await _controller.AssignGroup(2, dto);
+        Assert.That(response, Is.TypeOf<ObjectResult>());
+        var obj = response as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task AssignGroup_Manager_GroupAccountMismatch_ReturnsConflict()
+    {
+        SetCurrentUser(2);
+        var dto = new Reference { Id = _group2.Id }; // Group2 belongs to Account2, but Device1 (owned by manager) belongs to Account1
+        var response = await _controller.AssignGroup(1, dto);
+        Assert.That(response, Is.TypeOf<ObjectResult>());
+        var obj = response as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task AssignGroup_Admin_NonExistentGroup_ReturnsNotFound()
+    {
+        SetCurrentUser(1);
+        var dto = new Reference { Id = 999 }; // Non-existent group
+        var response = await _controller.AssignGroup(1, dto);
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
     }
+
 }
 

@@ -111,6 +111,13 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status400BadRequest,
                           new ErrMessage { Msg = $"Неверный формат IP адреса [{ip}]" });
     }
+    protected ObjectResult _409DeviceGroupAccountMismatch(int deviceGroupId, int? deviceAccountId)
+    {
+        var deviceAccountMsg = deviceAccountId.HasValue ? $"лицевого счёта [id={deviceAccountId}]" : "не назначено лицевого счёта";
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = $"Группа устройств [id={deviceGroupId}] не принадлежит к тому же лицевому счёту, что и устройство ({deviceAccountMsg})" });
+    }
+
     protected ObjectResult _500Mapping(string fname)
     {
         return StatusCode(StatusCodes.Status500InternalServerError,

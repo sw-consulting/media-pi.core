@@ -174,18 +174,6 @@ public class DeviceGroupsControllerTests
     }
 
     [Test]
-    public async Task UpdateGroup_Manager_CannotChangeAccount()
-    {
-        SetCurrentUser(2);
-        var dto = new DeviceGroupUpdateItem { Name = "Renamed", AccountId = _account2.Id };
-        var result = await _controller.UpdateGroup(_group1.Id, dto);
-        Assert.That(result, Is.TypeOf<NoContentResult>());
-        var grp = await _dbContext.DeviceGroups.FindAsync(_group1.Id);
-        Assert.That(grp!.AccountId, Is.EqualTo(_account1.Id));
-        Assert.That(grp.Name, Is.EqualTo("Renamed"));
-    }
-
-    [Test]
     public async Task DeleteGroup_Admin_SetsDeviceNull()
     {
         SetCurrentUser(1);
@@ -337,17 +325,6 @@ public class DeviceGroupsControllerTests
     }
 
     [Test]
-    public async Task UpdateGroup_Admin_InvalidAccount_Returns404()
-    {
-        SetCurrentUser(1); // Admin
-        var dto = new DeviceGroupUpdateItem { AccountId = 999 };
-        var result = await _controller.UpdateGroup(_group1.Id, dto);
-        Assert.That(result, Is.TypeOf<ObjectResult>());
-        var obj = result as ObjectResult;
-        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
-    }
-
-    [Test]
     public async Task DeleteGroup_NoUser_Returns403()
     {
         SetCurrentUser(null);
@@ -395,6 +372,18 @@ public class DeviceGroupsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var grp = await _dbContext.DeviceGroups.FindAsync(_group1.Id);
         Assert.That(grp, Is.Null);
+    }
+
+    [Test]
+    public async Task UpdateGroup_Manager_CanUpdateName()
+    {
+        SetCurrentUser(2);
+        var dto = new DeviceGroupUpdateItem { Name = "Renamed" };
+        var result = await _controller.UpdateGroup(_group1.Id, dto);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var grp = await _dbContext.DeviceGroups.FindAsync(_group1.Id);
+        Assert.That(grp!.AccountId, Is.EqualTo(_account1.Id)); // AccountId should remain unchanged
+        Assert.That(grp.Name, Is.EqualTo("Renamed"));
     }
 }
 
