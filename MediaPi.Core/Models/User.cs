@@ -55,6 +55,7 @@ namespace MediaPi.Core.Models
 
         public bool IsAdministrator() => HasRole(UserRoleConstants.SystemAdministrator);
         public bool IsManager() => HasRole(UserRoleConstants.AccountManager);
+        public bool IsEngineer() => HasRole(UserRoleConstants.InstallationEngineer);
 
     }
 }

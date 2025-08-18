@@ -60,7 +60,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/mediapi.core
+            ghcr.io/${{ github.repository_owner }}/media-pi.core
           tags: |
             type=semver,pattern={{version}},enable=${{ contains(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ contains(github.ref, 'refs/tags/v') }}

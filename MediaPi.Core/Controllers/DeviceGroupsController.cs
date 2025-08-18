@@ -128,29 +128,15 @@ public class DeviceGroupsController(
         var group = await _db.DeviceGroups.FindAsync(id);
         if (group == null) return _404DeviceGroup(id);
 
-        if (user.IsAdministrator())
+        if (user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))
         {
-            if (item.AccountId.HasValue)
-            {
-                if (!await _db.Accounts.AnyAsync(a => a.Id == item.AccountId.Value)) return _404Account(item.AccountId.Value);
-                group.AccountId = item.AccountId.Value;
-            }
-        }
-        else if (userInformationService.ManagerOwnsGroup(user, group))
-        {
-            item.AccountId = null;
-        }
-        else
-        {
-            return _403();
+            group.UpdateFrom(item);
+            _db.Entry(group).State = EntityState.Modified;
+            await _db.SaveChangesAsync();
+            return NoContent();
         }
 
-        group.UpdateFrom(item);
-
-        _db.Entry(group).State = EntityState.Modified;
-        await _db.SaveChangesAsync();
-
-        return NoContent();
+        return _403();
     }
 
     // DELETE: api/devicegroups/{id}

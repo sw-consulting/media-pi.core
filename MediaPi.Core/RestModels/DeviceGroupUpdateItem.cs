@@ -29,7 +29,6 @@ namespace MediaPi.Core.RestModels;
 public class DeviceGroupUpdateItem
 {
     public string? Name { get; set; }
-    public int? AccountId { get; set; }
 
     public override string ToString()
     {
