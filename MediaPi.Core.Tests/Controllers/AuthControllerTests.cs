@@ -214,4 +214,111 @@ public class AuthControllerTests
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
     }
+
+    [Test]
+    public async Task Login_IncludesAccountIds_WhenUserIsManager()
+    {
+        // Arrange
+        var account1 = new Account { Id = 1, Name = "Test Account 1" };
+        var account2 = new Account { Id = 2, Name = "Test Account 2" };
+        _dbContext.Accounts.AddRange(account1, account2);
+
+        var managerRole = new Role { Id = 100, RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
+        _dbContext.Roles.Add(managerRole);
+
+        string hashedPassword = BCrypt.Net.BCrypt.HashPassword("password123");
+        var managerUser = new User
+        {
+            Id = 2,
+            Email = "manager@example.com",
+            Password = hashedPassword,
+            FirstName = "Manager",
+            LastName = "User",
+            Patronymic = "",
+            UserRoles =
+            [
+                new UserRole { UserId = 2, RoleId = managerRole.Id, Role = managerRole }
+            ],
+            UserAccounts =
+            [
+                new UserAccount { UserId = 2, AccountId = account1.Id, Account = account1 },
+                new UserAccount { UserId = 2, AccountId = account2.Id, Account = account2 }
+            ]
+        };
+
+        _dbContext.Users.Add(managerUser);
+        await _dbContext.SaveChangesAsync();
+
+        var credentials = new Credentials
+        {
+            Email = "manager@example.com",
+            Password = "password123"
+        };
+
+        _mockJwtUtils.Setup(x => x.GenerateJwtToken(It.IsAny<User>()))
+            .Returns("manager-jwt-token");
+
+        // Act
+        var result = await _controller.Login(credentials);
+
+        // Assert
+        Assert.That(result.Result, Is.Null);
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value, Is.TypeOf<UserViewItemWithJWT>());
+
+        var userView = result.Value as UserViewItemWithJWT;
+        Assert.That(userView!.Token, Is.EqualTo("manager-jwt-token"));
+        Assert.That(userView.Email, Is.EqualTo("manager@example.com"));
+        Assert.That(userView.Roles, Contains.Item(UserRoleConstants.AccountManager));
+        Assert.That(userView.AccountIds, Is.EquivalentTo(new[] { 1, 2 }));
+    }
+
+    [Test]
+    public async Task Login_EmptyAccountIds_WhenUserIsNotManager()
+    {
+        // Arrange
+        var engineerRole = new Role { Id = 101, RoleId = UserRoleConstants.InstallationEngineer, Name = "Engineer" };
+        _dbContext.Roles.Add(engineerRole);
+
+        string hashedPassword = BCrypt.Net.BCrypt.HashPassword("password123");
+        var engineerUser = new User
+        {
+            Id = 3,
+            Email = "engineer@example.com",
+            Password = hashedPassword,
+            FirstName = "Engineer",
+            LastName = "User",
+            Patronymic = "",
+            UserRoles =
+            [
+                new UserRole { UserId = 3, RoleId = engineerRole.Id, Role = engineerRole }
+            ]
+        };
+
+        _dbContext.Users.Add(engineerUser);
+        await _dbContext.SaveChangesAsync();
+
+        var credentials = new Credentials
+        {
+            Email = "engineer@example.com",
+            Password = "password123"
+        };
+
+        _mockJwtUtils.Setup(x => x.GenerateJwtToken(It.IsAny<User>()))
+            .Returns("engineer-jwt-token");
+
+        // Act
+        var result = await _controller.Login(credentials);
+
+        // Assert
+        Assert.That(result.Result, Is.Null);
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value, Is.TypeOf<UserViewItemWithJWT>());
+
+        var userView = result.Value as UserViewItemWithJWT;
+        Assert.That(userView!.Token, Is.EqualTo("engineer-jwt-token"));
+        Assert.That(userView.Email, Is.EqualTo("engineer@example.com"));
+        Assert.That(userView.Roles, Contains.Item(UserRoleConstants.InstallationEngineer));
+        Assert.That(userView.AccountIds, Is.Empty); // Non-managers should have empty AccountIds
+    }
 }

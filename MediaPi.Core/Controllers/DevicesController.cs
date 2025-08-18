@@ -87,7 +87,7 @@ public class DevicesController(
             var accountIds = userInformationService.GetUserAccountIds(user);
             query = query.Where(d => d.AccountId != null && accountIds.Contains(d.AccountId.Value));
         }
-        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        else if (user.IsEngineer())
         {
             query = query.Where(d => d.AccountId == null);
         }
@@ -124,7 +124,7 @@ public class DevicesController(
             if (!accountIds.Contains(accountId.Value)) return _403();
             query = query.Where(d => d.AccountId == accountId.Value);
         }
-        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        else if (user.IsEngineer())
         {
             if (accountId != null) return _403();
             query = query.Where(d => d.AccountId == null);
@@ -175,7 +175,7 @@ public class DevicesController(
                 query = query.Where(d => d.DeviceGroupId == deviceGroupId.Value);
             }
         }
-        else if (user.HasRole(UserRoleConstants.InstallationEngineer))
+        else if (user.IsEngineer())
         {
             if (deviceGroupId != null) return _403();
             query = query.Where(d => d.AccountId == null && d.DeviceGroupId == null);
@@ -203,7 +203,7 @@ public class DevicesController(
         if (device == null) return _404Device(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
-            (user.HasRole(UserRoleConstants.InstallationEngineer) && device.AccountId == null))
+            (user.IsEngineer() && device.AccountId == null))
         {
             return device.ToViewItem();
         }
@@ -312,7 +312,7 @@ public class DevicesController(
         if (device == null) return _404Device(id);
 
         if (user.IsAdministrator() ||
-            (user.HasRole(UserRoleConstants.InstallationEngineer) && device.AccountId == null))
+            (user.IsEngineer() && device.AccountId == null))
         {
             device.AssignAccountFrom(item);
             _db.Entry(device).State = EntityState.Modified;

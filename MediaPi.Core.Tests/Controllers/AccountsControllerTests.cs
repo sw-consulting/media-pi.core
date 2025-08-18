@@ -157,6 +157,27 @@ public class AccountsControllerTests
     }
 
     [Test]
+    public async Task GetAll_Engineer_ReturnsAllWithLimitedInfo()
+    {
+        SetCurrentUser(3); // Engineer
+        var result = await _controller.GetAll();
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!.Count(), Is.EqualTo(2)); // Should see all accounts
+        
+        // Verify all accounts have Id and Name but empty UserIds
+        foreach (var account in result.Value!)
+        {
+            Assert.That(account.Id, Is.GreaterThan(0)); // Should have valid Id
+            Assert.That(account.Name, Is.Not.Null.And.Not.Empty); // Should have valid Name
+            Assert.That(account.UserIds, Is.Empty); // Should have empty UserIds
+        }
+        
+        // Verify specific accounts are present
+        var accountIds = result.Value!.Select(a => a.Id).ToList();
+        Assert.That(accountIds, Is.EquivalentTo(new[] { _account1.Id, _account2.Id }));
+    }
+
+    [Test]
     public async Task GetAccount_Manager_Other_Forbidden()
     {
         SetCurrentUser(2);

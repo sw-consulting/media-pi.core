@@ -64,6 +64,10 @@ public class AccountsController(
             var accountIds = _userInformationService.GetUserAccountIds(user);
             query = query.Where(a => accountIds.Contains(a.Id));
         }
+        else if (user.IsEngineer())
+        {
+            // Installation Engineers can see all accounts but with limited information
+        }
         else
         {
             return _403();
@@ -73,7 +77,14 @@ public class AccountsController(
         var result = accounts.Select(a => {
             var viewItem = a.ToViewItem();
             if (user.IsAdministrator())
+            {
                 viewItem.UserIds = [.. a.UserAccounts.Select(ua => ua.UserId)];
+            }
+            else if (user.IsEngineer())
+            {
+                // For Installation Engineers, only return Id and Name, clear UserIds
+                viewItem.UserIds = [];
+            }
             return viewItem;
         }).ToList();
         return result;

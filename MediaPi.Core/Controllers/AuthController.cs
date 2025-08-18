@@ -1,23 +1,4 @@
-// Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
+// Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
 // This file is a part of Media Pi backend application
 
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +11,21 @@ using MediaPi.Core.Data;
 
 namespace MediaPi.Core.Controllers;
 
+/// <summary>
+/// AuthController handles user authentication and authorization operations for the Media Pi application.
+/// This controller provides endpoints for user login and authentication status verification.
+/// 
+/// Key responsibilities:
+/// - User authentication via email/password credentials
+/// - JWT token generation and validation
+/// - Role-based access control verification
+/// - Account information retrieval for authenticated users
+/// </summary>
+/// <remarks>
+/// This controller uses BCrypt for password hashing and verification, and JWT tokens for maintaining
+/// user sessions. User roles and account associations are loaded during authentication to provide
+/// complete user context in the response.
+/// </remarks>
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
@@ -38,8 +34,33 @@ public class AuthController(
     IJwtUtils jwtUtils,
     ILogger<AuthController> logger) : FuelfluxControllerPreBase(db, logger)
 {
+    /// <summary>
+    /// JWT utilities service for generating and validating authentication tokens
+    /// </summary>
     private readonly IJwtUtils _jwtUtils = jwtUtils;
 
+    /// <summary>
+    /// Authenticates a user with email and password credentials and returns a JWT token.
+    /// 
+    /// This endpoint performs the following operations:
+    /// 1. Validates user credentials against the database
+    /// 2. Verifies the user has at least one assigned role
+    /// 3. Generates a JWT token for successful authentication
+    /// 4. Returns user information including roles and account associations
+    /// 
+    /// For users with AccountManager role, the response includes their associated account IDs.
+    /// For other roles (SystemAdministrator, InstallationEngineer), AccountIds will be empty.
+    /// </summary>
+    /// <param name="crd">User credentials containing email and password</param>
+    /// <returns>
+    /// Success: UserViewItemWithJWT containing user information, roles, account IDs, and JWT token
+    /// Failure: 401 Unauthorized for invalid credentials, 403 Forbidden for users without roles
+    /// </returns>
+    /// <remarks>
+    /// The method performs case-insensitive email comparison and uses BCrypt for secure password verification.
+    /// User roles and account associations are eagerly loaded to provide complete context in the response.
+    /// Debug logging is performed for security auditing purposes.
+    /// </remarks>
     // POST: api/auth/login
     [AllowAnonymous]
     [HttpPost("login")]
@@ -48,39 +69,72 @@ public class AuthController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
     public async Task<ActionResult<UserViewItem>> Login(Credentials crd)
     {
+        // Log the authentication attempt for security auditing
         _logger.LogDebug("Login attempt for {email}", crd.Email);
 
+        // Query user with all necessary related data for complete authentication context
+        // Include UserRoles and Role for permission checking
+        // Include UserAccounts and Account for account association information
         User? user = await _db.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
-            .Where(u => u.Email.ToLower() == crd.Email.ToLower())
+            .Include(u => u.UserAccounts)
+            .ThenInclude(ua => ua.Account)
+            .Where(u => u.Email.ToLower() == crd.Email.ToLower()) // Case-insensitive email comparison
             .SingleOrDefaultAsync();
 
+        // Return 401 if user doesn't exist (same response as invalid password for security)
         if (user == null) return _401();
 
+        // Verify password using BCrypt (secure password hashing)
         if (!BCrypt.Net.BCrypt.Verify(crd.Password, user.Password)) return _401();
+        
+        // Ensure user has at least one role assigned (business rule requirement)
         if (!user.HasAnyRole()) return _403();
 
+        // Create response object with user information and generate JWT token
         UserViewItemWithJWT userViewItem = new(user)
         {
             Token = _jwtUtils.GenerateJwtToken(user),
         };
 
+        // Log successful authentication for security auditing
         _logger.LogDebug("Login returning\n{res}", userViewItem.ToString());
         return userViewItem;
     }
 
+    /// <summary>
+    /// Verifies the current user's authentication status without returning user data.
+    /// 
+    /// This endpoint is used to check if a user's JWT token is still valid and they
+    /// remain authenticated. It's typically called by client applications to verify
+    /// session validity before making other API calls.
+    /// 
+    /// The endpoint requires authentication (via [Authorize] attribute on the controller),
+    /// so a valid JWT token must be present in the request headers.
+    /// </summary>
+    /// <returns>
+    /// Success: 204 No Content - User is authenticated and authorized
+    /// Failure: 401 Unauthorized - Invalid or missing JWT token
+    /// </returns>
+    /// <remarks>
+    /// This is a lightweight endpoint that doesn't perform database queries or return
+    /// user data. It relies on the JWT validation middleware to determine authentication status.
+    /// Used for session validation and keeping user sessions active.
+    /// </remarks>
     // GET: api/auth/check
-    // Checks authorization status
     [HttpGet("check")]
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
     public IActionResult Check()
     {
+        // Log the authentication check for debugging purposes
         _logger.LogDebug("Check authorization status");
+        
+        // Return 204 No Content to indicate successful authentication
+        // The [Authorize] attribute ensures only authenticated users reach this point
         return NoContent();
     }
-
 }
 

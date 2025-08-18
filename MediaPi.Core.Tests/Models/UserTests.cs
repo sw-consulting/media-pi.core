@@ -122,4 +122,38 @@ public class UserTests
         };
         Assert.That(user.IsManager(), Is.False);
     }
+
+    [Test]
+    public void IsEngineer_ReturnsTrue_WhenEngineerRolePresent()
+    {
+        var role = new Role { Id = 3, RoleId = UserRoleConstants.InstallationEngineer, Name = "engineer" };
+        var user = new User
+        {
+            Id = 1,
+            Email = "test@example.com",
+            Password = "password123",
+            UserRoles =
+            [
+                new UserRole { UserId = 1, RoleId = role.Id, Role = role }
+            ]
+        };
+        Assert.That(user.IsEngineer(), Is.True);
+    }
+
+    [Test]
+    public void IsEngineer_ReturnsFalse_WhenEngineerRoleNotPresent()
+    {
+        var role = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "admin" };
+        var user = new User
+        {
+            Id = 1,
+            Email = "test@example.com",
+            Password = "password123",
+            UserRoles =
+            [
+                new UserRole { UserId = 1, RoleId = role.Id, Role = role }
+            ]
+        };
+        Assert.That(user.IsEngineer(), Is.False);
+    }
 }
