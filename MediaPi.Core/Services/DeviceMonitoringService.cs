@@ -93,18 +93,18 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                     await semaphore.WaitAsync(stoppingToken);
                     try
                     {
-                        var result = await Probe(device.IpAddress, stoppingToken);
+                        var (IsOnline, ConnectMs, TotalMs) = await Probe(device.IpAddress, stoppingToken);
                         var snap = new DeviceStatusSnapshot
                         {
                             IpAddress = device.IpAddress,
-                            IsOnline = result.IsOnline,
+                            IsOnline = IsOnline,
                             LastChecked = DateTime.UtcNow,
-                            ConnectLatencyMs = result.ConnectMs,
-                            TotalLatencyMs = result.TotalMs
+                            ConnectLatencyMs = ConnectMs,
+                            TotalLatencyMs = TotalMs
                         };
                         _snapshot[device.Id] = snap;
                         nextPoll[device.Id] = DateTime.UtcNow
-                            + TimeSpan.FromSeconds(result.IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
+                            + TimeSpan.FromSeconds(IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
                             + TimeSpan.FromSeconds(rnd.NextDouble() * _settings.JitterSeconds);
 
                         probeResults.Add(new DeviceProbe

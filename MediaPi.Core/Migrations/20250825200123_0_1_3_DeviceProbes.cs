@@ -19,7 +19,7 @@ namespace MediaPi.Core.Migrations
                     id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     device_id = table.Column<int>(type: "integer", nullable: false),
-                    Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     is_online = table.Column<bool>(type: "boolean", nullable: false),
                     connect_latency = table.Column<long>(type: "bigint", nullable: false),
                     total_latency = table.Column<long>(type: "bigint", nullable: false)
