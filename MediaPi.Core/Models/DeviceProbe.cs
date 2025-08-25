@@ -24,7 +24,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MediaPi.Core.Models;
 
-[Table("device_groups")]
+[Table("device_probes")]
 
 public class DeviceProbe
 {
@@ -42,6 +42,6 @@ public class DeviceProbe
     [Column("connect_latency")]
     public long ConnectLatencyMs { get; set; }
 
-    [Column("connect_latency")]
+    [Column("total_latency")]
     public long TotalLatencyMs { get; set; }
 }

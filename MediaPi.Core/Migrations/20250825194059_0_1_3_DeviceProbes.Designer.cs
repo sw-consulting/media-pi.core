@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250825191407_DeviceProbes")]
-    partial class DeviceProbes
+    [Migration("20250825194059_0_1_3_DeviceProbes")]
+    partial class _0_1_3_DeviceProbes
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -131,30 +131,35 @@ namespace MediaPi.Core.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<long>("ConnectLatencyMs")
-                        .HasColumnType("bigint");
+                        .HasColumnType("bigint")
+                        .HasColumnName("connect_latency");
 
                     b.Property<int>("DeviceId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("device_id");
 
                     b.Property<bool>("IsOnline")
-                        .HasColumnType("boolean");
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_online");
 
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("TotalLatencyMs")
-                        .HasColumnType("bigint");
+                        .HasColumnType("bigint")
+                        .HasColumnName("total_latency");
 
                     b.HasKey("Id");
 
                     b.HasIndex("DeviceId");
 
-                    b.ToTable("DeviceProbes");
+                    b.ToTable("device_probes");
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Playlist", b =>

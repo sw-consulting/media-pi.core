@@ -38,11 +38,13 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DeviceMonitorSettings _settings;
     private readonly ConcurrentDictionary<int, DeviceStatusSnapshot> _snapshot = new();
+    private readonly ILogger<DeviceMonitoringService> _logger;
 
-    public DeviceMonitoringService(IServiceScopeFactory scopeFactory, IOptions<DeviceMonitorSettings> options)
+    public DeviceMonitoringService(IServiceScopeFactory scopeFactory, IOptions<DeviceMonitorSettings> options, ILogger<DeviceMonitoringService> logger)
     {
         _scopeFactory = scopeFactory;
         _settings = options.Value;
+        _logger = logger;
     }
 
     public IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot => _snapshot;
@@ -51,75 +53,109 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("DeviceMonitoringService started.");
         var rnd = new Random();
         var nextPoll = new ConcurrentDictionary<int, DateTime>();
         var semaphore = new SemaphoreSlim(_settings.MaxParallelProbes);
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var devices = await db.Devices.AsNoTracking().ToListAsync(stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var devices = await db.Devices.AsNoTracking().ToListAsync(stoppingToken);
+                _logger.LogDebug("Loaded {DeviceCount} devices for monitoring.", devices.Count);
 
-            foreach (var d in devices)
-            {
-                nextPoll.TryAdd(d.Id, DateTime.UtcNow);
-            }
-            foreach (var id in nextPoll.Keys)
-            {
-                if (devices.All(d => d.Id != id))
+                foreach (var d in devices)
                 {
-                    nextPoll.TryRemove(id, out _);
-                    _snapshot.TryRemove(id, out _);
+                    nextPoll.TryAdd(d.Id, DateTime.UtcNow);
                 }
-            }
+                foreach (var id in nextPoll.Keys)
+                {
+                    if (devices.All(d => d.Id != id))
+                    {
+                        nextPoll.TryRemove(id, out _);
+                        _snapshot.TryRemove(id, out _);
+                        _logger.LogDebug("Device {DeviceId} removed from monitoring.", id);
+                    }
+                }
 
-            var due = nextPoll
-                .Where(kvp => kvp.Value <= DateTime.UtcNow)
-                .Select(kvp => devices.First(d => d.Id == kvp.Key))
-                .ToList();
+                var due = nextPoll
+                    .Where(kvp => kvp.Value <= DateTime.UtcNow)
+                    .Select(kvp => devices.First(d => d.Id == kvp.Key))
+                    .ToList();
 
-            var tasks = due.Select(async device =>
-            {
-                await semaphore.WaitAsync(stoppingToken);
+                var probeResults = new ConcurrentBag<DeviceProbe>();
+
+                var tasks = due.Select(async device =>
+                {
+                    await semaphore.WaitAsync(stoppingToken);
+                    try
+                    {
+                        var result = await Probe(device.IpAddress, stoppingToken);
+                        var snap = new DeviceStatusSnapshot
+                        {
+                            IpAddress = device.IpAddress,
+                            IsOnline = result.IsOnline,
+                            LastChecked = DateTime.UtcNow,
+                            ConnectLatencyMs = result.ConnectMs,
+                            TotalLatencyMs = result.TotalMs
+                        };
+                        _snapshot[device.Id] = snap;
+                        nextPoll[device.Id] = DateTime.UtcNow
+                            + TimeSpan.FromSeconds(result.IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
+                            + TimeSpan.FromSeconds(rnd.NextDouble() * _settings.JitterSeconds);
+
+                        probeResults.Add(new DeviceProbe
+                        {
+                            DeviceId = device.Id,
+                            Timestamp = snap.LastChecked,
+                            IsOnline = snap.IsOnline,
+                            ConnectLatencyMs = snap.ConnectLatencyMs,
+                            TotalLatencyMs = snap.TotalLatencyMs
+                        });
+                        _logger.LogInformation("Probed device {DeviceId} ({IpAddress}): Online={IsOnline}, ConnectMs={ConnectMs}, TotalMs={TotalMs}",
+                            device.Id, device.IpAddress, snap.IsOnline, snap.ConnectLatencyMs, snap.TotalLatencyMs);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error probing device {DeviceId} ({IpAddress})", device.Id, device.IpAddress);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }).ToList();
+
+                await Task.WhenAll(tasks);
+
+                foreach (var probe in probeResults)
+                    db.DeviceProbes.Add(probe);
+
                 try
                 {
-                    var result = await Probe(device.IpAddress, stoppingToken);
-                    var snap = new DeviceStatusSnapshot
-                    {
-                        IpAddress = device.IpAddress,
-                        IsOnline = result.IsOnline,
-                        LastChecked = DateTime.UtcNow,
-                        ConnectLatencyMs = result.ConnectMs,
-                        TotalLatencyMs = result.TotalMs
-                    };
-                    _snapshot[device.Id] = snap;
-                    nextPoll[device.Id] = DateTime.UtcNow
-                        + TimeSpan.FromSeconds(result.IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
-                        + TimeSpan.FromSeconds(rnd.NextDouble() * _settings.JitterSeconds);
-
-                    db.DeviceProbes.Add(new DeviceProbe
-                    {
-                        DeviceId = device.Id,
-                        Timestamp = snap.LastChecked,
-                        IsOnline = snap.IsOnline,
-                        ConnectLatencyMs = snap.ConnectLatencyMs,
-                        TotalLatencyMs = snap.TotalLatencyMs
-                    });
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
                 }
-                finally
+                catch (Exception ex)
                 {
-                    semaphore.Release();
+                    _logger.LogError(ex, "Error saving device probe results to database.");
                 }
-            }).ToList();
 
-            await Task.WhenAll(tasks);
-            await db.SaveChangesAsync(stoppingToken);
-
-            var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(1)).Min();
-            var delay = next - DateTime.UtcNow;
-            if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
-            await Task.Delay(delay, stoppingToken);
+                var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(1)).Min();
+                var delay = next - DateTime.UtcNow;
+                if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
+                await Task.Delay(delay, stoppingToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "DeviceMonitoringService encountered a fatal error and is stopping.");
+        }
+        finally
+        {
+            _logger.LogInformation("DeviceMonitoringService stopped.");
         }
     }
 
@@ -128,8 +164,14 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         var sw = Stopwatch.StartNew();
         try
         {
+            if (!IPAddress.TryParse(ip, out var ipAddress))
+            {
+                sw.Stop();
+                _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", ip);
+                return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
+            }
             using var client = new TcpClient();
-            var connectTask = client.ConnectAsync(IPAddress.Parse(ip), 22);
+            var connectTask = client.ConnectAsync(ipAddress, 22);
             var timeoutTask = Task.Delay(TimeSpan.FromSeconds(_settings.TimeoutSeconds), token);
             var completed = await Task.WhenAny(connectTask, timeoutTask);
             if (completed != connectTask || !client.Connected)
@@ -141,13 +183,23 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             using var stream = client.GetStream();
             stream.ReadTimeout = _settings.TimeoutSeconds * 1000;
             var buffer = new byte[256];
-            await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), token);
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), token);
             sw.Stop();
+            if (bytesRead == 0)
+            {
+                _logger.LogWarning("Probe for IP {IpAddress} succeeded in connecting, but no data was read from the stream.", ip);
+                return (false, connectMs, sw.ElapsedMilliseconds);
+            }
+            if (bytesRead < buffer.Length)
+            {
+                _logger.LogDebug("Probe for IP {IpAddress} read partial data: {BytesRead} bytes.", ip, bytesRead);
+            }
             return (true, connectMs, sw.ElapsedMilliseconds);
         }
-        catch
+        catch (Exception ex)
         {
             sw.Stop();
+            _logger.LogWarning(ex, "Probe failed for IP {IpAddress}", ip);
             return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
         }
     }

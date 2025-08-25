@@ -28,6 +28,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add user-configurable settings file
+builder.Configuration
+    .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
 var config = builder.Configuration;
 var certPath = config["Kestrel:Certificates:Default:Path"];
 var certPassword = config["Kestrel:Certificates:Default:Password"];
