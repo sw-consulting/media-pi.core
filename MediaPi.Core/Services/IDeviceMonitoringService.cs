@@ -20,9 +20,15 @@
 //
 // This file is a part of Media Pi backend application
 
-namespace MediaPi.Core;
+using MediaPi.Core.Services.Models;
+using System.Threading;
+using System.Threading.Tasks;
 
-public static class VersionInfo
+namespace MediaPi.Core.Services;
+
+public interface IDeviceMonitoringService
 {
-    public const string AppVersion = "0.1.4";
+    IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot { get; }
+    bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status);
+    Task<DeviceStatusSnapshot?> Test(int deviceId, CancellationToken token = default);
 }

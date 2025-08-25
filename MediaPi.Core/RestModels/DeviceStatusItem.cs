@@ -20,9 +20,33 @@
 //
 // This file is a part of Media Pi backend application
 
-namespace MediaPi.Core;
+using System.Text.Json;
+using MediaPi.Core.Services.Models;
+using MediaPi.Core.Settings;
 
-public static class VersionInfo
+namespace MediaPi.Core.RestModels;
+
+public class DeviceStatusItem
 {
-    public const string AppVersion = "0.1.4";
+    public int DeviceId { get; set; }
+    public string IpAddress { get; set; } = string.Empty;
+    public bool IsOnline { get; set; }
+    public DateTime LastChecked { get; set; }
+    public long ConnectLatencyMs { get; set; }
+    public long TotalLatencyMs { get; set; }
+
+    public DeviceStatusItem(int deviceId, DeviceStatusSnapshot snapshot)
+    {
+        DeviceId = deviceId;
+        IpAddress = snapshot.IpAddress;
+        IsOnline = snapshot.IsOnline;
+        LastChecked = snapshot.LastChecked;
+        ConnectLatencyMs = snapshot.ConnectLatencyMs;
+        TotalLatencyMs = snapshot.TotalLatencyMs;
+    }
+
+    public override string ToString()
+    {
+        return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
+    }
 }

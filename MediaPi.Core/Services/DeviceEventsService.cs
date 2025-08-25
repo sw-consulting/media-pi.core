@@ -20,9 +20,29 @@
 //
 // This file is a part of Media Pi backend application
 
-namespace MediaPi.Core;
+using MediaPi.Core.Models;
 
-public static class VersionInfo
+namespace MediaPi.Core.Services
 {
-    public const string AppVersion = "0.1.4";
+    public class DeviceEventsService
+    {
+        public event Action<Device>? DeviceCreated;
+        public event Action<Device>? DeviceUpdated;
+        public event Action<int>? DeviceDeleted;
+
+        public void OnDeviceCreated(Device device)
+        {
+            DeviceCreated?.Invoke(device);
+        }
+
+        public void OnDeviceUpdated(Device device)
+        {
+            DeviceUpdated?.Invoke(device);
+        }
+
+        public void OnDeviceDeleted(int deviceId)
+        {
+            DeviceDeleted?.Invoke(deviceId);
+        }
+    }
 }

@@ -20,9 +20,13 @@
 //
 // This file is a part of Media Pi backend application
 
-namespace MediaPi.Core;
+namespace MediaPi.Core.Services.Models;
 
-public static class VersionInfo
+public class DeviceStatusSnapshot
 {
-    public const string AppVersion = "0.1.4";
+    public string IpAddress { get; set; } = string.Empty;
+    public bool IsOnline { get; set; }
+    public DateTime LastChecked { get; set; }
+    public long ConnectLatencyMs { get; set; }
+    public long TotalLatencyMs { get; set; }
 }

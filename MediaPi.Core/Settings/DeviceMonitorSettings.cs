@@ -20,9 +20,13 @@
 //
 // This file is a part of Media Pi backend application
 
-namespace MediaPi.Core;
+namespace MediaPi.Core.Settings;
 
-public static class VersionInfo
+public class DeviceMonitorSettings
 {
-    public const string AppVersion = "0.1.4";
+    public int OnlinePollingIntervalSeconds { get; set; } = 60;
+    public int OfflinePollingIntervalSeconds { get; set; } = 10;
+    public int MaxParallelProbes { get; set; } = 20;
+    public int TimeoutSeconds { get; set; } = 5;
+    public int JitterSeconds { get; set; } = 5;
 }

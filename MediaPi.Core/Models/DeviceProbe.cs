@@ -20,9 +20,29 @@
 //
 // This file is a part of Media Pi backend application
 
-namespace MediaPi.Core;
+using System.ComponentModel.DataAnnotations.Schema;
 
-public static class VersionInfo
+namespace MediaPi.Core.Models;
+
+[Table("device_probes")]
+
+public class DeviceProbe
 {
-    public const string AppVersion = "0.1.4";
+    [Column("id")]
+    public int Id { get; set; }
+
+    [Column("device_id")]
+    public int DeviceId { get; set; }
+    public Device? Device { get; set; }
+    [Column("timestamp")]
+    public DateTime Timestamp { get; set; }
+
+    [Column("is_online")]
+    public bool IsOnline { get; set; }
+
+    [Column("connect_latency")]
+    public long ConnectLatencyMs { get; set; }
+
+    [Column("total_latency")]
+    public long TotalLatencyMs { get; set; }
 }

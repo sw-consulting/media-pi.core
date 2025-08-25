@@ -41,7 +41,8 @@ public class DevicesController(
     IHttpContextAccessor httpContextAccessor,
     IUserInformationService userInformationService,
     AppDbContext db,
-    ILogger<DevicesController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    ILogger<DevicesController> logger,
+    DeviceEventsService deviceEventsService) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
     [AllowAnonymous]
@@ -65,6 +66,9 @@ public class DevicesController(
         await _db.SaveChangesAsync();
         device.Name = $"Устройство №{device.Id}";
         await _db.SaveChangesAsync();
+
+        deviceEventsService.OnDeviceCreated(device);
+
         return CreatedAtAction(nameof(GetDevice), new { id = device.Id }, new Reference { Id = device.Id });
     }
 
@@ -238,6 +242,8 @@ public class DevicesController(
         _db.Entry(device).State = EntityState.Modified;
         await _db.SaveChangesAsync();
 
+        deviceEventsService.OnDeviceUpdated(device);
+
         return NoContent();
     }
 
@@ -256,6 +262,8 @@ public class DevicesController(
 
         _db.Devices.Remove(device);
         await _db.SaveChangesAsync();
+
+        deviceEventsService.OnDeviceDeleted(id);
 
         return NoContent();
     }
@@ -292,6 +300,9 @@ public class DevicesController(
             device.AssignGroupFrom(item);
             _db.Entry(device).State = EntityState.Modified;
             await _db.SaveChangesAsync();
+
+            deviceEventsService.OnDeviceUpdated(device);
+
             return NoContent();
         }
 
@@ -317,6 +328,9 @@ public class DevicesController(
             device.AssignAccountFrom(item);
             _db.Entry(device).State = EntityState.Modified;
             await _db.SaveChangesAsync();
+
+            deviceEventsService.OnDeviceUpdated(device);
+
             return NoContent();
         }
 

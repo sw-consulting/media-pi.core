@@ -29,7 +29,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
 
-namespace MediaPi.Core.Tests.Data;
+namespace MediaPi.Core.Tests.Services;
 
 public class UserInformationServiceTests
 {

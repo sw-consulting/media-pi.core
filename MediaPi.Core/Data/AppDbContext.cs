@@ -44,6 +44,7 @@ namespace MediaPi.Core.Data
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
         public DbSet<VideoStatus> VideoStatuses => Set<VideoStatus>();
         public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+        public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
