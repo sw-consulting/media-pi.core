@@ -51,8 +51,6 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         _settings = options.Value;
         _logger = logger;
         _deviceEventsService = deviceEventsService;
-
-        // Subscribe to DeviceEventsService events
         _deviceEventsService.DeviceDeleted += OnDeviceDeleted;
     }
 
@@ -88,16 +86,6 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 foreach (var d in devices)
                 {
                     nextPoll.TryAdd(d.Id, DateTime.UtcNow);
-                }
-
-                foreach (var id in nextPoll.Keys)
-                {
-                    if (devices.All(d => d.Id != id))
-                    {
-                        nextPoll.TryRemove(id, out _);
-                        _snapshot.TryRemove(id, out _);
-                        _logger.LogDebug("Device {DeviceId} removed from monitoring.", id);
-                    }
                 }
 
                 var due = nextPoll
