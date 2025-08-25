@@ -29,8 +29,16 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
+builder.Configuration
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+    // Optionally load the override config if present
+    .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
+
 var certPath = config["Kestrel:Certificates:Default:Path"];
 var certPassword = config["Kestrel:Certificates:Default:Password"];
+
 bool useHttps = !string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword) && File.Exists(certPath);
 builder.WebHost.ConfigureKestrel(options =>
 {
