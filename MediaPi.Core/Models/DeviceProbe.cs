@@ -34,6 +34,7 @@ public class DeviceProbe
     [Column("device_id")]
     public int DeviceId { get; set; }
     public Device? Device { get; set; }
+    [Column("timestamp")]
     public DateTime Timestamp { get; set; }
 
     [Column("is_online")]
