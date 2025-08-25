@@ -59,6 +59,7 @@ public class DevicesControllerErrorTests
     private DeviceGroup _group1;
     private DeviceGroup _group2;
     private UserInformationService _userInformationService;
+    private DeviceEventsService _deviceEventsService;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -69,6 +70,7 @@ public class DevicesControllerErrorTests
             .Options;
 
         _dbContext = new AppDbContext(options);
+        _deviceEventsService = new DeviceEventsService();
 
         _adminRole = new Role { Id = (int)UserRoleConstants.SystemAdministrator, RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { Id = (int)UserRoleConstants.AccountManager, RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -137,7 +139,8 @@ public class DevicesControllerErrorTests
             _mockHttpContextAccessor.Object,
             _userInformationService,
             _dbContext,
-            _mockLogger.Object
+            _mockLogger.Object,
+            _deviceEventsService
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }

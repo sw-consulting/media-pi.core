@@ -28,6 +28,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add user-configurable settings file
+builder.Configuration
+    .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
 var config = builder.Configuration;
 builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
@@ -52,6 +57,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services
     .Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"))
+    .Configure<DeviceMonitorSettings>(builder.Configuration.GetSection("DeviceMonitor"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
     .AddHttpContextAccessor()
@@ -69,6 +75,13 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register DeviceEventsService as singleton
+builder.Services.AddSingleton<DeviceEventsService>();
+
+builder.Services.AddSingleton<DeviceMonitoringService>();
+builder.Services.AddSingleton<IDeviceMonitoringService>(sp => sp.GetRequiredService<DeviceMonitoringService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
