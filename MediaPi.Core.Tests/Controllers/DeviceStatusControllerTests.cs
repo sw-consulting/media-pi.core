@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using MediaPi.Core.Controllers;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
@@ -102,5 +104,37 @@ public class DeviceStatusControllerTests
             var err = notFound.Value as ErrMessage;
             Assert.That(err?.Msg, Does.Contain("99"));
         }
+    }
+
+    [Test]
+    public async Task Test_ReturnsDeviceStatus_WhenFound()
+    {
+        var snapshot = new DeviceStatusSnapshot
+        {
+            IpAddress = "192.168.1.10",
+            IsOnline = true,
+            LastChecked = DateTime.UtcNow,
+            ConnectLatencyMs = 10,
+            TotalLatencyMs = 20
+        };
+        _monitoringServiceMock.Setup(s => s.Test(1, It.IsAny<CancellationToken>())).ReturnsAsync(snapshot);
+        var result = await _controller.Test(1);
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = result.Result as OkObjectResult;
+        Assert.That(okResult?.Value, Is.Not.Null);
+        if (okResult?.Value is DeviceStatusItem item)
+        {
+            Assert.That(item.DeviceId, Is.EqualTo(1));
+            Assert.That(item.IpAddress, Is.EqualTo("192.168.1.10"));
+            Assert.That(item.IsOnline, Is.True);
+        }
+    }
+
+    [Test]
+    public async Task Test_ReturnsNotFound_WhenDeviceMissing()
+    {
+        _monitoringServiceMock.Setup(s => s.Test(99, It.IsAny<CancellationToken>())).ReturnsAsync((DeviceStatusSnapshot?)null);
+        var result = await _controller.Test(99);
+        Assert.That(result.Result, Is.TypeOf<NotFoundObjectResult>());
     }
 }
