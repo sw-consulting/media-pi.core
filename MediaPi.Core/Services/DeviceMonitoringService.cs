@@ -39,17 +39,34 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly DeviceMonitorSettings _settings;
     private readonly ConcurrentDictionary<int, DeviceStatusSnapshot> _snapshot = new();
     private readonly ILogger<DeviceMonitoringService> _logger;
+    private readonly DeviceEventsService _deviceEventsService;
 
-    public DeviceMonitoringService(IServiceScopeFactory scopeFactory, IOptions<DeviceMonitorSettings> options, ILogger<DeviceMonitoringService> logger)
+    public DeviceMonitoringService(
+        IServiceScopeFactory scopeFactory, 
+        IOptions<DeviceMonitorSettings> options, 
+        ILogger<DeviceMonitoringService> logger, 
+        DeviceEventsService deviceEventsService)
     {
         _scopeFactory = scopeFactory;
         _settings = options.Value;
         _logger = logger;
+        _deviceEventsService = deviceEventsService;
+
+        // Subscribe to DeviceEventsService events
+        _deviceEventsService.DeviceDeleted += OnDeviceDeleted;
     }
 
     public IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot => _snapshot;
 
     public bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status) => _snapshot.TryGetValue(deviceId, out status!);
+
+    private void OnDeviceDeleted(int deviceId)
+    {
+        if (_snapshot.TryRemove(deviceId, out _))
+        {
+            _logger.LogInformation("Device {DeviceId} removed from monitoring snapshot via event notification.", deviceId);
+        }
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -65,12 +82,14 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var devices = await db.Devices.AsNoTracking().ToListAsync(stoppingToken);
+
                 _logger.LogDebug("Loaded {DeviceCount} devices for monitoring.", devices.Count);
 
                 foreach (var d in devices)
                 {
                     nextPoll.TryAdd(d.Id, DateTime.UtcNow);
                 }
+
                 foreach (var id in nextPoll.Keys)
                 {
                     if (devices.All(d => d.Id != id))

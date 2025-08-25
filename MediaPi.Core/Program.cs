@@ -67,6 +67,10 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register DeviceEventsService as singleton
+builder.Services.AddSingleton<DeviceEventsService>();
+
 builder.Services.AddSingleton<DeviceMonitoringService>();
 builder.Services.AddSingleton<IDeviceMonitoringService>(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringService>());
