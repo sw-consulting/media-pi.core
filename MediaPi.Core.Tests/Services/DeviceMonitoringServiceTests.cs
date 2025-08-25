@@ -182,4 +182,61 @@ public class DeviceMonitoringServiceTests
         var probes = db.DeviceProbes.Where(p => p.DeviceId == device.Id).ToList();
         Assert.That(probes, Is.Not.Empty);
     }
+
+    [Test]
+    public void OnDeviceDeleted_DoesNotThrow_WhenDeviceNotInSnapshot()
+    {
+        var logs = new List<string>();
+        var eventsService = CreateDeviceEventsService();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(CreateDbContext()),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            eventsService);
+
+        // Try to delete a device that was never added
+        Assert.DoesNotThrow(() => eventsService.OnDeviceDeleted(999));
+        Assert.That(service.Snapshot.ContainsKey(999), Is.False);
+    }
+
+    [Test]
+    public void OnDeviceDeleted_DoesNotThrow_WhenDeviceIdIsNegative()
+    {
+        var logs = new List<string>();
+        var eventsService = CreateDeviceEventsService();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(CreateDbContext()),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            eventsService);
+
+        Assert.DoesNotThrow(() => eventsService.OnDeviceDeleted(-1));
+        Assert.That(service.Snapshot.ContainsKey(-1), Is.False);
+    }
+
+    [Test]
+    public async Task ExecuteAsync_DoesNotRemoveDevice_WhenEventIdIsInvalid()
+    {
+        var device = new Device { Id = 10, IpAddress = "127.0.0.1", Name = "TestDevice10" };
+        var db = CreateDbContext(device);
+        var logs = new List<string>();
+        var eventsService = CreateDeviceEventsService();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            eventsService);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var task = service.StartAsync(cts.Token);
+        await Task.Delay(1500);
+        Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
+
+        // Try to delete a device with an invalid ID
+        eventsService.OnDeviceDeleted(999);
+        await Task.Delay(100);
+        Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
+        cts.Cancel();
+        await task;
+    }
 }
