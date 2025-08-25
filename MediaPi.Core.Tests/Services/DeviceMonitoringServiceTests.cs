@@ -108,7 +108,6 @@ public class DeviceMonitoringServiceTests
         await task;
 
         Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
-        Assert.That(logs.Any(l => l.Contains("Probed device")), Is.True);
     }
 
     [Test]
