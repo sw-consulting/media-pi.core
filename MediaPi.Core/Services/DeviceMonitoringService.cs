@@ -58,12 +58,58 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
     public bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status) => _snapshot.TryGetValue(deviceId, out status!);
 
+    public async Task<DeviceStatusSnapshot?> Test(int deviceId, CancellationToken token = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, token);
+        if (device is null)
+            return null;
+
+        var (snap, probe) = await ProbeDevice(device, token);
+        db.DeviceProbes.Add(probe);
+        try
+        {
+            await db.SaveChangesAsync(token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving device probe result to database for device {DeviceId}", deviceId);
+        }
+        return snap;
+    }
+
     private void OnDeviceDeleted(int deviceId)
     {
         if (_snapshot.TryRemove(deviceId, out _))
         {
             _logger.LogInformation("Device {DeviceId} removed from monitoring snapshot via event notification.", deviceId);
         }
+    }
+
+    private async Task<(DeviceStatusSnapshot Snapshot, DeviceProbe Probe)> ProbeDevice(Device device, CancellationToken token)
+    {
+        var (IsOnline, ConnectMs, TotalMs) = await Probe(device.IpAddress, token);
+        var snap = new DeviceStatusSnapshot
+        {
+            IpAddress = device.IpAddress,
+            IsOnline = IsOnline,
+            LastChecked = DateTime.UtcNow,
+            ConnectLatencyMs = ConnectMs,
+            TotalLatencyMs = TotalMs
+        };
+        _snapshot[device.Id] = snap;
+        _logger.LogInformation("Probed device {DeviceId} ({IpAddress}): Online={IsOnline}, ConnectMs={ConnectMs}, TotalMs={TotalMs}",
+            device.Id, device.IpAddress, snap.IsOnline, snap.ConnectLatencyMs, snap.TotalLatencyMs);
+        var probe = new DeviceProbe
+        {
+            DeviceId = device.Id,
+            Timestamp = snap.LastChecked,
+            IsOnline = snap.IsOnline,
+            ConnectLatencyMs = snap.ConnectLatencyMs,
+            TotalLatencyMs = snap.TotalLatencyMs
+        };
+        return (snap, probe);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -100,30 +146,11 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                     await semaphore.WaitAsync(stoppingToken);
                     try
                     {
-                        var (IsOnline, ConnectMs, TotalMs) = await Probe(device.IpAddress, stoppingToken);
-                        var snap = new DeviceStatusSnapshot
-                        {
-                            IpAddress = device.IpAddress,
-                            IsOnline = IsOnline,
-                            LastChecked = DateTime.UtcNow,
-                            ConnectLatencyMs = ConnectMs,
-                            TotalLatencyMs = TotalMs
-                        };
-                        _snapshot[device.Id] = snap;
+                        var (snap, probe) = await ProbeDevice(device, stoppingToken);
                         nextPoll[device.Id] = DateTime.UtcNow
-                            + TimeSpan.FromSeconds(IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
+                            + TimeSpan.FromSeconds(snap.IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
                             + TimeSpan.FromSeconds(rnd.NextDouble() * _settings.JitterSeconds);
-
-                        probeResults.Add(new DeviceProbe
-                        {
-                            DeviceId = device.Id,
-                            Timestamp = snap.LastChecked,
-                            IsOnline = snap.IsOnline,
-                            ConnectLatencyMs = snap.ConnectLatencyMs,
-                            TotalLatencyMs = snap.TotalLatencyMs
-                        });
-                        _logger.LogInformation("Probed device {DeviceId} ({IpAddress}): Online={IsOnline}, ConnectMs={ConnectMs}, TotalMs={TotalMs}",
-                            device.Id, device.IpAddress, snap.IsOnline, snap.ConnectLatencyMs, snap.TotalLatencyMs);
+                        probeResults.Add(probe);
                     }
                     catch (Exception ex)
                     {

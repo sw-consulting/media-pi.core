@@ -21,6 +21,8 @@
 // This file is a part of Media Pi backend application
 
 using MediaPi.Core.Services.Models;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MediaPi.Core.Services;
 
@@ -28,4 +30,5 @@ public interface IDeviceMonitoringService
 {
     IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot { get; }
     bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status);
+    Task<DeviceStatusSnapshot?> Test(int deviceId, CancellationToken token = default);
 }

@@ -183,5 +183,37 @@ public class DeviceMonitoringServiceTests
         Assert.That(probes, Is.Not.Empty);
     }
 
+    [Test]
+    public async Task Test_ReturnsSnapshot_WhenDeviceExists()
+    {
+        var device = new Device { Id = 4, IpAddress = "127.0.0.1", Name = "TestDevice4" };
+        var db = CreateDbContext(device);
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(new List<string>()),
+            CreateDeviceEventsService());
+
+        var result = await service.Test(device.Id);
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
+    }
+
+    [Test]
+    public async Task Test_ReturnsNull_WhenDeviceMissing()
+    {
+        var db = CreateDbContext();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(new List<string>()),
+            CreateDeviceEventsService());
+
+        var result = await service.Test(999);
+
+        Assert.That(result, Is.Null);
+    }
+
 
 }
