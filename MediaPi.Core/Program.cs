@@ -44,6 +44,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services
     .Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"))
+    .Configure<DeviceMonitorSettings>(builder.Configuration.GetSection("DeviceMonitor"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
     .AddHttpContextAccessor()
@@ -61,6 +62,9 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddSingleton<DeviceMonitoringService>();
+builder.Services.AddSingleton<IDeviceMonitoringService>(sp => sp.GetRequiredService<DeviceMonitoringService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
