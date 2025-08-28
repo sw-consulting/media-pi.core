@@ -28,6 +28,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
 
+using System;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -37,6 +38,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Services.Models;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -60,6 +62,7 @@ public class DevicesControllerTests
     private DeviceGroup _group2;
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
+    private Mock<IDeviceMonitoringService> _monitoringServiceMock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -71,6 +74,7 @@ public class DevicesControllerTests
 
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
+        _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -136,7 +140,8 @@ public class DevicesControllerTests
             _userInformationService,
             _dbContext,
             _mockLogger.Object,
-            _deviceEventsService
+            _deviceEventsService,
+            _monitoringServiceMock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -230,6 +235,27 @@ public class DevicesControllerTests
         var list = result.Value!.ToList();
         Assert.That(list, Has.Count.EqualTo(1));
         Assert.That(list[0].Id, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAll_IncludesDeviceStatus()
+    {
+        var snapshot = new DeviceStatusSnapshot
+        {
+            IpAddress = "1.1.1.1",
+            IsOnline = true,
+            LastChecked = DateTime.UtcNow,
+            ConnectLatencyMs = 1,
+            TotalLatencyMs = 2
+        };
+        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out It.Ref<DeviceStatusSnapshot>.IsAny))
+            .Returns((int id, out DeviceStatusSnapshot status) => { status = snapshot; return true; });
+
+        SetCurrentUser(1);
+        var result = await _controller.GetAll();
+        var item = result.Value!.First(d => d.Id == 1);
+        Assert.That(item.DeviceStatus, Is.Not.Null);
+        Assert.That(item.DeviceStatus!.IsOnline, Is.True);
     }
 
     [Test]
@@ -403,6 +429,27 @@ public class DevicesControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetDevice_ReturnsDeviceStatus_WhenAvailable()
+    {
+        var snapshot = new DeviceStatusSnapshot
+        {
+            IpAddress = "1.1.1.1",
+            IsOnline = true,
+            LastChecked = DateTime.UtcNow,
+            ConnectLatencyMs = 1,
+            TotalLatencyMs = 2
+        };
+        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out It.Ref<DeviceStatusSnapshot>.IsAny))
+            .Returns((int id, out DeviceStatusSnapshot status) => { status = snapshot; return true; });
+
+        SetCurrentUser(1);
+        var result = await _controller.GetDevice(1);
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!.DeviceStatus, Is.Not.Null);
+        Assert.That(result.Value!.DeviceStatus!.IsOnline, Is.True);
     }
 
     [Test]
