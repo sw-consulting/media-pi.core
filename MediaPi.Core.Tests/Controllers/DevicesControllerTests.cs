@@ -229,8 +229,8 @@ public class DevicesControllerTests
             ConnectLatencyMs = 1,
             TotalLatencyMs = 2
         };
-        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out It.Ref<DeviceStatusSnapshot>.IsAny))
-            .Returns((int id, out DeviceStatusSnapshot status) => { status = snapshot; return true; });
+        _monitoringServiceMock.Setup(s => s.TryGetStatusItem(1, out It.Ref<DeviceStatusItem?>.IsAny))
+            .Returns((int id, out DeviceStatusItem? status) => { status = new DeviceStatusItem(id, snapshot); return true; });
 
         SetCurrentUser(1);
         var result = await _controller.GetAll();
@@ -423,8 +423,9 @@ public class DevicesControllerTests
             ConnectLatencyMs = 1,
             TotalLatencyMs = 2
         };
-        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out It.Ref<DeviceStatusSnapshot>.IsAny))
-            .Returns((int id, out DeviceStatusSnapshot status) => { status = snapshot; return true; });
+        _monitoringServiceMock.Setup(s => s.TryGetStatusItem(1, out It.Ref<DeviceStatusItem?>.IsAny))
+
+                .Returns((int id, out DeviceStatusItem? status) => { status = new DeviceStatusItem(id, snapshot); return true; });
 
         SetCurrentUser(1);
         var result = await _controller.GetDevice(1);

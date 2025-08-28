@@ -28,7 +28,7 @@ namespace MediaPi.Core.Extensions;
 
 public static class DeviceExtensions
 {
-    public static DeviceViewItem ToViewItem(this Device device, DeviceStatusSnapshot? status = null) => new(device, status);
+    public static DeviceViewItem ToViewItem(this Device device, DeviceStatusItem? status) => new(device, status);
 
     public static void UpdateFrom(this Device device, DeviceUpdateItem item)
     {

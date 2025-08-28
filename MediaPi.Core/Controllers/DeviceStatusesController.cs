@@ -49,9 +49,9 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public ActionResult<DeviceStatusItem> Get(int id)
     {
-        if (monitoringService.TryGetStatus(id, out var snapshot))
+        if (monitoringService.TryGetStatusItem(id, out var item))
         {
-            return Ok(new DeviceStatusItem(id, snapshot));
+            return Ok(item);
         }
         return NotFound(new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
     }

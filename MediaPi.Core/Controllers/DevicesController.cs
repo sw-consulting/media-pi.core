@@ -104,7 +104,7 @@ public class DevicesController(
         var devices = await query.ToListAsync();
         return devices.Select(d =>
         {
-            monitoringService.TryGetStatus(d.Id, out var status);
+            monitoringService.TryGetStatusItem(d.Id, out var status);
             return d.ToViewItem(status);
         }).ToList();
     }
@@ -146,7 +146,7 @@ public class DevicesController(
         var devices = await query.ToListAsync();
         return devices.Select(d =>
         {
-            monitoringService.TryGetStatus(d.Id, out var status);
+            monitoringService.TryGetStatusItem(d.Id, out var status);
             return d.ToViewItem(status);
         }).ToList();
     }
@@ -201,7 +201,7 @@ public class DevicesController(
         var devices = await query.ToListAsync();
         return devices.Select(d =>
         {
-            monitoringService.TryGetStatus(d.Id, out var status);
+            monitoringService.TryGetStatusItem(d.Id, out var status);
             return d.ToViewItem(status);
         }).ToList();
     }
@@ -222,7 +222,7 @@ public class DevicesController(
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
             (user.IsEngineer() && device.AccountId == null))
         {
-            monitoringService.TryGetStatus(device.Id, out var status);
+            monitoringService.TryGetStatusItem(device.Id, out var status);
             return device.ToViewItem(status);
         }
 

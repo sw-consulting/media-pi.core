@@ -20,18 +20,18 @@
 //
 // This file is a part of Media Pi backend application
 
-using System;
+using MediaPi.Core.Data;
+using MediaPi.Core.Models;
+using MediaPi.Core.RestModels;
+using MediaPi.Core.Services.Models;
+using MediaPi.Core.Settings;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
-using MediaPi.Core.Data;
-using MediaPi.Core.Models;
-using MediaPi.Core.Settings;
-using MediaPi.Core.Services.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace MediaPi.Core.Services;
 
@@ -59,7 +59,19 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
     public IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot => _snapshot;
 
-    public bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status) => _snapshot.TryGetValue(deviceId, out status!);
+    public bool TryGetStatus(int deviceId, out DeviceStatusSnapshot? status) => _snapshot.TryGetValue(deviceId, out status!);
+
+    public bool TryGetStatusItem(int deviceId, out DeviceStatusItem? status)
+    {
+        if (_snapshot.TryGetValue(deviceId, out var snap))
+        {
+            status = new DeviceStatusItem(deviceId, snap);
+            return true;
+        }
+        status = null;
+        return false;
+    }
+
 
     public IAsyncEnumerable<DeviceStatusEvent> Subscribe(CancellationToken token = default)
     {

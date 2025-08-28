@@ -28,14 +28,14 @@ using MediaPi.Core.Services.Models;
 
 namespace MediaPi.Core.RestModels;
 
-public class DeviceViewItem(Device device, DeviceStatusSnapshot? status = null)
+public class DeviceViewItem(Device device, DeviceStatusItem? status)
 {
     public int Id { get; set; } = device.Id;
     public string Name { get; set; } = device.Name;
     public string IpAddress { get; set; } = device.IpAddress;
     public int? AccountId { get; set; } = device.AccountId;
     public int? DeviceGroupId { get; set; } = device.DeviceGroupId;
-    public DeviceStatusSnapshot? DeviceStatus { get; set; } = status;
+    public DeviceStatusItem? DeviceStatus { get; set; } = status;
 
     public override string ToString()
     {

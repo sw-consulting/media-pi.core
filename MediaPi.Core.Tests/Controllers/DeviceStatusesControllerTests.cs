@@ -90,23 +90,24 @@ public class DeviceStatusesControllerTests
             ConnectLatencyMs = 10,
             TotalLatencyMs = 20
         };
-        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out snapshot)).Returns(true);
+        var item = new DeviceStatusItem(1, snapshot);
+        _monitoringServiceMock.Setup(s => s.TryGetStatusItem(1, out item)).Returns(true);
         var result = _controller.Get(1);
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
         Assert.That(okResult?.Value, Is.Not.Null);
-        if (okResult?.Value is DeviceStatusItem item)
+        if (okResult?.Value is DeviceStatusItem returnedItem)
         {
-            Assert.That(item.DeviceId, Is.EqualTo(1));
-            Assert.That(item.IpAddress, Is.EqualTo("192.168.1.10"));
-            Assert.That(item.IsOnline, Is.True);
+            Assert.That(returnedItem.DeviceId, Is.EqualTo(1));
+            Assert.That(returnedItem.IpAddress, Is.EqualTo("192.168.1.10"));
+            Assert.That(returnedItem.IsOnline, Is.True);
         }
     }
 
     [Test]
     public void Get_ReturnsNotFound_WhenDeviceMissing()
     {
-        DeviceStatusSnapshot dummy;
+        DeviceStatusSnapshot? dummy;
         _monitoringServiceMock.Setup(s => s.TryGetStatus(99, out dummy)).Returns(false);
         var result = _controller.Get(99);
         Assert.That(result.Result, Is.TypeOf<NotFoundObjectResult>());
