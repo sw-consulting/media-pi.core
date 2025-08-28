@@ -14,18 +14,18 @@ using NUnit.Framework;
 namespace MediaPi.Core.Tests.Controllers;
 
 [TestFixture]
-public class DeviceStatusControllerTests
+public class DeviceStatusesControllerTests
 {
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor.
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
-    private DeviceStatusController _controller;
+    private DeviceStatusesController _controller;
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor.
 
     [SetUp]
     public void SetUp()
     {
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
-        _controller = new DeviceStatusController(_monitoringServiceMock.Object);
+        _controller = new DeviceStatusesController(_monitoringServiceMock.Object);
     }
 
     [Test]

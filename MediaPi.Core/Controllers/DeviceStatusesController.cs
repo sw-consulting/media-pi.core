@@ -32,7 +32,7 @@ namespace MediaPi.Core.Controllers;
 [Route("api/[controller]")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
-public class DeviceStatusController(IDeviceMonitoringService monitoringService) : ControllerBase
+public class DeviceStatusesController(IDeviceMonitoringService monitoringService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceStatusItem>))]
