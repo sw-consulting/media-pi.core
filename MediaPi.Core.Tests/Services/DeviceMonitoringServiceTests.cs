@@ -1,3 +1,6 @@
+// Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
+// This file is a part of Media Pi backend application
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -56,6 +59,10 @@ public class DeviceMonitoringServiceTests
     {
         var logger = new Mock<ILogger<DeviceMonitoringService>>();
         logs ??= new List<string>();
+        
+        // Use a lock to handle concurrent access to the logs list
+        var lockObj = new object();
+        
         logger.Setup(l => l.Log(
             It.IsAny<LogLevel>(),
             It.IsAny<EventId>(),
@@ -64,7 +71,10 @@ public class DeviceMonitoringServiceTests
             (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()))
             .Callback((LogLevel level, EventId id, object state, Exception ex, Delegate formatter) =>
             {
-                logs.Add($"{level}: {state}");
+                lock (lockObj)
+                {
+                    logs.Add($"{level}: {state}");
+                }
             });
         return logger.Object;
     }
@@ -108,6 +118,15 @@ public class DeviceMonitoringServiceTests
         await task;
 
         Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
+        
+        // Use thread-safe check for logs with a small delay to allow pending log writes
+        await Task.Delay(100);
+        bool hasProbeLog;
+        lock (logs)
+        {
+            hasProbeLog = logs.Any(l => l.Contains("Probed device"));
+        }
+        Assert.That(hasProbeLog, Is.True);
     }
 
     [Test]

@@ -71,16 +71,26 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
 
     [HttpGet("stream")]
     [Produces("text/event-stream")]
-    public async Task Stream(CancellationToken token)
+    public async Task Stream(CancellationToken cancellationToken)
     {
+        // Keep the existing authorization - it will work with fetch() headers
         Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
         Response.ContentType = "text/event-stream";
-        await foreach (var update in monitoringService.Subscribe(token))
+
+        try
         {
-            var item = new DeviceStatusItem(update.DeviceId, update.Snapshot);
-            var data = $"data: {item}\n\n";
-            await Response.WriteAsync(data, token);
-            await Response.Body.FlushAsync(token);
+            await foreach (var update in monitoringService.Subscribe(cancellationToken))
+            {
+                var item = new DeviceStatusItem(update.DeviceId, update.Snapshot);
+                var data = $"data: {System.Text.Json.JsonSerializer.Serialize(item)}\n\n";
+                await Response.WriteAsync(data, cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the connection is closed
         }
     }
 }
