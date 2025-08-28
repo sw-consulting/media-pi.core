@@ -66,11 +66,18 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         var channel = Channel.CreateUnbounded<DeviceStatusEvent>();
         var id = Guid.NewGuid();
         _subscribers[id] = channel;
+
+        foreach (var kvp in _snapshot)
+        {
+            channel.Writer.TryWrite(new DeviceStatusEvent(kvp.Key, kvp.Value));
+        }
+
         token.Register(() =>
         {
             _subscribers.TryRemove(id, out _);
             channel.Writer.TryComplete();
         });
+
         return channel.Reader.ReadAllAsync(token);
     }
 
