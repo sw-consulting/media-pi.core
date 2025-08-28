@@ -42,7 +42,8 @@ public class DevicesController(
     IUserInformationService userInformationService,
     AppDbContext db,
     ILogger<DevicesController> logger,
-    DeviceEventsService deviceEventsService) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    DeviceEventsService deviceEventsService,
+    IDeviceMonitoringService monitoringService) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
     [AllowAnonymous]
@@ -101,7 +102,11 @@ public class DevicesController(
         }
 
         var devices = await query.ToListAsync();
-        return devices.Select(d => d.ToViewItem()).ToList();
+        return devices.Select(d =>
+        {
+            monitoringService.TryGetStatus(d.Id, out var status);
+            return d.ToViewItem(status);
+        }).ToList();
     }
 
     // GET: api/devices/by-account/{accountId?}
@@ -139,7 +144,11 @@ public class DevicesController(
         }
 
         var devices = await query.ToListAsync();
-        return devices.Select(d => d.ToViewItem()).ToList();
+        return devices.Select(d =>
+        {
+            monitoringService.TryGetStatus(d.Id, out var status);
+            return d.ToViewItem(status);
+        }).ToList();
     }
 
     // GET: api/devices/by-device-group/{deviceGroupId?}
@@ -190,7 +199,11 @@ public class DevicesController(
         }
 
         var devices = await query.ToListAsync();
-        return devices.Select(d => d.ToViewItem()).ToList();
+        return devices.Select(d =>
+        {
+            monitoringService.TryGetStatus(d.Id, out var status);
+            return d.ToViewItem(status);
+        }).ToList();
     }
 
     // GET: api/devices/5
@@ -209,7 +222,8 @@ public class DevicesController(
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
             (user.IsEngineer() && device.AccountId == null))
         {
-            return device.ToViewItem();
+            monitoringService.TryGetStatus(device.Id, out var status);
+            return device.ToViewItem(status);
         }
 
         return _403();
