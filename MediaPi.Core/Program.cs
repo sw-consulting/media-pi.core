@@ -29,12 +29,8 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add user-configurable settings file
-builder.Configuration
-    .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
-
 var config = builder.Configuration;
-builder.Configuration
+config
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
     // Optionally load the override config if present
@@ -56,8 +52,8 @@ builder.WebHost.ConfigureKestrel(options =>
 
 
 builder.Services
-    .Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"))
-    .Configure<DeviceMonitorSettings>(builder.Configuration.GetSection("DeviceMonitor"))
+    .Configure<AppSettings>(config.GetSection("AppSettings"))
+    .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitor"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
     .AddHttpContextAccessor()
@@ -74,7 +70,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(config.GetConnectionString("DefaultConnection")));
 
 // Register DeviceEventsService as singleton
 builder.Services.AddSingleton<DeviceEventsService>();
