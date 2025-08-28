@@ -20,10 +20,12 @@
 //
 // This file is a part of Media Pi backend application
 
+using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Channels;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.Settings;
@@ -40,6 +42,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly ConcurrentDictionary<int, DeviceStatusSnapshot> _snapshot = new();
     private readonly ILogger<DeviceMonitoringService> _logger;
     private readonly DeviceEventsService _deviceEventsService;
+    private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
 
     public DeviceMonitoringService(
         IServiceScopeFactory scopeFactory, 
@@ -57,6 +60,19 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     public IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot => _snapshot;
 
     public bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status) => _snapshot.TryGetValue(deviceId, out status!);
+
+    public IAsyncEnumerable<DeviceStatusEvent> Subscribe(CancellationToken token = default)
+    {
+        var channel = Channel.CreateUnbounded<DeviceStatusEvent>();
+        var id = Guid.NewGuid();
+        _subscribers[id] = channel;
+        token.Register(() =>
+        {
+            _subscribers.TryRemove(id, out _);
+            channel.Writer.TryComplete();
+        });
+        return channel.Reader.ReadAllAsync(token);
+    }
 
     public async Task<DeviceStatusSnapshot?> Test(int deviceId, CancellationToken token = default)
     {
@@ -84,6 +100,22 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         if (_snapshot.TryRemove(deviceId, out _))
         {
             _logger.LogInformation("Device {DeviceId} removed from monitoring snapshot via event notification.", deviceId);
+            Broadcast(new DeviceStatusEvent(deviceId, new DeviceStatusSnapshot
+            {
+                IpAddress = string.Empty,
+                IsOnline = false,
+                LastChecked = DateTime.UtcNow,
+                ConnectLatencyMs = 0,
+                TotalLatencyMs = 0
+            }));
+        }
+    }
+
+    private void Broadcast(DeviceStatusEvent evt)
+    {
+        foreach (var subscriber in _subscribers.Values)
+        {
+            subscriber.Writer.TryWrite(evt);
         }
     }
 
@@ -99,6 +131,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             TotalLatencyMs = TotalMs
         };
         _snapshot[device.Id] = snap;
+        Broadcast(new DeviceStatusEvent(device.Id, snap));
         _logger.LogInformation("Probed device {DeviceId} ({IpAddress}): Online={IsOnline}, ConnectMs={ConnectMs}, TotalMs={TotalMs}",
             device.Id, device.IpAddress, snap.IsOnline, snap.ConnectLatencyMs, snap.TotalLatencyMs);
         var probe = new DeviceProbe

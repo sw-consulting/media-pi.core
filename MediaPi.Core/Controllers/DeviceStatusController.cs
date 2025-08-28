@@ -68,4 +68,19 @@ public class DeviceStatusController(IDeviceMonitoringService monitoringService) 
         }
         return Ok(new DeviceStatusItem(id, snapshot));
     }
+
+    [HttpGet("stream")]
+    [Produces("text/event-stream")]
+    public async Task Stream(CancellationToken token)
+    {
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.ContentType = "text/event-stream";
+        await foreach (var update in monitoringService.Subscribe(token))
+        {
+            var item = new DeviceStatusItem(update.DeviceId, update.Snapshot);
+            var data = $"data: {item}\n\n";
+            await Response.WriteAsync(data, token);
+            await Response.Body.FlushAsync(token);
+        }
+    }
 }

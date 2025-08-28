@@ -214,5 +214,27 @@ public class DeviceMonitoringServiceTests
         Assert.That(result, Is.Null);
     }
 
+    [Test]
+    public async Task Subscribe_ReceivesUpdates()
+    {
+        var device = new Device { Id = 5, IpAddress = "127.0.0.1", Name = "TestDevice5" };
+        var db = CreateDbContext(device);
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(new List<string>()),
+            CreateDeviceEventsService());
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var enumerator = service.Subscribe(cts.Token).GetAsyncEnumerator(cts.Token);
+        var moveNextTask = enumerator.MoveNextAsync().AsTask();
+
+        _ = service.Test(device.Id, cts.Token);
+
+        Assert.That(await moveNextTask, Is.True);
+        var update = enumerator.Current;
+        Assert.That(update.DeviceId, Is.EqualTo(device.Id));
+    }
+
 
 }
