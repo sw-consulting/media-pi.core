@@ -99,7 +99,6 @@ public class DeviceStatusesControllerTests
         if (okResult?.Value is DeviceStatusItem returnedItem)
         {
             Assert.That(returnedItem.DeviceId, Is.EqualTo(1));
-            Assert.That(returnedItem.IpAddress, Is.EqualTo("192.168.1.10"));
             Assert.That(returnedItem.IsOnline, Is.True);
         }
     }
@@ -140,7 +139,6 @@ public class DeviceStatusesControllerTests
         if (okResult?.Value is DeviceStatusItem item)
         {
             Assert.That(item.DeviceId, Is.EqualTo(1));
-            Assert.That(item.IpAddress, Is.EqualTo("192.168.1.10"));
             Assert.That(item.IsOnline, Is.True);
         }
     }
@@ -206,7 +204,6 @@ public class DeviceStatusesControllerTests
         // Extract JSON content and verify it contains expected values
         var jsonContent = content.Substring(6, content.Length - 8); // Remove "data: " and "\n\n"
         Assert.That(jsonContent, Does.Contain("\"DeviceId\":1"));
-        Assert.That(jsonContent, Does.Contain("\"IpAddress\":\"192.168.1.10\""));
         Assert.That(jsonContent, Does.Contain("\"IsOnline\":true"));
         Assert.That(jsonContent, Does.Contain("\"ConnectLatencyMs\":10"));
         Assert.That(jsonContent, Does.Contain("\"TotalLatencyMs\":20"));
@@ -237,12 +234,10 @@ public class DeviceStatusesControllerTests
         // Verify first event contains expected values
         var firstJson = eventStrings[0].Substring(6); // Remove "data: "
         Assert.That(firstJson, Does.Contain("\"DeviceId\":1"));
-        Assert.That(firstJson, Does.Contain("\"IpAddress\":\"192.168.1.10\""));
         
         // Verify second event contains expected values
         var secondJson = eventStrings[1].Substring(6); // Remove "data: "
         Assert.That(secondJson, Does.Contain("\"DeviceId\":2"));
-        Assert.That(secondJson, Does.Contain("\"IpAddress\":\"192.168.1.11\""));
     }
 
     [Test]

@@ -29,7 +29,6 @@ namespace MediaPi.Core.RestModels;
 public class DeviceStatusItem
 {
     public int DeviceId { get; set; }
-    public string IpAddress { get; set; } = string.Empty;
     public bool IsOnline { get; set; }
     public DateTime LastChecked { get; set; }
     public long ConnectLatencyMs { get; set; }
@@ -38,7 +37,6 @@ public class DeviceStatusItem
     public DeviceStatusItem(int deviceId, DeviceStatusSnapshot snapshot)
     {
         DeviceId = deviceId;
-        IpAddress = snapshot.IpAddress;
         IsOnline = snapshot.IsOnline;
         LastChecked = snapshot.LastChecked;
         ConnectLatencyMs = snapshot.ConnectLatencyMs;
