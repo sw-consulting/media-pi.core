@@ -442,7 +442,8 @@ public class DevicesControllerTests
             ConnectLatencyMs = 1,
             TotalLatencyMs = 2
         };
-        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out snapshot)).Returns(true);
+        _monitoringServiceMock.Setup(s => s.TryGetStatus(1, out It.Ref<DeviceStatusSnapshot>.IsAny))
+            .Returns((int id, out DeviceStatusSnapshot status) => { status = snapshot; return true; });
 
         SetCurrentUser(1);
         var result = await _controller.GetDevice(1);
