@@ -20,17 +20,7 @@
 //
 // This file is a part of Media Pi backend application
 
-using MediaPi.Core.Services.Models;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
+namespace MediaPi.Core.Services.Models;
 
-namespace MediaPi.Core.Services;
+public record DeviceStatusEvent(int DeviceId, DeviceStatusSnapshot Snapshot);
 
-public interface IDeviceMonitoringService
-{
-    IReadOnlyDictionary<int, DeviceStatusSnapshot> Snapshot { get; }
-    bool TryGetStatus(int deviceId, out DeviceStatusSnapshot status);
-    Task<DeviceStatusSnapshot?> Test(int deviceId, CancellationToken token = default);
-    IAsyncEnumerable<DeviceStatusEvent> Subscribe(CancellationToken token = default);
-}
