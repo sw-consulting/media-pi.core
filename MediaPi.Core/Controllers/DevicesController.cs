@@ -41,7 +41,9 @@ public class DevicesController(
     IHttpContextAccessor httpContextAccessor,
     IUserInformationService userInformationService,
     AppDbContext db,
-    ILogger<DevicesController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    ILogger<DevicesController> logger,
+    DeviceEventsService deviceEventsService,
+    IDeviceMonitoringService monitoringService) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
     [AllowAnonymous]
@@ -65,6 +67,9 @@ public class DevicesController(
         await _db.SaveChangesAsync();
         device.Name = $"Устройство №{device.Id}";
         await _db.SaveChangesAsync();
+
+        deviceEventsService.OnDeviceCreated(device);
+
         return CreatedAtAction(nameof(GetDevice), new { id = device.Id }, new Reference { Id = device.Id });
     }
 
@@ -97,7 +102,11 @@ public class DevicesController(
         }
 
         var devices = await query.ToListAsync();
-        return devices.Select(d => d.ToViewItem()).ToList();
+        return devices.Select(d =>
+        {
+            monitoringService.TryGetStatusItem(d.Id, out var status);
+            return d.ToViewItem(status);
+        }).ToList();
     }
 
     // GET: api/devices/by-account/{accountId?}
@@ -135,7 +144,11 @@ public class DevicesController(
         }
 
         var devices = await query.ToListAsync();
-        return devices.Select(d => d.ToViewItem()).ToList();
+        return devices.Select(d =>
+        {
+            monitoringService.TryGetStatusItem(d.Id, out var status);
+            return d.ToViewItem(status);
+        }).ToList();
     }
 
     // GET: api/devices/by-device-group/{deviceGroupId?}
@@ -186,7 +199,11 @@ public class DevicesController(
         }
 
         var devices = await query.ToListAsync();
-        return devices.Select(d => d.ToViewItem()).ToList();
+        return devices.Select(d =>
+        {
+            monitoringService.TryGetStatusItem(d.Id, out var status);
+            return d.ToViewItem(status);
+        }).ToList();
     }
 
     // GET: api/devices/5
@@ -205,7 +222,8 @@ public class DevicesController(
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
             (user.IsEngineer() && device.AccountId == null))
         {
-            return device.ToViewItem();
+            monitoringService.TryGetStatusItem(device.Id, out var status);
+            return device.ToViewItem(status);
         }
 
         return _403();
@@ -238,6 +256,8 @@ public class DevicesController(
         _db.Entry(device).State = EntityState.Modified;
         await _db.SaveChangesAsync();
 
+        deviceEventsService.OnDeviceUpdated(device);
+
         return NoContent();
     }
 
@@ -256,6 +276,8 @@ public class DevicesController(
 
         _db.Devices.Remove(device);
         await _db.SaveChangesAsync();
+
+        deviceEventsService.OnDeviceDeleted(id);
 
         return NoContent();
     }
@@ -292,6 +314,9 @@ public class DevicesController(
             device.AssignGroupFrom(item);
             _db.Entry(device).State = EntityState.Modified;
             await _db.SaveChangesAsync();
+
+            deviceEventsService.OnDeviceUpdated(device);
+
             return NoContent();
         }
 
@@ -317,6 +342,9 @@ public class DevicesController(
             device.AssignAccountFrom(item);
             _db.Entry(device).State = EntityState.Modified;
             await _db.SaveChangesAsync();
+
+            deviceEventsService.OnDeviceUpdated(device);
+
             return NoContent();
         }
 

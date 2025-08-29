@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,22 +17,32 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
-using System.Text.Encodings.Web;
-using System.Text.Json;
+using MediaPi.Core.Models;
 
-namespace MediaPi.Core.Settings;
-
-public static class JOptions
+namespace MediaPi.Core.Services
 {
-    public static readonly JsonSerializerOptions DefaultOptions = new()
+    public class DeviceEventsService
     {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
+        public event Action<Device>? DeviceCreated;
+        public event Action<Device>? DeviceUpdated;
+        public event Action<int>? DeviceDeleted;
 
-    public static readonly JsonSerializerOptions StreamJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+        public void OnDeviceCreated(Device device)
+        {
+            DeviceCreated?.Invoke(device);
+        }
+
+        public void OnDeviceUpdated(Device device)
+        {
+            DeviceUpdated?.Invoke(device);
+        }
+
+        public void OnDeviceDeleted(int deviceId)
+        {
+            DeviceDeleted?.Invoke(deviceId);
+        }
+    }
 }

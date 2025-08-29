@@ -22,12 +22,13 @@
 
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services.Models;
 
 namespace MediaPi.Core.Extensions;
 
 public static class DeviceExtensions
 {
-    public static DeviceViewItem ToViewItem(this Device device) => new(device);
+    public static DeviceViewItem ToViewItem(this Device device, DeviceStatusItem? status) => new(device, status);
 
     public static void UpdateFrom(this Device device, DeviceUpdateItem item)
     {

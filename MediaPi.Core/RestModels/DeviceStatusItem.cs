@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,22 +17,34 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
-using System.Text.Encodings.Web;
 using System.Text.Json;
+using MediaPi.Core.Services.Models;
+using MediaPi.Core.Settings;
 
-namespace MediaPi.Core.Settings;
+namespace MediaPi.Core.RestModels;
 
-public static class JOptions
+public class DeviceStatusItem
 {
-    public static readonly JsonSerializerOptions DefaultOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
+    public int DeviceId { get; set; }
+    public bool IsOnline { get; set; }
+    public DateTime LastChecked { get; set; }
+    public long ConnectLatencyMs { get; set; }
+    public long TotalLatencyMs { get; set; }
 
-    public static readonly JsonSerializerOptions StreamJsonOptions = new()
+    public DeviceStatusItem(int deviceId, DeviceStatusSnapshot snapshot)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+        DeviceId = deviceId;
+        IsOnline = snapshot.IsOnline;
+        LastChecked = snapshot.LastChecked;
+        ConnectLatencyMs = snapshot.ConnectLatencyMs;
+        TotalLatencyMs = snapshot.TotalLatencyMs;
+    }
+
+    public override string ToString()
+    {
+        return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
+    }
 }

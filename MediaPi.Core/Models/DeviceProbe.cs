@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,22 +17,32 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
-using System.Text.Encodings.Web;
-using System.Text.Json;
+using System.ComponentModel.DataAnnotations.Schema;
 
-namespace MediaPi.Core.Settings;
+namespace MediaPi.Core.Models;
 
-public static class JOptions
+[Table("device_probes")]
+
+public class DeviceProbe
 {
-    public static readonly JsonSerializerOptions DefaultOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
+    [Column("id")]
+    public int Id { get; set; }
 
-    public static readonly JsonSerializerOptions StreamJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    [Column("device_id")]
+    public int DeviceId { get; set; }
+    public Device? Device { get; set; }
+    [Column("timestamp")]
+    public DateTime Timestamp { get; set; }
+
+    [Column("is_online")]
+    public bool IsOnline { get; set; }
+
+    [Column("connect_latency")]
+    public long ConnectLatencyMs { get; set; }
+
+    [Column("total_latency")]
+    public long TotalLatencyMs { get; set; }
 }

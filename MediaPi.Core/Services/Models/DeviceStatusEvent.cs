@@ -1,5 +1,3 @@
-// MIT License
-//
 // Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,22 +17,10 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
+// This file is a part of Media Pi backend application
 
-using System.Text.Encodings.Web;
-using System.Text.Json;
+namespace MediaPi.Core.Services.Models;
 
-namespace MediaPi.Core.Settings;
+public record DeviceStatusEvent(int DeviceId, DeviceStatusSnapshot Snapshot);
 
-public static class JOptions
-{
-    public static readonly JsonSerializerOptions DefaultOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
-
-    public static readonly JsonSerializerOptions StreamJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-}
