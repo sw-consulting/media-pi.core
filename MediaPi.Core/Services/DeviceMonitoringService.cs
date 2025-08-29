@@ -186,10 +186,17 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                     nextPoll.TryAdd(d.Id, DateTime.UtcNow);
                 }
 
-                var due = nextPoll
-                    .Where(kvp => kvp.Value <= DateTime.UtcNow)
-                    .Select(kvp => devices.First(d => d.Id == kvp.Key))
-                    .ToList();
+                var due = new List<Device>();
+                foreach (var kvp in nextPoll.Where(kvp => kvp.Value <= DateTime.UtcNow).ToList())
+                {
+                    var device = devices.FirstOrDefault(d => d.Id == kvp.Key);
+                    if (device is null)
+                    {
+                        nextPoll.TryRemove(kvp.Key, out _);
+                        continue;
+                    }
+                    due.Add(device);
+                }
 
                 var probeResults = new ConcurrentBag<DeviceProbe>();
 
@@ -267,9 +274,20 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             }
             var connectMs = sw.ElapsedMilliseconds;
             using var stream = client.GetStream();
-            stream.ReadTimeout = _settings.TimeoutSeconds * 1000;
             var buffer = new byte[256];
-            int bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), token);
+            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            readCts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
+            int bytesRead;
+            try
+            {
+                bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), readCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                sw.Stop();
+                _logger.LogWarning("Probe for IP {IpAddress} timed out during read.", ip);
+                return (false, connectMs, sw.ElapsedMilliseconds);
+            }
             sw.Stop();
             if (bytesRead == 0)
             {
