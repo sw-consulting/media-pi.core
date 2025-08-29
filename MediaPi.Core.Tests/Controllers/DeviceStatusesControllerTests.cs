@@ -102,7 +102,6 @@ public class DeviceStatusesControllerTests
         }
     }
 
-    [Test]
     public async Task Get_ReturnsNotFound_WhenDeviceMissing()
     {
         _monitoringServiceMock.Setup(s => s.Test(99, It.IsAny<CancellationToken>())).ReturnsAsync((DeviceStatusSnapshot?)null);
