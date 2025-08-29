@@ -53,7 +53,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
-    .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitor"))
+    .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
     .AddHttpContextAccessor()

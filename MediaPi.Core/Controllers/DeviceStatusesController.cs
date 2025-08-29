@@ -23,6 +23,7 @@
 using MediaPi.Core.Authorization;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Settings;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MediaPi.Core.Controllers;
@@ -73,7 +74,6 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
     [Produces("text/event-stream")]
     public async Task Stream(CancellationToken cancellationToken)
     {
-        // Keep the existing authorization - it will work with fetch() headers
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
         Response.ContentType = "text/event-stream";
@@ -83,7 +83,7 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
             await foreach (var update in monitoringService.Subscribe(cancellationToken))
             {
                 var item = new DeviceStatusItem(update.DeviceId, update.Snapshot);
-                var data = $"data: {System.Text.Json.JsonSerializer.Serialize(item)}\n\n";
+                var data = $"data: {System.Text.Json.JsonSerializer.Serialize(item, JOptions.StreamJsonOptions)}\n\n";
                 await Response.WriteAsync(data, cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
             }
