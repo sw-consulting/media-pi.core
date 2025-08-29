@@ -80,7 +80,7 @@ public class DeviceStatusesControllerTests
     }
 
     [Test]
-    public void Get_ReturnsDeviceStatus_WhenFound()
+    public async Task Get_ReturnsDeviceStatus_WhenFound()
     {
         var snapshot = new DeviceStatusSnapshot
         {
@@ -90,9 +90,8 @@ public class DeviceStatusesControllerTests
             ConnectLatencyMs = 10,
             TotalLatencyMs = 20
         };
-        var item = new DeviceStatusItem(1, snapshot);
-        _monitoringServiceMock.Setup(s => s.TryGetStatusItem(1, out item)).Returns(true);
-        var result = _controller.Get(1);
+        _monitoringServiceMock.Setup(s => s.Test(1, It.IsAny<CancellationToken>())).ReturnsAsync(snapshot);
+        var result = await _controller.Get(1);
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
         Assert.That(okResult?.Value, Is.Not.Null);
@@ -104,11 +103,10 @@ public class DeviceStatusesControllerTests
     }
 
     [Test]
-    public void Get_ReturnsNotFound_WhenDeviceMissing()
+    public async Task Get_ReturnsNotFound_WhenDeviceMissing()
     {
-        DeviceStatusSnapshot? dummy;
-        _monitoringServiceMock.Setup(s => s.TryGetStatus(99, out dummy)).Returns(false);
-        var result = _controller.Get(99);
+        _monitoringServiceMock.Setup(s => s.Test(99, It.IsAny<CancellationToken>())).ReturnsAsync((DeviceStatusSnapshot?)null);
+        var result = await _controller.Get(99);
         Assert.That(result.Result, Is.TypeOf<NotFoundObjectResult>());
         var notFound = result.Result as NotFoundObjectResult;
         Assert.That(notFound?.Value, Is.Not.Null);
