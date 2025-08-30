@@ -229,6 +229,67 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task Register_UsesProvidedNameAndIpAddress()
+    {
+        SetCurrentUser(null, "5.5.5.5");
+        var req = new DeviceRegisterRequest
+        {
+            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKeyProvided",
+            SshUser = "user",
+            Name = "Provided Name",
+            IpAddress = "8.7.6.5"
+        };
+        var result = await _controller.Register(req, CancellationToken.None);
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        var response = ok!.Value as DeviceRegisterResponse;
+        Assert.That(response, Is.Not.Null);
+
+        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
+        Assert.That(dev, Is.Not.Null);
+        Assert.That(dev!.IpAddress, Is.EqualTo("8.7.6.5"));
+        Assert.That(dev.Name, Is.EqualTo("Provided Name"));
+    }
+
+    [Test]
+    public async Task Register_IpProvidedWithoutName_AssignsDefaultName()
+    {
+        SetCurrentUser(null, "4.4.4.4");
+        var req = new DeviceRegisterRequest
+        {
+            PublicKeyOpenSsh = string.Empty,
+            SshUser = "user",
+            IpAddress = "9.9.9.9"
+        };
+        var result = await _controller.Register(req, CancellationToken.None);
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        var response = ok!.Value as DeviceRegisterResponse;
+        Assert.That(response, Is.Not.Null);
+
+        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
+        Assert.That(dev, Is.Not.Null);
+        Assert.That(dev!.IpAddress, Is.EqualTo("9.9.9.9"));
+        Assert.That(dev.Name, Is.EqualTo($"Устройство №{dev.Id}"));
+    }
+
+    [Test]
+    public async Task Register_MalformedIp_ReturnsBadRequest()
+    {
+        SetCurrentUser(null, "3.3.3.3");
+        var req = new DeviceRegisterRequest
+        {
+            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAABadIp",
+            SshUser = "user",
+            IpAddress = "not.an.ip"
+        };
+        var result = await _controller.Register(req, CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
     public async Task GetAll_Admin_ReturnsAll()
     {
         SetCurrentUser(1);

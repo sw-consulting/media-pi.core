@@ -54,12 +54,22 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
     public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress;
-        if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
+        string ip;
+        if (!string.IsNullOrWhiteSpace(req.IpAddress))
         {
-            ipAddress = ipAddress.MapToIPv4();
+            if (!IPAddress.TryParse(req.IpAddress, out var addr)) return _400Ip(req.IpAddress);
+            if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+            ip = addr.ToString();
         }
-        var ip = ipAddress?.ToString() ?? "";
+        else
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress;
+            if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
+            {
+                ipAddress = ipAddress.MapToIPv4();
+            }
+            ip = ipAddress?.ToString() ?? string.Empty;
+        }
 
         if (string.IsNullOrWhiteSpace(ip)) return _400Ip(ip);
 
@@ -79,20 +89,23 @@ public class DevicesController(
             piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
         }
 
-        var device = new Device 
-        { 
-            Name = string.Empty, 
+        var device = new Device
+        {
+            Name = string.IsNullOrWhiteSpace(req.Name) ? string.Empty : req.Name,
             IpAddress = ip,
             PiDeviceId = piDeviceId,
             PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
-            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
+            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!,
         };
-        
+
         _db.Devices.Add(device);
         await _db.SaveChangesAsync(ct);
-        
-        device.Name = $"Устройство №{device.Id}";
-        await _db.SaveChangesAsync(ct);
+
+        if (string.IsNullOrWhiteSpace(device.Name))
+        {
+            device.Name = $"Устройство №{device.Id}";
+            await _db.SaveChangesAsync(ct);
+        }
 
         deviceEventsService.OnDeviceCreated(device);
 
