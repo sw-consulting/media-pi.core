@@ -43,7 +43,7 @@ public class StatusController(
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [Produces("application/json", Type = typeof(Status))]
-    public async Task<ActionResult<Status>> Status()
+    public async Task<ActionResult<Status>> Status(CancellationToken ct = default)
     {
         _logger.LogDebug("Check service status");
 
@@ -52,7 +52,7 @@ public class StatusController(
         try
         {
             // Query the __EFMigrationsHistory table for the last applied migration
-            var lastMigration = await _db.Database.GetAppliedMigrationsAsync();
+            var lastMigration = await _db.Database.GetAppliedMigrationsAsync(ct);
             dbVersion = lastMigration.LastOrDefault() ?? "00000000000000";
             // Truncate dbVersion up to the first '_' if present
             if (dbVersion.Contains('_'))

@@ -22,7 +22,7 @@
 
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Services.Models;
+using MediaPi.Core.Utils;
 
 namespace MediaPi.Core.Extensions;
 
@@ -33,6 +33,26 @@ public static class DeviceExtensions
     public static void UpdateFrom(this Device device, DeviceUpdateItem item)
     {
         if (item.Name != null) device.Name = item.Name;
+        
+        if (item.PublicKeyOpenSsh != null) 
+        {
+            device.PublicKeyOpenSsh = item.PublicKeyOpenSsh;
+            
+            // Recalculate PiDeviceId when SSH key changes
+            try
+            {
+                device.PiDeviceId = string.IsNullOrWhiteSpace(item.PublicKeyOpenSsh) 
+                    ? KeyFingerprint.GenerateRandomDeviceId()
+                    : KeyFingerprint.ComputeDeviceIdFromOpenSshKey(item.PublicKeyOpenSsh);
+            }
+            catch (ArgumentException)
+            {
+                // If SSH key is invalid, generate a random device ID
+                device.PiDeviceId = KeyFingerprint.GenerateRandomDeviceId();
+            }
+        }
+        
+        if (item.SshUser != null) device.SshUser = item.SshUser;
         
         if (item.AccountId.HasValue) 
         {
