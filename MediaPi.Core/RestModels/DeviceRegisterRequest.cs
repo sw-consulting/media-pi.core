@@ -9,5 +9,4 @@ public sealed class DeviceRegisterRequest
     public string? SshUser { get; set; }
     public string? Name { get; set; }
     public string? IpAddress { get; set; }
-    }
 }
