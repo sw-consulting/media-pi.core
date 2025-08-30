@@ -22,7 +22,6 @@
 
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Services.Models;
 
 namespace MediaPi.Core.Extensions;
 
@@ -33,6 +32,10 @@ public static class DeviceExtensions
     public static void UpdateFrom(this Device device, DeviceUpdateItem item)
     {
         if (item.Name != null) device.Name = item.Name;
+        
+        if (item.PublicKeyOpenSsh != null) device.PublicKeyOpenSsh = item.PublicKeyOpenSsh;
+        
+        if (item.SshUser != null) device.SshUser = item.SshUser;
         
         if (item.AccountId.HasValue) 
         {

@@ -11,6 +11,7 @@ using NUnit.Framework;
 
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 using MediaPi.Core.Controllers;
@@ -95,13 +96,13 @@ public class DevicesControllerErrorTests
             UserRoles = [new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole }]
         };
 
-        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
-        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2" };
-        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
+        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDerr1", SshUser = "pi", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
+        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", PublicKeyOpenSsh = string.Empty, SshUser = "pi" };
+        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIErr3", SshUser = "admin", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
         // Device with IPv6 address
-        var d4 = new Device { Id = 4, Name = "Dev4", IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7334" };
+        var d4 = new Device { Id = 4, Name = "Dev4", IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7334", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDerr4", SshUser = "root" };
         // Device with mapped IPv4 address
-        var d5 = new Device { Id = 5, Name = "Dev5", IpAddress = "::ffff:192.168.1.1" };
+        var d5 = new Device { Id = 5, Name = "Dev5", IpAddress = "::ffff:192.168.1.1", PublicKeyOpenSsh = string.Empty, SshUser = "pi" };
 
         _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.Devices.AddRange(d1, d2, d3, d4, d5);
@@ -353,17 +354,24 @@ public class DevicesControllerErrorTests
     public async Task Register_IPv6Address_CreatesDeviceWithIpv6()
     {
         SetCurrentUser(null, "2001:0db8:85a3:0000:0000:8a2e:0370:7335");
-        var result = await _controller.Register();
-        var created = result.Result as CreatedAtActionResult;
-        Assert.That(created, Is.Not.Null);
-        var reference = created!.Value as Reference;
-        Assert.That(reference, Is.Not.Null);
-        var dev = await _dbContext.Devices.FindAsync(reference!.Id);
+        var req = new DeviceRegisterRequest 
+        { 
+            PublicKeyOpenSsh = string.Empty, 
+            SshUser = "ipv6user" 
+        };
+        var result = await _controller.Register(req, System.Threading.CancellationToken.None);
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        var response = ok!.Value as DeviceRegisterResponse;
+        Assert.That(response, Is.Not.Null);
+        var dev = await _dbContext.Devices.FindAsync(response!.Id);
         Assert.That(dev, Is.Not.Null);
         
         // Use IPAddress.Parse to get the expected standardized format
         string expectedFormat = IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString();
         Assert.That(dev!.IpAddress, Is.EqualTo(expectedFormat));
+        Assert.That(dev.SshUser, Is.EqualTo("ipv6user"));
+        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
     }
 
     [Test]
@@ -380,7 +388,7 @@ public class DevicesControllerErrorTests
     public async Task GetAllByDeviceGroup_Manager_NullButAssigned_Works()
     {
         // Create a new device with account but no group
-        var newDevice = new Device { Id = 6, Name = "DevNoGroup", IpAddress = "6.6.6.6", AccountId = _account1.Id };
+        var newDevice = new Device { Id = 6, Name = "DevNoGroup", IpAddress = "6.6.6.6", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDev6", SshUser = "testuser", AccountId = _account1.Id };
         _dbContext.Devices.Add(newDevice);
         await _dbContext.SaveChangesAsync();
 
@@ -391,5 +399,27 @@ public class DevicesControllerErrorTests
         var devices = result.Value!.ToList();
         Assert.That(devices, Has.Count.EqualTo(1));
         Assert.That(devices[0].Id, Is.EqualTo(6));
+        Assert.That(devices[0].PublicKeyOpenSsh, Is.EqualTo("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDev6"));
+        Assert.That(devices[0].SshUser, Is.EqualTo("testuser"));
+    }
+
+    [Test]
+    public async Task Register_EmptySshUser_DefaultsToPi()
+    {
+        SetCurrentUser(null, "10.0.0.101");
+        var req = new DeviceRegisterRequest 
+        { 
+            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEmptyUser", 
+            SshUser = "" 
+        };
+        var result = await _controller.Register(req, CancellationToken.None);
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        var response = ok!.Value as DeviceRegisterResponse;
+        Assert.That(response, Is.Not.Null);
+        var dev = await _dbContext.Devices.FindAsync(response!.Id);
+        Assert.That(dev, Is.Not.Null);
+        Assert.That(dev!.SshUser, Is.EqualTo("pi")); // Should default to "pi"
+        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEmptyUser"));
     }
 }

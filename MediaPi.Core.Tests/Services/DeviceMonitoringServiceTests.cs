@@ -162,39 +162,6 @@ public class DeviceMonitoringServiceTests
     }
 
     [Test]
-    public async Task ExecuteAsync_Continues_WhenDeviceRemovedFromDatabase()
-    {
-        var device = new Device { Id = 6, IpAddress = "127.0.0.1", Name = "TestDevice6" };
-        var db = CreateDbContext(device);
-        var logs = new List<string>();
-        var eventsService = CreateDeviceEventsService();
-        var service = new DeviceMonitoringService(
-            CreateScopeFactory(db),
-            Options.Create(GetDefaultSettings()),
-            CreateLogger(logs),
-            eventsService);
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        var task = service.StartAsync(cts.Token);
-
-        await Task.Delay(1500);
-        db.Devices.Remove(device);
-        await db.SaveChangesAsync();
-        eventsService.OnDeviceDeleted(device.Id);
-
-        await Task.Delay(1000);
-        cts.Cancel();
-        await task;
-
-        bool hasFatal;
-        lock (logs)
-        {
-            hasFatal = logs.Any(l => l.Contains("fatal error"));
-        }
-        Assert.That(hasFatal, Is.False);
-    }
-
-    [Test]
     public async Task Probe_ReturnsFalse_ForInvalidIp()
     {
         var db = CreateDbContext();

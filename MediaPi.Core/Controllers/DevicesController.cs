@@ -48,8 +48,10 @@ public class DevicesController(
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
-    public async Task<ActionResult<Reference>> Register()
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress;
         if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
@@ -60,17 +62,26 @@ public class DevicesController(
 
         if (string.IsNullOrWhiteSpace(ip)) return _400Ip(ip);
 
-        if (await _db.Devices.AnyAsync(d => d.IpAddress == ip)) return _409Ip(ip);
+        if (await _db.Devices.AnyAsync(d => d.IpAddress == ip, ct)) return _409Ip(ip);
 
-        var device = new Device { Name = string.Empty, IpAddress = ip };
+        var now = DateTime.UtcNow;
+        var device = new Device 
+        { 
+            Name = string.Empty, 
+            IpAddress = ip,
+            PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
+            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
+        };
+        
         _db.Devices.Add(device);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
+        
         device.Name = $"Устройство №{device.Id}";
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         deviceEventsService.OnDeviceCreated(device);
 
-        return CreatedAtAction(nameof(GetDevice), new { id = device.Id }, new Reference { Id = device.Id });
+        return Ok(new DeviceRegisterResponse { Id = device.Id });
     }
 
     // GET: api/devices
