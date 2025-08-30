@@ -27,7 +27,6 @@ using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
-using MediaPi.Core.DTOs;
 using MediaPi.Core.Utils;
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
@@ -52,24 +51,27 @@ public class DevicesController(
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
-    public async Task<IActionResult> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterViewItem))]
+    public async Task<IActionResult> Register([FromBody] DeviceRegisterItem req, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(req.PublicKeyOpenSsh))
-            return BadRequest("publicKeyOpenSsh is required");
-
         string deviceId;
-        try
+        if (string.IsNullOrWhiteSpace(req.PublicKeyOpenSsh))
         {
-            deviceId = KeyFingerprint.ComputeDeviceIdFromOpenSshKey(req.PublicKeyOpenSsh);
+            deviceId = KeyFingerprint.GenerateRandomDeviceId();
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogWarning(ex, "Invalid public key submitted");
-            return BadRequest("Invalid OpenSSH public key");
+            try
+            {
+                deviceId = KeyFingerprint.ComputeDeviceIdFromOpenSshKey(req.PublicKeyOpenSsh);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Invalid public key submitted");
+                return BadRequest("Invalid OpenSSH public key");
+            }
         }
 
-        var now = DateTimeOffset.UtcNow;
         var entity = await _db.FingerprintDevices.FindAsync(new object?[] { deviceId }, ct);
 
         if (entity is null)
@@ -77,22 +79,13 @@ public class DevicesController(
             entity = new DeviceEntity
             {
                 Id = deviceId,
-                PublicKeyOpenSsh = req.PublicKeyOpenSsh,
-                Hostname = req.Hostname,
-                Os = req.Os,
-                SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!,
-                CreatedAt = now,
-                UpdatedAt = now
+                PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty
             };
             _db.FingerprintDevices.Add(entity);
         }
         else
         {
-            entity.PublicKeyOpenSsh = req.PublicKeyOpenSsh;
-            entity.Hostname = req.Hostname ?? entity.Hostname;
-            entity.Os = req.Os ?? entity.Os;
-            entity.SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? entity.SshUser : req.SshUser!;
-            entity.UpdatedAt = now;
+            entity.PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty;
         }
 
         await _db.SaveChangesAsync(ct);
@@ -100,7 +93,7 @@ public class DevicesController(
         var alias = $"pi-{deviceId}";
         var socketPath = $"/run/mediapi/{deviceId}.ssh.sock";
 
-        return Ok(new DeviceRegisterResponse
+        return Ok(new DeviceRegisterViewItem
         {
             DeviceId = deviceId,
             Alias = alias,

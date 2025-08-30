@@ -4,6 +4,12 @@ namespace MediaPi.Core.Utils;
 
 public static class KeyFingerprint
 {
+    private static string Base64Url(ReadOnlySpan<byte> data)
+    {
+        return Convert.ToBase64String(data.ToArray()).TrimEnd('=')
+            .Replace('+', '-').Replace('/', '_');
+    }
+
     public static string ComputeDeviceIdFromOpenSshKey(string openSshPubKey)
     {
         // Format: "<type> <base64> [comment]"
@@ -16,8 +22,15 @@ public static class KeyFingerprint
         using var sha = SHA256.Create();
         var digest = sha.ComputeHash(keyBytes);             // 32 bytes
 
-        // Base64URL without padding, to mirror the Pi script deviceId
-        var b64Digest = Convert.ToBase64String(digest).TrimEnd('=').Replace('+','-').Replace('/','_');
+        var b64Digest = Base64Url(digest);
         return $"fp-{b64Digest}";
     }
+
+    public static string GenerateRandomDeviceId()
+    {
+        Span<byte> random = stackalloc byte[32];
+        RandomNumberGenerator.Fill(random);
+        return $"fp-{Base64Url(random)}";
+    }
 }
+

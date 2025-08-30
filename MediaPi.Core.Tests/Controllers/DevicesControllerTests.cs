@@ -21,7 +21,6 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Models;
-using MediaPi.Core.DTOs;
 using MediaPi.Core.Utils;
 
 namespace MediaPi.Core.Tests.Controllers;
@@ -144,12 +143,9 @@ public class DevicesControllerTests
     {
         SetCurrentUser(null);
         const string sshKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICyBs+K6TfGsDz3jAC5vVsQt1zArhcXd1LgzX776BF3M";
-        var req = new DeviceRegisterRequest
+        var req = new DeviceRegisterItem
         {
-            PublicKeyOpenSsh = sshKey,
-            Hostname = "pi1",
-            Os = "Debian",
-            SshUser = "pi"
+            PublicKeyOpenSsh = sshKey
         };
 
         var expectedId = KeyFingerprint.ComputeDeviceIdFromOpenSshKey(sshKey);
@@ -157,7 +153,7 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var ok = result as OkObjectResult;
-        var resp = ok!.Value as DeviceRegisterResponse;
+        var resp = ok!.Value as DeviceRegisterViewItem;
         Assert.That(resp, Is.Not.Null);
         Assert.That(resp!.DeviceId, Is.EqualTo(expectedId));
         Assert.That(resp.Alias, Is.EqualTo($"pi-{expectedId}"));
@@ -166,16 +162,32 @@ public class DevicesControllerTests
         var entity = await _dbContext.FingerprintDevices.FindAsync(expectedId);
         Assert.That(entity, Is.Not.Null);
         Assert.That(entity!.PublicKeyOpenSsh, Is.EqualTo(sshKey));
-        Assert.That(entity.Hostname, Is.EqualTo("pi1"));
     }
 
     [Test]
     public async Task Register_InvalidKey_ReturnsBadRequest()
     {
         SetCurrentUser(null);
-        var req = new DeviceRegisterRequest { PublicKeyOpenSsh = "not-a-key" };
+        var req = new DeviceRegisterItem { PublicKeyOpenSsh = "not-a-key" };
         var result = await _controller.Register(req, CancellationToken.None);
         Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
+    public async Task Register_EmptyKey_GeneratesId()
+    {
+        SetCurrentUser(null);
+        var req = new DeviceRegisterItem { PublicKeyOpenSsh = string.Empty };
+        var result = await _controller.Register(req, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        var ok = result as OkObjectResult;
+        var resp = ok!.Value as DeviceRegisterViewItem;
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp!.DeviceId, Does.StartWith("fp-"));
+
+        var entity = await _dbContext.FingerprintDevices.FindAsync(resp.DeviceId);
+        Assert.That(entity, Is.Not.Null);
+        Assert.That(entity!.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
     }
 
     [Test]
