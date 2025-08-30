@@ -88,7 +88,7 @@ public class DevicesController(
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAll()
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAll(CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -112,7 +112,7 @@ public class DevicesController(
             return _403();
         }
 
-        var devices = await query.ToListAsync();
+        var devices = await query.ToListAsync(ct);
         return devices.Select(d =>
         {
             monitoringService.TryGetStatusItem(d.Id, out var status);
@@ -124,7 +124,7 @@ public class DevicesController(
     [HttpGet("by-account/{accountId?}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByAccount(int? accountId)
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByAccount(int? accountId, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -154,7 +154,7 @@ public class DevicesController(
             return _403();
         }
 
-        var devices = await query.ToListAsync();
+        var devices = await query.ToListAsync(ct);
         return devices.Select(d =>
         {
             monitoringService.TryGetStatusItem(d.Id, out var status);
@@ -166,7 +166,7 @@ public class DevicesController(
     [HttpGet("by-device-group/{deviceGroupId?}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByDeviceGroup(int? deviceGroupId)
+    public async Task<ActionResult<IEnumerable<DeviceViewItem>>> GetAllByDeviceGroup(int? deviceGroupId, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -185,7 +185,7 @@ public class DevicesController(
             if (deviceGroupId != null)
             {
                 // Check if the group belongs to the manager's accounts
-                bool ownsGroup = await _db.DeviceGroups.AnyAsync(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId));
+                bool ownsGroup = await _db.DeviceGroups.AnyAsync(dg => dg.Id == deviceGroupId.Value && accountIds.Contains(dg.AccountId), ct);
                 if (!ownsGroup)
                     return _403();
             }
@@ -209,7 +209,7 @@ public class DevicesController(
             return _403();
         }
 
-        var devices = await query.ToListAsync();
+        var devices = await query.ToListAsync(ct);
         return devices.Select(d =>
         {
             monitoringService.TryGetStatusItem(d.Id, out var status);
@@ -222,12 +222,12 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceViewItem))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<DeviceViewItem>> GetDevice(int id)
+    public async Task<ActionResult<DeviceViewItem>> GetDevice(int id, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var device = await _db.Devices.FindAsync(id);
+        var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
@@ -246,12 +246,12 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> UpdateDevice(int id, DeviceUpdateItem item)
+    public async Task<IActionResult> UpdateDevice(int id, DeviceUpdateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        var device = await _db.Devices.FindAsync(id);
+        var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
         if (item.IpAddress != null)
@@ -259,13 +259,12 @@ public class DevicesController(
             if (!IPAddress.TryParse(item.IpAddress, out var addr)) return _400Ip(item.IpAddress);
             if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
             var ip = addr.ToString();
-            if (await _db.Devices.AnyAsync(d => d.IpAddress == ip && d.Id != id)) return _409Ip(ip);
+            if (await _db.Devices.AnyAsync(d => d.IpAddress == ip && d.Id != id, ct)) return _409Ip(ip);
             device.IpAddress = ip;
         }
 
         device.UpdateFrom(item);
-        _db.Entry(device).State = EntityState.Modified;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         deviceEventsService.OnDeviceUpdated(device);
 
@@ -277,16 +276,16 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> DeleteDevice(int id)
+    public async Task<IActionResult> DeleteDevice(int id, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        var device = await _db.Devices.FindAsync(id);
+        var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
         _db.Devices.Remove(device);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         deviceEventsService.OnDeviceDeleted(id);
 
@@ -299,12 +298,12 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> AssignGroup(int id, Reference item)
+    public async Task<IActionResult> AssignGroup(int id, Reference item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var device = await _db.Devices.FindAsync(id);
+        var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device))
@@ -312,7 +311,7 @@ public class DevicesController(
             // Validate device group assignment if not setting to null
             if (item.Id != 0)
             {
-                var deviceGroup = await _db.DeviceGroups.FindAsync(item.Id);
+                var deviceGroup = await _db.DeviceGroups.FindAsync([item.Id], ct);
                 if (deviceGroup == null) return _404DeviceGroup(item.Id);
 
                 // Check if device group belongs to the same account as the device
@@ -323,8 +322,7 @@ public class DevicesController(
             }
 
             device.AssignGroupFrom(item);
-            _db.Entry(device).State = EntityState.Modified;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
 
             deviceEventsService.OnDeviceUpdated(device);
 
@@ -339,20 +337,19 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> AssignAccount(int id, Reference item)
+    public async Task<IActionResult> AssignAccount(int id, Reference item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var device = await _db.Devices.FindAsync(id);
+        var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
         if (user.IsAdministrator() ||
             (user.IsEngineer() && device.AccountId == null))
         {
             device.AssignAccountFrom(item);
-            _db.Entry(device).State = EntityState.Modified;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
 
             deviceEventsService.OnDeviceUpdated(device);
 

@@ -67,7 +67,7 @@ public class AuthController(
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UserViewItemWithJWT))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<UserViewItem>> Login(Credentials crd)
+    public async Task<ActionResult<UserViewItem>> Login(Credentials crd, CancellationToken ct = default)
     {
         // Log the authentication attempt for security auditing
         _logger.LogDebug("Login attempt for {email}", crd.Email);
@@ -81,7 +81,7 @@ public class AuthController(
             .Include(u => u.UserAccounts)
             .ThenInclude(ua => ua.Account)
             .Where(u => u.Email.ToLower() == crd.Email.ToLower()) // Case-insensitive email comparison
-            .SingleOrDefaultAsync();
+            .SingleOrDefaultAsync(ct);
 
         // Return 401 if user doesn't exist (same response as invalid password for security)
         if (user == null) return _401();
