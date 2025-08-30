@@ -170,7 +170,9 @@ public class DevicesControllerTests
         SetCurrentUser(null);
         var req = new DeviceRegisterRequest { PublicKeyOpenSsh = "not-a-key" };
         var result = await _controller.Register(req, CancellationToken.None);
-        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj?.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]

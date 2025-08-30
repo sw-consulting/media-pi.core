@@ -27,8 +27,6 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Utils;
-using System;
-using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
@@ -68,11 +66,11 @@ public class DevicesController(
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Invalid public key submitted");
-                return BadRequest("Invalid OpenSSH public key");
+                return _400SshKey(req.PublicKeyOpenSsh);
             }
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTime.UtcNow;
         var entity = await _db.Devices.SingleOrDefaultAsync(d => d.DeviceId == deviceId, ct);
 
         if (entity is null)

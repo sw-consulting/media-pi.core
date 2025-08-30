@@ -111,6 +111,11 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status400BadRequest,
                           new ErrMessage { Msg = $"Неверный формат IP адреса [{ip}]" });
     }
+    protected ObjectResult _400SshKey(string ssh)
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = $"Неверный формат ключа ssh [{ssh}]" });
+    }
     protected ObjectResult _409DeviceGroupAccountMismatch(int deviceGroupId, int? deviceAccountId)
     {
         var deviceAccountMsg = deviceAccountId.HasValue ? $"лицевого счёта [id={deviceAccountId}]" : "не назначено лицевого счёта";
