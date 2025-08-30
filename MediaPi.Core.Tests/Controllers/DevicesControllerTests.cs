@@ -12,6 +12,7 @@ using NUnit.Framework;
 using System;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 using MediaPi.Core.Controllers;
@@ -20,6 +21,8 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Models;
+using MediaPi.Core.DTOs;
+using MediaPi.Core.Utils;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -137,54 +140,42 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task Register_CreatesDeviceWithRemoteIp()
-    {
-        SetCurrentUser(null, "5.6.7.8");
-        var result = await _controller.Register();
-        var created = result.Result as CreatedAtActionResult;
-        Assert.That(created, Is.Not.Null);
-        var reference = created!.Value as Reference;
-        Assert.That(reference, Is.Not.Null);
-        var dev = await _dbContext.Devices.FindAsync(reference!.Id);
-        Assert.That(dev, Is.Not.Null);
-        Assert.That(dev!.IpAddress, Is.EqualTo("5.6.7.8"));
-        Assert.That(dev.Name, Is.EqualTo($"Устройство №{dev.Id}"));
-        Assert.That(dev.AccountId, Is.Null);
-        Assert.That(dev.DeviceGroupId, Is.Null);
-    }
-
-    [Test]
-    public async Task Register_Ipv4Mapped_IpStoredAsIpv4()
-    {
-        SetCurrentUser(null, "::ffff:9.8.7.6");
-        var result = await _controller.Register();
-        var created = result.Result as CreatedAtActionResult;
-        Assert.That(created, Is.Not.Null);
-        var reference = created!.Value as Reference;
-        Assert.That(reference, Is.Not.Null);
-        var dev = await _dbContext.Devices.FindAsync(reference!.Id);
-        Assert.That(dev, Is.Not.Null);
-        Assert.That(dev!.IpAddress, Is.EqualTo("9.8.7.6"));
-    }
-
-    [Test]
-    public async Task Register_DuplicateIp_ReturnsConflict()
-    {
-        SetCurrentUser(null, "1.1.1.1");
-        var result = await _controller.Register();
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = result.Result as ObjectResult;
-        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
-    }
-
-    [Test]
-    public async Task Register_NoIp_ReturnsBadRequest()
+    public async Task Register_ValidKey_UpsertsDevice()
     {
         SetCurrentUser(null);
-        var result = await _controller.Register();
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = result.Result as ObjectResult;
-        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        const string sshKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICyBs+K6TfGsDz3jAC5vVsQt1zArhcXd1LgzX776BF3M";
+        var req = new DeviceRegisterRequest
+        {
+            PublicKeyOpenSsh = sshKey,
+            Hostname = "pi1",
+            Os = "Debian",
+            SshUser = "pi"
+        };
+
+        var expectedId = KeyFingerprint.ComputeDeviceIdFromOpenSshKey(sshKey);
+
+        var result = await _controller.Register(req, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        var ok = result as OkObjectResult;
+        var resp = ok!.Value as DeviceRegisterResponse;
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp!.DeviceId, Is.EqualTo(expectedId));
+        Assert.That(resp.Alias, Is.EqualTo($"pi-{expectedId}"));
+        Assert.That(resp.SocketPath, Is.EqualTo($"/run/mediapi/{expectedId}.ssh.sock"));
+
+        var entity = await _dbContext.FingerprintDevices.FindAsync(expectedId);
+        Assert.That(entity, Is.Not.Null);
+        Assert.That(entity!.PublicKeyOpenSsh, Is.EqualTo(sshKey));
+        Assert.That(entity.Hostname, Is.EqualTo("pi1"));
+    }
+
+    [Test]
+    public async Task Register_InvalidKey_ReturnsBadRequest()
+    {
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest { PublicKeyOpenSsh = "not-a-key" };
+        var result = await _controller.Register(req, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
     }
 
     [Test]

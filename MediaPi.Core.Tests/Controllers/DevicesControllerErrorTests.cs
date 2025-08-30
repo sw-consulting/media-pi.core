@@ -350,23 +350,6 @@ public class DevicesControllerErrorTests
 
     // Edge case tests
     [Test]
-    public async Task Register_IPv6Address_CreatesDeviceWithIpv6()
-    {
-        SetCurrentUser(null, "2001:0db8:85a3:0000:0000:8a2e:0370:7335");
-        var result = await _controller.Register();
-        var created = result.Result as CreatedAtActionResult;
-        Assert.That(created, Is.Not.Null);
-        var reference = created!.Value as Reference;
-        Assert.That(reference, Is.Not.Null);
-        var dev = await _dbContext.Devices.FindAsync(reference!.Id);
-        Assert.That(dev, Is.Not.Null);
-        
-        // Use IPAddress.Parse to get the expected standardized format
-        string expectedFormat = IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString();
-        Assert.That(dev!.IpAddress, Is.EqualTo(expectedFormat));
-    }
-
-    [Test]
     public async Task Update_DuplicateSameDevice_IpAddress_Succeeds()
     {
         // A device should be able to update with its own IP address

@@ -22,10 +22,14 @@
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
+using DeviceEntity = MediaPi.Core.Data.Entities.Device;
 using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.DTOs;
+using MediaPi.Core.Utils;
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
@@ -48,29 +52,60 @@ public class DevicesController(
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
-    public async Task<ActionResult<Reference>> Register()
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
+    public async Task<IActionResult> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress;
-        if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
+        if (string.IsNullOrWhiteSpace(req.PublicKeyOpenSsh))
+            return BadRequest("publicKeyOpenSsh is required");
+
+        string deviceId;
+        try
         {
-            ipAddress = ipAddress.MapToIPv4();
+            deviceId = KeyFingerprint.ComputeDeviceIdFromOpenSshKey(req.PublicKeyOpenSsh);
         }
-        var ip = ipAddress?.ToString() ?? "";
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Invalid public key submitted");
+            return BadRequest("Invalid OpenSSH public key");
+        }
 
-        if (string.IsNullOrWhiteSpace(ip)) return _400Ip(ip);
+        var now = DateTimeOffset.UtcNow;
+        var entity = await _db.FingerprintDevices.FindAsync(new object?[] { deviceId }, ct);
 
-        if (await _db.Devices.AnyAsync(d => d.IpAddress == ip)) return _409Ip(ip);
+        if (entity is null)
+        {
+            entity = new DeviceEntity
+            {
+                Id = deviceId,
+                PublicKeyOpenSsh = req.PublicKeyOpenSsh,
+                Hostname = req.Hostname,
+                Os = req.Os,
+                SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _db.FingerprintDevices.Add(entity);
+        }
+        else
+        {
+            entity.PublicKeyOpenSsh = req.PublicKeyOpenSsh;
+            entity.Hostname = req.Hostname ?? entity.Hostname;
+            entity.Os = req.Os ?? entity.Os;
+            entity.SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? entity.SshUser : req.SshUser!;
+            entity.UpdatedAt = now;
+        }
 
-        var device = new Device { Name = string.Empty, IpAddress = ip };
-        _db.Devices.Add(device);
-        await _db.SaveChangesAsync();
-        device.Name = $"Устройство №{device.Id}";
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
-        deviceEventsService.OnDeviceCreated(device);
+        var alias = $"pi-{deviceId}";
+        var socketPath = $"/run/mediapi/{deviceId}.ssh.sock";
 
-        return CreatedAtAction(nameof(GetDevice), new { id = device.Id }, new Reference { Id = device.Id });
+        return Ok(new DeviceRegisterResponse
+        {
+            DeviceId = deviceId,
+            Alias = alias,
+            SocketPath = socketPath
+        });
     }
 
     // GET: api/devices

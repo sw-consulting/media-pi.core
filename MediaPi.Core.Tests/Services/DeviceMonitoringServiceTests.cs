@@ -61,8 +61,6 @@ public class DeviceMonitoringServiceTests
         logs ??= new List<string>();
         
         // Use a lock to handle concurrent access to the logs list
-        var lockObj = new object();
-        
         logger.Setup(l => l.Log(
             It.IsAny<LogLevel>(),
             It.IsAny<EventId>(),
@@ -71,7 +69,7 @@ public class DeviceMonitoringServiceTests
             (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()))
             .Callback((LogLevel level, EventId id, object state, Exception ex, Delegate formatter) =>
             {
-                lock (lockObj)
+                lock (logs)
                 {
                     logs.Add($"{level}: {state}");
                 }

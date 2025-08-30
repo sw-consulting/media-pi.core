@@ -22,6 +22,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using MediaPi.Core.Models;
+using DeviceEntity = MediaPi.Core.Data.Entities.Device;
 
 namespace MediaPi.Core.Data
 {
@@ -38,6 +39,7 @@ namespace MediaPi.Core.Data
         public DbSet<VideoPlaylist> VideoPlaylists => Set<VideoPlaylist>();
         public DbSet<Screenshot> Screenshots => Set<Screenshot>();
         public DbSet<Device> Devices => Set<Device>();
+        public DbSet<DeviceEntity> FingerprintDevices => Set<DeviceEntity>();
         public DbSet<DeviceGroup> DeviceGroups => Set<DeviceGroup>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Account> Accounts => Set<Account>();
