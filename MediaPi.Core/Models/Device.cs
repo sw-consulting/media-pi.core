@@ -45,6 +45,13 @@ namespace MediaPi.Core.Models
         public DeviceGroup? DeviceGroup { get; set; }
 
         public ICollection<Screenshot> Screenshots { get; set; } = [];
+
+        [NotMapped]
+        public string Alias => $"pi-{Id}";
+
+        [NotMapped]
+        public string SocketPath => $"/run/mediapi/{Id}.ssh.sock";
+
     }
 }
 
