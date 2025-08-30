@@ -95,7 +95,7 @@ public class DevicesController(
             IpAddress = ip,
             PiDeviceId = piDeviceId,
             PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
-            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!,
+            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
         };
 
         _db.Devices.Add(device);
