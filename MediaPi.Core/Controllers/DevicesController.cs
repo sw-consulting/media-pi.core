@@ -24,7 +24,6 @@ using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
 using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
-using MediaPi.Core.DTOs;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Utils;
@@ -82,8 +81,6 @@ public class DevicesController(
             {
                 DeviceId = deviceId,
                 PublicKeyOpenSsh = req.PublicKeyOpenSsh,
-                HostName = req.HostName,
-                OperatingSystem = req.OperatingSystem,
                 SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -93,8 +90,6 @@ public class DevicesController(
         else
         {
             entity.PublicKeyOpenSsh = req.PublicKeyOpenSsh;
-            entity.HostName = req.HostName ?? entity.HostName;
-            entity.OperatingSystem = req.OperatingSystem ?? entity.OperatingSystem;
             entity.SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? entity.SshUser : req.SshUser!;
             entity.UpdatedAt = now;
         }

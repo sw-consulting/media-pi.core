@@ -18,7 +18,6 @@ using System.Threading.Tasks;
 using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
-using MediaPi.Core.DTOs;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Models;

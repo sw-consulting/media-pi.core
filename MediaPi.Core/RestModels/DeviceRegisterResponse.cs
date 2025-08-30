@@ -1,4 +1,4 @@
-namespace MediaPi.Core.DTOs;
+namespace MediaPi.Core.RestModels;
 
 public sealed class DeviceRegisterResponse
 {
