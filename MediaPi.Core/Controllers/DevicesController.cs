@@ -102,7 +102,6 @@ public class DevicesController(
 
         _db.Devices.Add(device);
         await _db.SaveChangesAsync(ct);
-
         deviceEventsService.OnDeviceCreated(device);
 
         return Ok(new DeviceRegisterResponse { Id = device.Id, PiDeviceId = device.PiDeviceId });
