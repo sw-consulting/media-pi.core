@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MediaPi.Core.Models
@@ -31,10 +32,10 @@ namespace MediaPi.Core.Models
         public int Id { get; set; }
 
         [Column("name")]
-        public required string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [Column("ip_address")]
-        public required string IpAddress { get; set; }
+        public string IpAddress { get; set; } = string.Empty;
 
         [Column("account_id")]
         public int? AccountId { get; set; }
@@ -43,6 +44,27 @@ namespace MediaPi.Core.Models
         [Column("device_group_id")]
         public int? DeviceGroupId { get; set; }
         public DeviceGroup? DeviceGroup { get; set; }
+
+        [Column("device_id")]
+        public string DeviceId { get; set; } = string.Empty;
+
+        [Column("public_key_open_ssh")]
+        public string PublicKeyOpenSsh { get; set; } = string.Empty;
+
+        [Column("hostname")]
+        public string? Hostname { get; set; }
+
+        [Column("os")]
+        public string? Os { get; set; }
+
+        [Column("ssh_user")]
+        public string SshUser { get; set; } = "pi";
+
+        [Column("created_at")]
+        public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+        [Column("updated_at")]
+        public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         public ICollection<Screenshot> Screenshots { get; set; } = [];
     }
