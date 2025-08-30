@@ -82,8 +82,8 @@ public class DevicesController(
             {
                 DeviceId = deviceId,
                 PublicKeyOpenSsh = req.PublicKeyOpenSsh,
-                Hostname = req.Hostname,
-                Os = req.Os,
+                HostName = req.HostName,
+                OperatingSystem = req.OperatingSystem,
                 SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -93,8 +93,8 @@ public class DevicesController(
         else
         {
             entity.PublicKeyOpenSsh = req.PublicKeyOpenSsh;
-            entity.Hostname = req.Hostname ?? entity.Hostname;
-            entity.Os = req.Os ?? entity.Os;
+            entity.HostName = req.HostName ?? entity.HostName;
+            entity.OperatingSystem = req.OperatingSystem ?? entity.OperatingSystem;
             entity.SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? entity.SshUser : req.SshUser!;
             entity.UpdatedAt = now;
         }

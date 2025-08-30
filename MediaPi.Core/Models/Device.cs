@@ -52,10 +52,10 @@ namespace MediaPi.Core.Models
         public string PublicKeyOpenSsh { get; set; } = string.Empty;
 
         [Column("hostname")]
-        public string? Hostname { get; set; }
+        public string? HostName { get; set; }
 
         [Column("os")]
-        public string? Os { get; set; }
+        public string? OperatingSystem { get; set; }
 
         [Column("ssh_user")]
         public string SshUser { get; set; } = "pi";
