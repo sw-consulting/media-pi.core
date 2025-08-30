@@ -50,7 +50,7 @@ public class DevicesController(
     [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
-    public async Task<IActionResult> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
+    public async Task<IActionResult> Register(DeviceRegisterRequest req)
     {
         string deviceId;
         if (string.IsNullOrWhiteSpace(req.PublicKeyOpenSsh))
@@ -92,16 +92,10 @@ public class DevicesController(
             entity.UpdatedAt = now;
         }
 
-        await _db.SaveChangesAsync(ct);
-
-        var alias = $"pi-{deviceId}";
-        var socketPath = $"/run/mediapi/{deviceId}.ssh.sock";
-
+        await _db.SaveChangesAsync();
         return Ok(new DeviceRegisterResponse
         {
             DeviceId = deviceId,
-            Alias = alias,
-            SocketPath = socketPath
         });
     }
 

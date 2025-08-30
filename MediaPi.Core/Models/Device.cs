@@ -20,7 +20,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MediaPi.Core.Models
@@ -59,8 +58,14 @@ namespace MediaPi.Core.Models
 
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
         public ICollection<Screenshot> Screenshots { get; set; } = [];
+
+        [NotMapped]
+        public string Alias => $"pi-{DeviceId}";
+
+        [NotMapped]
+        public string SocketPath => $"/run/mediapi/{DeviceId}.ssh.sock";
+
     }
 }
 
