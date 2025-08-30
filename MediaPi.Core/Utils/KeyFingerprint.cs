@@ -9,7 +9,7 @@ public static class KeyFingerprint
 {
     private static string Base64Url(ReadOnlySpan<byte> data)
     {
-        return Convert.ToBase64String(data.ToArray()).TrimEnd('=')
+        return Convert.ToBase64String(data).TrimEnd('=')
             .Replace('+', '-').Replace('/', '_');
     }
 
