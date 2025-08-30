@@ -89,11 +89,10 @@ public class DevicesController(
             piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
         }
 
-        int nextId = await _db.Devices.Select(d => d.Id).DefaultIfEmpty().MaxAsync(ct) + 1;
-
+        // Create device with auto-generated ID
         var device = new Device
         {
-            Name = string.IsNullOrWhiteSpace(req.Name) ? $"Устройство №{nextId}" : req.Name!,
+            Name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name!, // Placeholder name if not provided
             IpAddress = ip,
             PiDeviceId = piDeviceId,
             PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
@@ -102,6 +101,14 @@ public class DevicesController(
 
         _db.Devices.Add(device);
         await _db.SaveChangesAsync(ct);
+
+        // Update name with ID if no custom name was provided
+        if (string.IsNullOrWhiteSpace(req.Name))
+        {
+            device.Name = $"Устройство №{device.Id}";
+            await _db.SaveChangesAsync(ct);
+        }
+
         deviceEventsService.OnDeviceCreated(device);
 
         return Ok(new DeviceRegisterResponse { Id = device.Id, PiDeviceId = device.PiDeviceId });
