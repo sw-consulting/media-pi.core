@@ -239,7 +239,7 @@ public class DevicesControllerErrorTests
     {
         SetCurrentUser(null);
         var dto = new DeviceUpdateItem { Name = "Updated" };
-        var result = await _controller.UpdateDevice(1, dto);
+        var result = await _controller.UpdateDevice(1, dto, CancellationToken.None);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
@@ -250,7 +250,7 @@ public class DevicesControllerErrorTests
     {
         SetCurrentUser(1); // Admin
         var dto = new DeviceUpdateItem { IpAddress = "2001:0db8:85a3::invalid" };
-        var result = await _controller.UpdateDevice(1, dto);
+        var result = await _controller.UpdateDevice(1, dto, CancellationToken.None);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
@@ -364,7 +364,13 @@ public class DevicesControllerErrorTests
         Assert.That(ok, Is.Not.Null);
         var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
-        var dev = await _dbContext.Devices.FindAsync(response!.Id);
+        
+        // Check that PiDeviceId is generated for empty SSH key
+        Assert.That(response!.PiDeviceId, Is.Not.Null.And.Not.Empty);
+        Assert.That(response.PiDeviceId, Does.StartWith("fp-"));
+        
+        // Find device by IP address to verify it was created
+        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString());
         Assert.That(dev, Is.Not.Null);
         
         // Use IPAddress.Parse to get the expected standardized format
@@ -372,6 +378,7 @@ public class DevicesControllerErrorTests
         Assert.That(dev!.IpAddress, Is.EqualTo(expectedFormat));
         Assert.That(dev.SshUser, Is.EqualTo("ipv6user"));
         Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
+        Assert.That(dev.PiDeviceId, Is.EqualTo(response.PiDeviceId));
     }
 
     [Test]
@@ -380,7 +387,7 @@ public class DevicesControllerErrorTests
         // A device should be able to update with its own IP address
         SetCurrentUser(1); // Admin
         var dto = new DeviceUpdateItem { IpAddress = "1.1.1.1" };
-        var result = await _controller.UpdateDevice(1, dto);
+        var result = await _controller.UpdateDevice(1, dto, CancellationToken.None);
         Assert.That(result, Is.TypeOf<NoContentResult>());
     }
 
@@ -394,7 +401,7 @@ public class DevicesControllerErrorTests
 
         // Manager should be able to see ungrouped devices from their account
         SetCurrentUser(2); // Manager for account1
-        var result = await _controller.GetAllByDeviceGroup(null);
+        var result = await _controller.GetAllByDeviceGroup(null, CancellationToken.None);
         Assert.That(result.Value, Is.Not.Null);
         var devices = result.Value!.ToList();
         Assert.That(devices, Has.Count.EqualTo(1));
@@ -409,7 +416,7 @@ public class DevicesControllerErrorTests
         SetCurrentUser(null, "10.0.0.101");
         var req = new DeviceRegisterRequest 
         { 
-            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEmptyUser", 
+            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHGnxZfBr2fAjqk8GK7q1eMB2LO5GtE7QA8k1w8uCLjC test@example.com", 
             SshUser = "" 
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -417,9 +424,16 @@ public class DevicesControllerErrorTests
         Assert.That(ok, Is.Not.Null);
         var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
-        var dev = await _dbContext.Devices.FindAsync(response!.Id);
+        
+        // Check that PiDeviceId is computed from SSH key
+        Assert.That(response!.PiDeviceId, Is.Not.Null.And.Not.Empty);
+        Assert.That(response.PiDeviceId, Does.StartWith("fp-"));
+        
+        // Find device by IP address to verify it was created
+        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "10.0.0.101");
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.SshUser, Is.EqualTo("pi")); // Should default to "pi"
-        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEmptyUser"));
+        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHGnxZfBr2fAjqk8GK7q1eMB2LO5GtE7QA8k1w8uCLjC test@example.com"));
+        Assert.That(dev.PiDeviceId, Is.EqualTo(response.PiDeviceId));
     }
 }

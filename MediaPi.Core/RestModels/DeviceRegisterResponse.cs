@@ -3,8 +3,9 @@
 
 namespace MediaPi.Core.RestModels;
 
-public sealed class DeviceRegisterResponse : Reference
+public sealed class DeviceRegisterResponse 
 {
-    public string Alias => $"pi-{Id}";
-    public string SocketPath => $"/run/mediapi/{Id}.ssh.sock";
+    public string PiDeviceId { get; init; } = "noname";
+    public string Alias => $"pi-{PiDeviceId}";
+    public string SocketPath => $"/run/mediapi/{PiDeviceId}.ssh.sock";
 }

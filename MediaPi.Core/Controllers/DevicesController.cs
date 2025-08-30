@@ -26,6 +26,7 @@ using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
@@ -64,11 +65,25 @@ public class DevicesController(
 
         if (await _db.Devices.AnyAsync(d => d.IpAddress == ip, ct)) return _409Ip(ip);
 
-        var now = DateTime.UtcNow;
+        // Calculate PiDeviceId from SSH key
+        string piDeviceId;
+        try
+        {
+            piDeviceId = string.IsNullOrWhiteSpace(req.PublicKeyOpenSsh) 
+                ? KeyFingerprint.GenerateRandomDeviceId()
+                : KeyFingerprint.ComputeDeviceIdFromOpenSshKey(req.PublicKeyOpenSsh);
+        }
+        catch (ArgumentException)
+        {
+            // If SSH key is invalid, generate a random device ID
+            piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
+        }
+
         var device = new Device 
         { 
             Name = string.Empty, 
             IpAddress = ip,
+            PiDeviceId = piDeviceId,
             PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
             SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
         };
@@ -81,7 +96,7 @@ public class DevicesController(
 
         deviceEventsService.OnDeviceCreated(device);
 
-        return Ok(new DeviceRegisterResponse { Id = device.Id });
+        return Ok(new DeviceRegisterResponse { PiDeviceId = device.PiDeviceId });
     }
 
     // GET: api/devices
