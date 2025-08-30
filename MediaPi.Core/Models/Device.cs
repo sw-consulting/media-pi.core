@@ -36,6 +36,12 @@ namespace MediaPi.Core.Models
         [Column("ip_address")]
         public required string IpAddress { get; set; }
 
+        [Column("public_key_open_ssh")]
+        public string PublicKeyOpenSsh { get; set; } = string.Empty;
+
+        [Column("ssh_user")]
+        public string SshUser { get; set; } = "pi";
+
         [Column("account_id")]
         public int? AccountId { get; set; }
         public Account? Account { get; set; }
