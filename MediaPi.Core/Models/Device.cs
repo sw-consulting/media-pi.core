@@ -56,10 +56,10 @@ namespace MediaPi.Core.Models
         public ICollection<Screenshot> Screenshots { get; set; } = [];
 
         [NotMapped]
-        public string Alias => $"pi-{Id}";
+        public string Alias => $"pi-{PiDeviceId}";
 
         [NotMapped]
-        public string SocketPath => $"/run/mediapi/{Id}.ssh.sock";
+        public string SocketPath => $"/run/mediapi/{PiDeviceId}.ssh.sock";
 
     }
 }

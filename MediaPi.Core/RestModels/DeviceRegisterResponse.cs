@@ -3,7 +3,7 @@
 
 namespace MediaPi.Core.RestModels;
 
-public sealed class DeviceRegisterResponse 
+public sealed class DeviceRegisterResponse: Reference
 {
     public string PiDeviceId { get; init; } = "noname";
     public string Alias => $"pi-{PiDeviceId}";

@@ -96,7 +96,7 @@ public class DevicesController(
 
         deviceEventsService.OnDeviceCreated(device);
 
-        return Ok(new DeviceRegisterResponse { PiDeviceId = device.PiDeviceId });
+        return Ok(new DeviceRegisterResponse { Id = device.Id, PiDeviceId = device.PiDeviceId });
     }
 
     // GET: api/devices
