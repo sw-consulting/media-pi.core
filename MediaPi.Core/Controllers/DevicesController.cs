@@ -85,7 +85,12 @@ public class DevicesController(
         }
         catch (ArgumentException)
         {
-            // If SSH key is invalid, generate a random device ID
+            // If SSH key format is invalid, generate a random device ID
+            piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
+        }
+        catch (FormatException)
+        {
+            // If SSH key base64 content is malformed, generate a random device ID
             piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
         }
 

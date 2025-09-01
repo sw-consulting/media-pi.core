@@ -50,8 +50,13 @@ public static class DeviceExtensions
                 // If SSH key is invalid, generate a random device ID
                 device.PiDeviceId = KeyFingerprint.GenerateRandomDeviceId();
             }
+            catch (FormatException)
+            {
+                // If SSH key base64 content is malformed, generate a random device ID
+                device.PiDeviceId = KeyFingerprint.GenerateRandomDeviceId();
+            }
         }
-        
+
         if (item.SshUser != null) device.SshUser = item.SshUser;
         
         if (item.AccountId.HasValue) 
