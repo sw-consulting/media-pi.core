@@ -37,22 +37,11 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status400BadRequest,
                           new ErrMessage() { Msg = "Нарушена целостность запроса" });
     }
-    protected ObjectResult _400EmptyRegister()
+    protected ObjectResult _400Ip(string ip)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage() { Msg = "Пустой файл реестра" });
+                          new ErrMessage { Msg = $"Неверный формат IP адреса [{ip}]" });
     }
-    protected ObjectResult _400NoRegister()
-    {
-        return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage() { Msg = "Файл реестра не найден в архиве" });
-    }
-    protected ObjectResult _400UnsupportedFileType(string ext)
-    {
-        return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage() { Msg = $"Файлы формата {ext} не поддерживаются. Можно загрузить .xlsx, .xls, .zip, .rar" });
-    }
-
     protected ObjectResult _401()
     {
         return StatusCode(StatusCodes.Status401Unauthorized,
@@ -67,11 +56,6 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
     {
         return StatusCode(StatusCodes.Status404NotFound,
                           new ErrMessage { Msg = $"Не удалось найти пользователя [id={id}]" });
-    }
-    protected ObjectResult _404Register(int id)
-    {
-        return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти реестр [id={id}]" });
     }
     protected ObjectResult _404Device(int id)
     {
@@ -106,11 +90,6 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = $"Лицевой счёт с таким именем уже существует [name = {name}]" });
     }
 
-    protected ObjectResult _400Ip(string ip)
-    {
-        return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Неверный формат IP адреса [{ip}]" });
-    }
     protected ObjectResult _409DeviceGroupAccountMismatch(int deviceGroupId, int? deviceAccountId)
     {
         var deviceAccountMsg = deviceAccountId.HasValue ? $"лицевого счёта [id={deviceAccountId}]" : "не назначено лицевого счёта";

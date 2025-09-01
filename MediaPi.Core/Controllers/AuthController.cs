@@ -1,30 +1,35 @@
 // Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
 // This file is a part of Media Pi backend application
 
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-
 using MediaPi.Core.Authorization;
+using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Data;
+using MediaPi.Core.Settings;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MediaPi.Core.Controllers;
 
 /// <summary>
 /// AuthController handles user authentication and authorization operations for the Media Pi application.
-/// This controller provides endpoints for user login and authentication status verification.
+/// This controller provides endpoints for user login, authentication status verification, and SSH device authorization.
 /// 
 /// Key responsibilities:
 /// - User authentication via email/password credentials
 /// - JWT token generation and validation
 /// - Role-based access control verification
 /// - Account information retrieval for authenticated users
+/// - SSH device authorization for gateway services
 /// </summary>
 /// <remarks>
 /// This controller uses BCrypt for password hashing and verification, and JWT tokens for maintaining
 /// user sessions. User roles and account associations are loaded during authentication to provide
 /// complete user context in the response.
+/// 
+/// The SSH authorization functionality allows secure gateway services to verify device access
+/// using shared bearer token authentication.
 /// </remarks>
 [ApiController]
 [Authorize]
@@ -32,12 +37,18 @@ namespace MediaPi.Core.Controllers;
 public class AuthController(
     AppDbContext db, 
     IJwtUtils jwtUtils,
+    IOptions<AppSettings> appSettings,
     ILogger<AuthController> logger) : FuelfluxControllerPreBase(db, logger)
 {
     /// <summary>
     /// JWT utilities service for generating and validating authentication tokens
     /// </summary>
     private readonly IJwtUtils _jwtUtils = jwtUtils;
+    
+    /// <summary>
+    /// Application settings containing security tokens and configuration
+    /// </summary>
+    private readonly AppSettings _appSettings = appSettings.Value;
 
     /// <summary>
     /// Authenticates a user with email and password credentials and returns a JWT token.
@@ -104,6 +115,54 @@ public class AuthController(
     }
 
     /// <summary>
+    /// Response model for SSH device authorization requests
+    /// </summary>
+    /// <param name="Allowed">Indicates whether SSH access is authorized for the device</param>
+    /// <param name="DeviceId">The device identifier if authorization is granted</param>
+    /// <param name="SshUser">The SSH username to use for the device connection (defaults to "pi")</param>
+    public sealed record SshAuthorizeResponse(bool Allowed, string? DeviceId, string SshUser);
+
+    /// <summary>
+    /// Authorizes SSH access for a specific device through the gateway service.
+    /// 
+    /// This endpoint is used by SSH gateway services to verify device authorization
+    /// before allowing SSH connections. The request must include a valid bearer token
+    /// that matches the configured gateway token in application settings.
+    /// </summary>
+    /// <param name="deviceId">The unique device identifier to authorize</param>
+    /// <param name="ct">Cancellation token for async operations</param>
+    /// <returns>
+    /// Success: SshAuthorizeResponse with authorization details and SSH username
+    /// Failure: 401 Unauthorized for invalid gateway token, 404 Not Found for unknown device
+    /// </returns>
+    /// <remarks>
+    /// This endpoint uses bearer token authentication separate from JWT tokens.
+    /// The gateway token is configured in AppSettings and shared between the gateway
+    /// service and this API. Device information is retrieved without tracking for
+    /// performance optimization.
+    /// </remarks>
+    // GET: api/auth/authorize
+    [HttpGet("authorize")]
+    [AllowAnonymous] 
+    [Produces("application/json")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SshAuthorizeResponse))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(SshAuthorizeResponse))]
+    public async Task<IActionResult> Authorize([FromQuery] string deviceId, CancellationToken ct)
+    {
+        if (!IsAuthorizedGateway())
+            return Unauthorized(new SshAuthorizeResponse(false, "", ""));
+
+        if (string.IsNullOrWhiteSpace(deviceId))
+            return Unauthorized(new SshAuthorizeResponse(false, "", ""));
+
+        var dev = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.PiDeviceId == deviceId, ct);
+        if (dev is null)
+            return Unauthorized(new SshAuthorizeResponse(false, "", ""));
+
+        return Ok(new SshAuthorizeResponse(true, dev.PiDeviceId, dev.SshUser));
+    }
+
+    /// <summary>
     /// Verifies the current user's authentication status without returning user data.
     /// 
     /// This endpoint is used to check if a user's JWT token is still valid and they
@@ -136,5 +195,29 @@ public class AuthController(
         // The [Authorize] attribute ensures only authenticated users reach this point
         return NoContent();
     }
+
+    // Shared secret (Bearer) between sshd-gateway and core
+    /// <summary>
+    /// Validates that the request is authorized from the SSH gateway service.
+    /// 
+    /// This method checks the Authorization header for a bearer token that matches
+    /// the configured gateway token in application settings. This provides a secure
+    /// way for the SSH gateway service to communicate with the API.
+    /// </summary>
+    /// <returns>
+    /// True if the request contains a valid gateway bearer token, false otherwise
+    /// </returns>
+    /// <remarks>
+    /// The gateway token is configured in AppSettings.Token and must be provided
+    /// as "Bearer {token}" in the Authorization header. This is separate from
+    /// JWT authentication used for user sessions.
+    /// </remarks>
+    private bool IsAuthorizedGateway()
+    {
+        var hdr = Request.Headers.Authorization.ToString();
+        var token = _appSettings.Token;
+        return !string.IsNullOrWhiteSpace(token) && hdr == $"Bearer {token}";
+    }
+
 }
 
