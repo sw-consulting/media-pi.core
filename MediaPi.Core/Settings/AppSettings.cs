@@ -25,5 +25,6 @@ namespace MediaPi.Core.Settings;
 public class AppSettings
 {
     public string? Secret { get; set; } = null;
+    public string? Token { get; set; } = null;
     public int JwtTokenExpirationDays { get; set; } = 7;
 }

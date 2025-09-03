@@ -24,8 +24,9 @@ namespace MediaPi.Core.Settings;
 
 public class DeviceMonitorSettings
 {
-    public int OnlinePollingIntervalSeconds { get; set; } = 60;
-    public int OfflinePollingIntervalSeconds { get; set; } = 10;
+    public int OnlinePollingIntervalSeconds { get; set; } = 600;
+    public int OfflinePollingIntervalSeconds { get; set; } = 60;
+    public int FallbackIntervalSeconds { get; set; } = 60;
     public int MaxParallelProbes { get; set; } = 20;
     public int TimeoutSeconds { get; set; } = 5;
     public int JitterSeconds { get; set; } = 5;

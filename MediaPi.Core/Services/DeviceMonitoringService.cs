@@ -236,7 +236,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                     _logger.LogError(ex, "Error saving device probe results to database.");
                 }
 
-                var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(1)).Min();
+                var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(_settings.FallbackIntervalSeconds)).Min();
                 var delay = next - DateTime.UtcNow;
                 if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
                 await Task.Delay(delay, stoppingToken);

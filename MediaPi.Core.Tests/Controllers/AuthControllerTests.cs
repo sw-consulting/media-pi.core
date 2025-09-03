@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using System.Threading.Tasks;
+using System.Threading;
 
 using Moq;
 using NUnit.Framework;
@@ -16,6 +18,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Settings;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -25,10 +28,12 @@ public class AuthControllerTests
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. 
     private Mock<IJwtUtils> _mockJwtUtils;
     private Mock<ILogger<AuthController>> _mockLogger;
+    private Mock<IOptions<AppSettings>> _mockAppSettings;
     private AppDbContext _dbContext;
     private AuthController _controller;
     private User _testUser;
     private Role _testRole;
+    private AppSettings _appSettings;
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor.
 
     [SetUp]
@@ -45,12 +50,22 @@ public class AuthControllerTests
         _testRole = new Role { Id = (int)UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" };
         _dbContext.Roles.Add(_testRole);
 
+        // Setup app settings
+        _appSettings = new AppSettings
+        {
+            Secret = "test-secret-key",
+            Token = "test-gateway-token",
+            JwtTokenExpirationDays = 7
+        };
+
         // Setup mocks
         _mockJwtUtils = new Mock<IJwtUtils>();
         _mockLogger = new Mock<ILogger<AuthController>>();
+        _mockAppSettings = new Mock<IOptions<AppSettings>>();
+        _mockAppSettings.Setup(x => x.Value).Returns(_appSettings);
 
         // Setup controller
-        _controller = new AuthController(_dbContext, _mockJwtUtils.Object, _mockLogger.Object);
+        _controller = new AuthController(_dbContext, _mockJwtUtils.Object, _mockAppSettings.Object, _mockLogger.Object);
 
         // Create test user with hashed password
         string hashedPassword = BCrypt.Net.BCrypt.HashPassword("password123");
@@ -301,5 +316,181 @@ public class AuthControllerTests
         Assert.That(userView.Email, Is.EqualTo("engineer@example.com"));
         Assert.That(userView.Roles, Contains.Item(UserRoleConstants.InstallationEngineer));
         Assert.That(userView.AccountIds, Is.Empty); // Non-managers should have empty AccountIds
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsUnauthorized_WhenGatewayTokenIsInvalid()
+    {
+        // Arrange
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.Request.Headers.Authorization = "Bearer invalid-token";
+
+        // Act
+        var result = await _controller.Authorize("test-device-id", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsUnauthorized_WhenGatewayTokenIsMissing()
+    {
+        // Arrange
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+
+        // Act
+        var result = await _controller.Authorize("test-device-id", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsUnauthorized_WhenDeviceIdIsEmpty()
+    {
+        // Arrange
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.Request.Headers.Authorization = "Bearer test-gateway-token";
+
+        // Act
+        var result = await _controller.Authorize("", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<UnauthorizedObjectResult>());
+        var notFoundResult = result as UnauthorizedObjectResult;
+        Assert.That(notFoundResult!.Value, Is.TypeOf<AuthController.SshAuthorizeResponse>());
+        
+        var response = notFoundResult.Value as AuthController.SshAuthorizeResponse;
+        Assert.That(response!.Allowed, Is.False);
+        Assert.That(response.DeviceId, Is.EqualTo(""));
+        Assert.That(response.SshUser, Is.EqualTo(""));
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsUnauthorized_WhenDeviceDoesNotExist()
+    {
+        // Arrange
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.Request.Headers.Authorization = "Bearer test-gateway-token";
+
+        // Act
+        var result = await _controller.Authorize("nonexistent-device", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<UnauthorizedObjectResult>());
+        var notFoundResult = result as UnauthorizedObjectResult;
+        Assert.That(notFoundResult!.Value, Is.TypeOf<AuthController.SshAuthorizeResponse>());
+        
+        var response = notFoundResult.Value as AuthController.SshAuthorizeResponse;
+        Assert.That(response!.Allowed, Is.False);
+        Assert.That(response.DeviceId, Is.EqualTo(""));
+        Assert.That(response.SshUser, Is.EqualTo(""));
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsSuccess_WhenDeviceExistsAndTokenIsValid()
+    {
+        // Arrange
+        var testDevice = new Device
+        {
+            Id = 1,
+            Name = "Test Device",
+            IpAddress = "192.168.1.100",
+            PiDeviceId = "test-device-123",
+            SshUser = "testuser"
+        };
+        _dbContext.Devices.Add(testDevice);
+        await _dbContext.SaveChangesAsync();
+
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.Request.Headers.Authorization = "Bearer test-gateway-token";
+
+        // Act
+        var result = await _controller.Authorize("test-device-123", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult!.Value, Is.TypeOf<AuthController.SshAuthorizeResponse>());
+        
+        var response = okResult.Value as AuthController.SshAuthorizeResponse;
+        Assert.That(response!.Allowed, Is.True);
+        Assert.That(response.DeviceId, Is.EqualTo("test-device-123"));
+        Assert.That(response.SshUser, Is.EqualTo("testuser"));
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsSuccessWithDefaultUser_WhenDeviceExistsButSshUserIsNull()
+    {
+        // Arrange
+        var testDevice = new Device
+        {
+            Id = 2,
+            Name = "Test Device 2",
+            IpAddress = "192.168.1.101",
+            PiDeviceId = "test-device-456",
+            SshUser = "pi"
+        };
+        _dbContext.Devices.Add(testDevice);
+        await _dbContext.SaveChangesAsync();
+
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.Request.Headers.Authorization = "Bearer test-gateway-token";
+
+        // Act
+        var result = await _controller.Authorize("test-device-456", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult!.Value, Is.TypeOf<AuthController.SshAuthorizeResponse>());
+        
+        var response = okResult.Value as AuthController.SshAuthorizeResponse;
+        Assert.That(response!.Allowed, Is.True);
+        Assert.That(response.DeviceId, Is.EqualTo("test-device-456"));
+        Assert.That(response.SshUser, Is.EqualTo("pi")); // Default user when SshUser is null
+    }
+
+    [Test]
+    public async Task Authorize_ReturnsUnauthorized_WhenAppSettingsTokenIsNull()
+    {
+        // Arrange
+        _appSettings.Token = null; // No token configured
+        
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.Request.Headers.Authorization = "Bearer any-token";
+
+        // Act
+        var result = await _controller.Authorize("test-device-id", CancellationToken.None);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
     }
 }

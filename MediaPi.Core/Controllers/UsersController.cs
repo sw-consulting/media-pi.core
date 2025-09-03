@@ -53,7 +53,7 @@ public class UsersController(
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<UserViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<UserViewItem>>> GetUsers()
+    public async Task<ActionResult<IEnumerable<UserViewItem>>> GetUsers(CancellationToken ct = default)
     {
         _logger.LogDebug("GetUsers");
         var ch = await _userInformationService.CheckAdmin(_curUserId);
@@ -74,7 +74,7 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UserViewItem))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<UserViewItem>> GetUser(int id)
+    public async Task<ActionResult<UserViewItem>> GetUser(int id, CancellationToken ct = default)
     {
         _logger.LogDebug("GetUser for id={id}", id);
         var ch = await _userInformationService.CheckAdminOrSameUser(id, _curUserId);
@@ -100,7 +100,7 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<UserViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<UserViewItem>>> GetUsersByAccount(int accountId)
+    public async Task<ActionResult<IEnumerable<UserViewItem>>> GetUsersByAccount(int accountId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetUsersByAccount for accountId={accountId}", accountId);
         
@@ -113,7 +113,7 @@ public class UsersController(
         }
 
         // Check if the account exists
-        var accountExists = await _db.Accounts.AnyAsync(a => a.Id == accountId);
+        var accountExists = await _db.Accounts.AnyAsync(a => a.Id == accountId, ct);
         if (!accountExists)
         {
             _logger.LogDebug("GetUsersByAccount returning '404 Not Found'");
@@ -138,7 +138,7 @@ public class UsersController(
                 Roles = new List<UserRoleConstants>(), // Empty list
                 AccountIds = new List<int>() // Empty list
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         _logger.LogDebug("GetUsersByAccount returning {count} managers", managers.Count);
         return managers;
@@ -150,7 +150,7 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> AddUser(UserCreateItem user)
+    public async Task<ActionResult<Reference>> AddUser(UserCreateItem user, CancellationToken ct = default)
     {
         _logger.LogDebug("AddUser (create) for {user}", user.ToString());
         var ch = await _userInformationService.CheckAdmin(_curUserId);
@@ -179,7 +179,7 @@ public class UsersController(
         };
 
         _db.Users.Add(ur);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         if (user.Roles != null && user.Roles.Count > 0)
         {
@@ -188,7 +188,7 @@ public class UsersController(
             {
                 _db.UserRoles.Add(new UserRole { UserId = ur.Id, RoleId = role.Id });
             }
-            await _db.SaveChangesAsync(); 
+            await _db.SaveChangesAsync(ct); 
         }
 
         bool isManager = user.HasRole(UserRoleConstants.AccountManager);
@@ -199,7 +199,7 @@ public class UsersController(
             {
                 _db.UserAccounts.Add(new UserAccount { UserId = ur.Id, AccountId = accId });
             }
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
         }
 
         var reference = new Reference { Id = ur.Id };
@@ -212,10 +212,10 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> ChangeUser(int id, UserUpdateItem update)
+    public async Task<IActionResult> ChangeUser(int id, UserUpdateItem update, CancellationToken ct = default)
     {
         _logger.LogDebug("ChangeUser (update) for id={id} with {update}", id, update.ToString());
-        var user = await _db.Users.FindAsync(id);
+        var user = await _db.Users.FindAsync([id], ct);
         if (user == null)
         {
             _logger.LogDebug("ChangeUser returning '404 Not Found'");
@@ -277,8 +277,7 @@ public class UsersController(
 
         if (update.Password != null) user.Password = BCrypt.Net.BCrypt.HashPassword(update.Password);
 
-        _db.Entry(user).State = EntityState.Modified;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         
         _logger.LogDebug("ChangeUser returning '204 No content'");
         return NoContent();
@@ -290,7 +289,7 @@ public class UsersController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status418ImATeapot, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> DeleteUser(int id)
+    public async Task<IActionResult> DeleteUser(int id, CancellationToken ct = default)
     {
         _logger.LogDebug("DeleteUser for id={id}", id);
         var ch = await _userInformationService.CheckAdmin(_curUserId);
@@ -299,7 +298,7 @@ public class UsersController(
             _logger.LogDebug("DeleteUser returning '403 Forbidden'");
             return _403();
         }
-        var user = await _db.Users.FindAsync(id);
+        var user = await _db.Users.FindAsync([id], ct);
         if (user == null)
         {
             _logger.LogDebug("DeleteUser returning '404 Not Found'");
@@ -307,9 +306,8 @@ public class UsersController(
         }
 
         _db.Users.Remove(user);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         _logger.LogDebug("DeleteUser returning '204 No content'");
         return NoContent();
     }
-
 }
