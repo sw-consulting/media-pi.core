@@ -12,6 +12,12 @@ namespace MediaPi.Core.Tests.Utils;
 public class MediaPiAgentClientTests
 {
     [Test]
+    public void Constructor_WithNullSessionFactory_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => _ = new MediaPiAgentClient(null!));
+    }
+
+    [Test]
     public async Task ListUnitsAsync_ReturnsUnits()
     {
         var responses = new Dictionary<string, string>
@@ -87,6 +93,38 @@ public class MediaPiAgentClientTests
     }
 
     [Test]
+    public void ListUnitsAsync_WithNullDevice_Throws()
+    {
+        var factory = new FakeSessionFactory(_ => throw new InvalidOperationException("Should not execute"));
+        var client = new MediaPiAgentClient(factory);
+
+        Assert.ThrowsAsync<ArgumentNullException>(() => client.ListUnitsAsync(null!));
+    }
+
+    [Test]
+    public void ListUnitsAsync_WithWhitespaceResponse_ThrowsInvalidOperationException()
+    {
+        var factory = new FakeSessionFactory(_ => "   \n\t");
+        var client = new MediaPiAgentClient(factory);
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(() => client.ListUnitsAsync(CreateDevice()));
+
+        Assert.That(exception!.Message, Does.Contain("returned no output"));
+    }
+
+    [Test]
+    public void ListUnitsAsync_WithInvalidJson_ThrowsInvalidOperationException()
+    {
+        var factory = new FakeSessionFactory(_ => "{\"ok\": tru}");
+        var client = new MediaPiAgentClient(factory);
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(() => client.ListUnitsAsync(CreateDevice()));
+
+        Assert.That(exception!.Message, Does.Contain("Failed to parse JSON response"));
+        Assert.That(exception.InnerException, Is.InstanceOf<JsonException>());
+    }
+
+    [Test]
     public async Task GetStatusAsync_ReturnsStatusDetails()
     {
         var responses = new Dictionary<string, string>
@@ -128,6 +166,25 @@ public class MediaPiAgentClientTests
         Assert.That(response.Unit, Is.EqualTo("mpd@foo.service"));
         Assert.That(response.Result, Is.EqualTo("done"));
         Assert.That(factory.Commands, Is.EqualTo(new[] { "media-pi-agent start \"mpd@foo.service\"" }));
+    }
+
+    [Test]
+    public async Task RestartUnitAsync_EscapesQuotesInUnitName()
+    {
+        const string expectedCommand = "media-pi-agent restart \"mpd\\\"special.service\"";
+        const string responseText = "{\"ok\":true,\"unit\":\"mpd\\\"special.service\",\"result\":\"restarted\"}";
+
+        var factory = new FakeSessionFactory(command =>
+        {
+            Assert.That(command, Is.EqualTo(expectedCommand));
+            return responseText;
+        });
+        var client = new MediaPiAgentClient(factory);
+
+        var response = await client.RestartUnitAsync(CreateDevice(), "mpd\"special.service");
+
+        Assert.That(response.Result, Is.EqualTo("restarted"));
+        Assert.That(factory.Commands, Is.EqualTo(new[] { "media-pi-agent restart \"mpd\\\"special.service\"" }));
     }
 
     [Test]
