@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
 
+using System;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -19,6 +20,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Utils;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -44,6 +46,7 @@ public class DevicesControllerErrorTests
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
     private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
+    private Mock<IMediaPiAgentClient> _agentClientMock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -58,6 +61,7 @@ public class DevicesControllerErrorTests
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
         _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
         _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
+        _agentClientMock = new Mock<IMediaPiAgentClient>();
 
         _adminRole = new Role { Id = (int)UserRoleConstants.SystemAdministrator, RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { Id = (int)UserRoleConstants.AccountManager, RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -129,7 +133,8 @@ public class DevicesControllerErrorTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _sshKeyProviderMock.Object
+            _sshKeyProviderMock.Object,
+            _agentClientMock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -430,4 +435,85 @@ public class DevicesControllerErrorTests
         Assert.That(dev!.SshUser, Is.EqualTo("pi")); // Should default to "pi"
         Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHGnxZfBr2fAjqk8GK7q1eMB2LO5GtE7QA8k1w8uCLjC test@example.com"));
     }
+
+    [Test]
+    public async Task ListServices_ManagerWithoutOwnership_ReturnsForbidden()
+    {
+        SetCurrentUser(_manager.Id);
+        var result = await _controller.ListServices(3, CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClientMock.Verify(c => c.ListUnitsAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task ListServices_EngineerAssignedDevice_ReturnsForbidden()
+    {
+        SetCurrentUser(_engineer.Id);
+        var result = await _controller.ListServices(1, CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClientMock.Verify(c => c.ListUnitsAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task ListServices_DeviceNotFound_ReturnsNotFound()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.ListServices(999, CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+        _agentClientMock.Verify(c => c.ListUnitsAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task StartService_InvalidUnit_ReturnsBadRequest()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.StartService(1, " ", CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        _agentClientMock.Verify(c => c.StartUnitAsync(It.IsAny<Device>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task StartService_AgentReportedError_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClientMock
+            .Setup(c => c.StartUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiAgentUnitResultResponse { Ok = false, Error = "failed" });
+
+        var result = await _controller.StartService(1, "svc", CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var err = obj.Value as ErrMessage;
+        Assert.That(err, Is.Not.Null);
+        Assert.That(err!.Msg, Does.Contain("failed"));
+    }
+
+    [Test]
+    public async Task StartService_AgentThrows_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClientMock
+            .Setup(c => c.StartUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("ssh error"));
+
+        var result = await _controller.StartService(1, "svc", CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var err = obj.Value as ErrMessage;
+        Assert.That(err, Is.Not.Null);
+        Assert.That(err!.Msg, Does.Contain("Ошибка при обращении к агенту устройства"));
+    }
+
 }

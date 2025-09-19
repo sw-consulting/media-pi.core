@@ -97,6 +97,21 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = $"Группа устройств [id={deviceGroupId}] не принадлежит к тому же лицевому счёту, что и устройство ({deviceAccountMsg})" });
     }
 
+    protected ObjectResult _400ServiceUnit(string? unit)
+    {
+        var displayValue = string.IsNullOrWhiteSpace(unit) ? "<пусто>" : unit;
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = $"Неверное имя сервиса [{displayValue}]" });
+    }
+
+    protected ObjectResult _502Agent(string? message = null)
+    {
+        const string baseMessage = "Ошибка при обращении к агенту устройства";
+        var finalMessage = string.IsNullOrWhiteSpace(message) ? baseMessage : $"{baseMessage}: {message}";
+        return StatusCode(StatusCodes.Status502BadGateway,
+                          new ErrMessage { Msg = finalMessage });
+    }
+
     protected ObjectResult _500Mapping(string fname)
     {
         return StatusCode(StatusCodes.Status500InternalServerError,
