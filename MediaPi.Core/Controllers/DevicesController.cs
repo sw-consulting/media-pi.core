@@ -43,15 +43,16 @@ public class DevicesController(
     AppDbContext db,
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
-    IDeviceMonitoringService monitoringService) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    IDeviceMonitoringService monitoringService,
+    ISshClientKeyProvider sshClientKeyProvider) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Reference))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
+    public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
         string ip;
         if (!string.IsNullOrWhiteSpace(req.IpAddress))
@@ -95,7 +96,11 @@ public class DevicesController(
 
         deviceEventsService.OnDeviceCreated(device);
 
-        return Ok(new Reference { Id = device.Id });
+        return Ok(new DeviceRegisterResponse
+        {
+            Id = device.Id,
+            ServerPublicSshKey = sshClientKeyProvider.GetPublicKey()
+        });
     }
 
     // GET: api/devices

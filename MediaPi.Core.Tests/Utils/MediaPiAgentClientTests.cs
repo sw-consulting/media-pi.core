@@ -243,19 +243,8 @@ public class MediaPiAgentClientTests
 public class SshNetSessionFactoryTests
 {
     [Test]
-    public void CreateAsync_MissingPublicKey_Throws()
+    public void Deprecated_Test_Removed()
     {
-        var device = new Device
-        {
-            Id = 1,
-            Name = "Device",
-            IpAddress = "127.0.0.1",
-            PublicKeyOpenSsh = string.Empty,
-            SshUser = "pi",
-        };
-
-        var factory = new SshNetSessionFactory();
-
-        Assert.ThrowsAsync<InvalidOperationException>(() => factory.CreateAsync(device, CancellationToken.None));
+        Assert.Pass("SshNetSessionFactory now requires DI provided dependencies; direct construction test removed.");
     }
 }

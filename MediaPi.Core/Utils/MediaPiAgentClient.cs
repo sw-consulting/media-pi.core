@@ -3,6 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using MediaPi.Core.Models;
+using MediaPi.Core.Services; 
+using Microsoft.Extensions.Logging;
 using Renci.SshNet;
 using Renci.SshNet.Async;
 using SshConnectionInfo = Renci.SshNet.ConnectionInfo;
@@ -12,17 +14,11 @@ namespace MediaPi.Core.Utils;
 public interface IMediaPiAgentClient
 {
     Task<MediaPiAgentListResponse> ListUnitsAsync(Device device, CancellationToken cancellationToken = default);
-
     Task<MediaPiAgentStatusResponse> GetStatusAsync(Device device, string unit, CancellationToken cancellationToken = default);
-
     Task<MediaPiAgentUnitResultResponse> StartUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
-
     Task<MediaPiAgentUnitResultResponse> StopUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
-
     Task<MediaPiAgentUnitResultResponse> RestartUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
-
     Task<MediaPiAgentEnableResponse> EnableUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
-
     Task<MediaPiAgentEnableResponse> DisableUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
 }
 
@@ -35,11 +31,6 @@ public sealed class MediaPiAgentClient : IMediaPiAgentClient
     };
 
     private readonly ISshSessionFactory _sessionFactory;
-
-    public MediaPiAgentClient()
-        : this(new SshNetSessionFactory())
-    {
-    }
 
     public MediaPiAgentClient(ISshSessionFactory sessionFactory)
     {
@@ -99,7 +90,6 @@ public sealed class MediaPiAgentClient : IMediaPiAgentClient
         {
             throw new ArgumentException("Unit name must be provided.", nameof(unit));
         }
-
         return unit.Trim();
     }
 
@@ -118,7 +108,6 @@ public sealed class MediaPiAgentClient : IMediaPiAgentClient
                 builder.Append(EscapeArgument(arg));
             }
         }
-
         return builder.ToString();
     }
 
@@ -141,38 +130,79 @@ public interface ISshSession : IAsyncDisposable
 
 public sealed class SshNetSessionFactory : ISshSessionFactory
 {
+    private readonly ISshClientKeyProvider _keyProvider;
+    private readonly ILogger<SshNetSessionFactory> _logger;
+
+    public SshNetSessionFactory(ISshClientKeyProvider keyProvider, ILogger<SshNetSessionFactory> logger)
+    {
+        _keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
     public async Task<ISshSession> CreateAsync(Device device, CancellationToken cancellationToken)
     {
         if (device is null) throw new ArgumentNullException(nameof(device));
         if (string.IsNullOrWhiteSpace(device.IpAddress))
-        {
             throw new ArgumentException("Device IP address must be provided.", nameof(device));
-        }
 
         var user = string.IsNullOrWhiteSpace(device.SshUser) ? "pi" : device.SshUser.Trim();
         if (string.IsNullOrWhiteSpace(user))
-        {
             throw new InvalidOperationException("SSH user name is missing.");
-        }
 
-        if (string.IsNullOrWhiteSpace(device.PublicKeyOpenSsh))
-        {
-            throw new InvalidOperationException("Device SSH key is missing.");
-        }
+        var privateKeyPath = _keyProvider.GetPrivateKeyPath();
+        if (string.IsNullOrWhiteSpace(privateKeyPath) || !File.Exists(privateKeyPath))
+            throw new InvalidOperationException("SSH client private key not found or not configured.");
 
         PrivateKeyFile privateKeyFile;
         try
         {
-            privateKeyFile = new PrivateKeyFile(new MemoryStream(Encoding.UTF8.GetBytes(device.PublicKeyOpenSsh)));
+            privateKeyFile = new PrivateKeyFile(privateKeyPath);
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("Device SSH key is invalid.", ex);
+            throw new InvalidOperationException("Failed to load SSH client private key.", ex);
         }
 
         var authentication = new PrivateKeyAuthenticationMethod(user, privateKeyFile);
         var connectionInfo = new SshConnectionInfo(device.IpAddress, user, authentication);
+
         var client = new SshClient(connectionInfo);
+
+        // Optional host key pinning using device.PublicKeyOpenSsh (treat it as host public key line if present)
+        if (!string.IsNullOrWhiteSpace(device.PublicKeyOpenSsh))
+        {
+            var parts = device.PublicKeyOpenSsh.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                var expectedAlgo = parts[0];
+                var expectedBody = parts[1];
+                client.HostKeyReceived += (s, e) =>
+                {
+                    try
+                    {
+                        if (!string.Equals(expectedAlgo, e.HostKeyName, StringComparison.Ordinal))
+                        {
+                            _logger.LogWarning("Host key algo mismatch for {Ip}: expected {Expected}, got {Actual}", device.IpAddress, expectedAlgo, e.HostKeyName);
+                            e.CanTrust = false;
+                            return;
+                        }
+                        var actualBody = Convert.ToBase64String(e.HostKey);
+                        if (!string.Equals(actualBody, expectedBody, StringComparison.Ordinal))
+                        {
+                            _logger.LogWarning("Host key body mismatch for {Ip}", device.IpAddress);
+                            e.CanTrust = false;
+                            return;
+                        }
+                        e.CanTrust = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error validating host key for {Ip}", device.IpAddress);
+                        e.CanTrust = false;
+                    }
+                };
+            }
+        }
 
         try
         {
@@ -212,7 +242,6 @@ internal sealed class SshNetSession : ISshSession
         {
             throw new InvalidOperationException($"SSH command '{command}' returned no output.");
         }
-
         return output;
     }
 
@@ -226,72 +255,42 @@ internal sealed class SshNetSession : ISshSession
 
 public record class MediaPiAgentResponse
 {
-    [JsonPropertyName("ok")]
-    public bool Ok { get; init; }
-
-    [JsonPropertyName("error")]
-    public string? Error { get; init; }
+    [JsonPropertyName("ok")] public bool Ok { get; init; }
+    [JsonPropertyName("error")] public string? Error { get; init; }
 }
 
 public record class MediaPiAgentListResponse : MediaPiAgentResponse
 {
-    [JsonPropertyName("units")]
-    public IReadOnlyList<MediaPiAgentListUnit> Units { get; init; } = Array.Empty<MediaPiAgentListUnit>();
+    [JsonPropertyName("units")] public IReadOnlyList<MediaPiAgentListUnit> Units { get; init; } = Array.Empty<MediaPiAgentListUnit>();
 }
 
 public record class MediaPiAgentListUnit
 {
-    [JsonPropertyName("unit")]
-    public string? Unit { get; init; }
-
-    [JsonPropertyName("active")]
-    public JsonElement Active { get; init; }
-
-    [JsonIgnore]
-    public string? ActiveState => Active.ValueKind == JsonValueKind.String ? Active.GetString() : null;
-
-    [JsonPropertyName("sub")]
-    public JsonElement Sub { get; init; }
-
-    [JsonIgnore]
-    public string? SubState => Sub.ValueKind == JsonValueKind.String ? Sub.GetString() : null;
-
-    [JsonPropertyName("error")]
-    public string? Error { get; init; }
+    [JsonPropertyName("unit")] public string? Unit { get; init; }
+    [JsonPropertyName("active")] public JsonElement Active { get; init; }
+    [JsonIgnore] public string? ActiveState => Active.ValueKind == JsonValueKind.String ? Active.GetString() : null;
+    [JsonPropertyName("sub")] public JsonElement Sub { get; init; }
+    [JsonIgnore] public string? SubState => Sub.ValueKind == JsonValueKind.String ? Sub.GetString() : null;
+    [JsonPropertyName("error")] public string? Error { get; init; }
 }
 
 public record class MediaPiAgentStatusResponse : MediaPiAgentResponse
 {
-    [JsonPropertyName("unit")]
-    public string? Unit { get; init; }
-
-    [JsonPropertyName("active")]
-    public JsonElement Active { get; init; }
-
-    [JsonIgnore]
-    public string? ActiveState => Active.ValueKind == JsonValueKind.String ? Active.GetString() : null;
-
-    [JsonPropertyName("sub")]
-    public JsonElement Sub { get; init; }
-
-    [JsonIgnore]
-    public string? SubState => Sub.ValueKind == JsonValueKind.String ? Sub.GetString() : null;
+    [JsonPropertyName("unit")] public string? Unit { get; init; }
+    [JsonPropertyName("active")] public JsonElement Active { get; init; }
+    [JsonIgnore] public string? ActiveState => Active.ValueKind == JsonValueKind.String ? Active.GetString() : null;
+    [JsonPropertyName("sub")] public JsonElement Sub { get; init; }
+    [JsonIgnore] public string? SubState => Sub.ValueKind == JsonValueKind.String ? Sub.GetString() : null;
 }
 
 public record class MediaPiAgentUnitResultResponse : MediaPiAgentResponse
 {
-    [JsonPropertyName("unit")]
-    public string? Unit { get; init; }
-
-    [JsonPropertyName("result")]
-    public string? Result { get; init; }
+    [JsonPropertyName("unit")] public string? Unit { get; init; }
+    [JsonPropertyName("result")] public string? Result { get; init; }
 }
 
 public record class MediaPiAgentEnableResponse : MediaPiAgentResponse
 {
-    [JsonPropertyName("unit")]
-    public string? Unit { get; init; }
-
-    [JsonPropertyName("enabled")]
-    public bool? Enabled { get; init; }
+    [JsonPropertyName("unit")] public string? Unit { get; init; }
+    [JsonPropertyName("enabled")] public bool? Enabled { get; init; }
 }

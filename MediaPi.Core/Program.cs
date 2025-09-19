@@ -24,6 +24,7 @@ using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
 using MediaPi.Core.Services;
 using MediaPi.Core.Settings;
+using MediaPi.Core.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -54,8 +55,12 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
+    .Configure<SshClientKeySettings>(config.GetSection("SshClientKey"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
+    .AddSingleton<ISshClientKeyProvider, FileSystemSshClientKeyProvider>()
+    .AddScoped<ISshSessionFactory, SshNetSessionFactory>()
+    .AddScoped<IMediaPiAgentClient, MediaPiAgentClient>()
     .AddHttpContextAccessor()
     .AddControllers();
 

@@ -43,6 +43,7 @@ public class DevicesControllerErrorTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
+    private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -55,6 +56,8 @@ public class DevicesControllerErrorTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
+        _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
+        _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
 
         _adminRole = new Role { Id = (int)UserRoleConstants.SystemAdministrator, RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { Id = (int)UserRoleConstants.AccountManager, RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -125,7 +128,8 @@ public class DevicesControllerErrorTests
             _dbContext,
             _mockLogger.Object,
             _deviceEventsService,
-            _monitoringServiceMock.Object
+            _monitoringServiceMock.Object,
+            _sshKeyProviderMock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -362,7 +366,7 @@ public class DevicesControllerErrorTests
         var result = await _controller.Register(req, System.Threading.CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as Reference;
+        var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
         
        
@@ -418,7 +422,7 @@ public class DevicesControllerErrorTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as Reference;
+        var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
         
         // Find device by IP address to verify it was created

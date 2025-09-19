@@ -45,6 +45,7 @@ public class DevicesControllerTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
+    private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -57,6 +58,8 @@ public class DevicesControllerTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
+        _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
+        _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -123,7 +126,8 @@ public class DevicesControllerTests
             _dbContext,
             _mockLogger.Object,
             _deviceEventsService,
-            _monitoringServiceMock.Object
+            _monitoringServiceMock.Object,
+            _sshKeyProviderMock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -149,8 +153,9 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as Reference;
+        var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
+        Assert.That(response!.ServerPublicSshKey, Is.EqualTo("ssh-ed25519 AAAATESTSERVERPUBKEY test@server"));
         
         // Find device by IP address to verify it was created
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "5.6.7.8");
@@ -175,7 +180,7 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as Reference;
+        var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
         
         // Find device by IP address to verify it was created
@@ -230,7 +235,7 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as Reference;
+        var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
 
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
@@ -252,7 +257,7 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as Reference;
+        var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
 
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
