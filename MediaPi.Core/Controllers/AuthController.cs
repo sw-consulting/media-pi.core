@@ -115,54 +115,6 @@ public class AuthController(
     }
 
     /// <summary>
-    /// Response model for SSH device authorization requests
-    /// </summary>
-    /// <param name="Allowed">Indicates whether SSH access is authorized for the device</param>
-    /// <param name="DeviceId">The device identifier if authorization is granted</param>
-    /// <param name="SshUser">The SSH username to use for the device connection (defaults to "pi")</param>
-    public sealed record SshAuthorizeResponse(bool Allowed, string? DeviceId, string SshUser);
-
-    /// <summary>
-    /// Authorizes SSH access for a specific device through the gateway service.
-    /// 
-    /// This endpoint is used by SSH gateway services to verify device authorization
-    /// before allowing SSH connections. The request must include a valid bearer token
-    /// that matches the configured gateway token in application settings.
-    /// </summary>
-    /// <param name="deviceId">The unique device identifier to authorize</param>
-    /// <param name="ct">Cancellation token for async operations</param>
-    /// <returns>
-    /// Success: SshAuthorizeResponse with authorization details and SSH username
-    /// Failure: 401 Unauthorized for invalid gateway token, 404 Not Found for unknown device
-    /// </returns>
-    /// <remarks>
-    /// This endpoint uses bearer token authentication separate from JWT tokens.
-    /// The gateway token is configured in AppSettings and shared between the gateway
-    /// service and this API. Device information is retrieved without tracking for
-    /// performance optimization.
-    /// </remarks>
-    // GET: api/auth/authorize
-    [HttpGet("authorize")]
-    [AllowAnonymous] 
-    [Produces("application/json")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SshAuthorizeResponse))]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(SshAuthorizeResponse))]
-    public async Task<IActionResult> Authorize([FromQuery] string deviceId, CancellationToken ct)
-    {
-        if (!IsAuthorizedGateway())
-            return Unauthorized(new SshAuthorizeResponse(false, "", ""));
-
-        if (string.IsNullOrWhiteSpace(deviceId))
-            return Unauthorized(new SshAuthorizeResponse(false, "", ""));
-
-        var dev = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.PiDeviceId == deviceId, ct);
-        if (dev is null)
-            return Unauthorized(new SshAuthorizeResponse(false, "", ""));
-
-        return Ok(new SshAuthorizeResponse(true, dev.PiDeviceId, dev.SshUser));
-    }
-
-    /// <summary>
     /// Verifies the current user's authentication status without returning user data.
     /// 
     /// This endpoint is used to check if a user's JWT token is still valid and they
@@ -194,29 +146,6 @@ public class AuthController(
         // Return 204 No Content to indicate successful authentication
         // The [Authorize] attribute ensures only authenticated users reach this point
         return NoContent();
-    }
-
-    // Shared secret (Bearer) between sshd-gateway and core
-    /// <summary>
-    /// Validates that the request is authorized from the SSH gateway service.
-    /// 
-    /// This method checks the Authorization header for a bearer token that matches
-    /// the configured gateway token in application settings. This provides a secure
-    /// way for the SSH gateway service to communicate with the API.
-    /// </summary>
-    /// <returns>
-    /// True if the request contains a valid gateway bearer token, false otherwise
-    /// </returns>
-    /// <remarks>
-    /// The gateway token is configured in AppSettings.Token and must be provided
-    /// as "Bearer {token}" in the Authorization header. This is separate from
-    /// JWT authentication used for user sessions.
-    /// </remarks>
-    private bool IsAuthorizedGateway()
-    {
-        var hdr = Request.Headers.Authorization.ToString();
-        var token = _appSettings.Token;
-        return !string.IsNullOrWhiteSpace(token) && hdr == $"Bearer {token}";
     }
 
 }
