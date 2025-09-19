@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using System.Threading.Tasks;
+using System.Threading;
 
 using Moq;
 using NUnit.Framework;
@@ -16,6 +18,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Settings;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -25,10 +28,12 @@ public class AuthControllerTests
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. 
     private Mock<IJwtUtils> _mockJwtUtils;
     private Mock<ILogger<AuthController>> _mockLogger;
+    private Mock<IOptions<AppSettings>> _mockAppSettings;
     private AppDbContext _dbContext;
     private AuthController _controller;
     private User _testUser;
     private Role _testRole;
+    private AppSettings _appSettings;
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor.
 
     [SetUp]
@@ -45,12 +50,22 @@ public class AuthControllerTests
         _testRole = new Role { Id = (int)UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" };
         _dbContext.Roles.Add(_testRole);
 
+        // Setup app settings
+        _appSettings = new AppSettings
+        {
+            Secret = "test-secret-key",
+            Token = "test-gateway-token",
+            JwtTokenExpirationDays = 7
+        };
+
         // Setup mocks
         _mockJwtUtils = new Mock<IJwtUtils>();
         _mockLogger = new Mock<ILogger<AuthController>>();
+        _mockAppSettings = new Mock<IOptions<AppSettings>>();
+        _mockAppSettings.Setup(x => x.Value).Returns(_appSettings);
 
         // Setup controller
-        _controller = new AuthController(_dbContext, _mockJwtUtils.Object, _mockLogger.Object);
+        _controller = new AuthController(_dbContext, _mockJwtUtils.Object, _mockAppSettings.Object, _mockLogger.Object);
 
         // Create test user with hashed password
         string hashedPassword = BCrypt.Net.BCrypt.HashPassword("password123");
@@ -302,4 +317,5 @@ public class AuthControllerTests
         Assert.That(userView.Roles, Contains.Item(UserRoleConstants.InstallationEngineer));
         Assert.That(userView.AccountIds, Is.Empty); // Non-managers should have empty AccountIds
     }
+
 }

@@ -1,30 +1,35 @@
 // Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
 // This file is a part of Media Pi backend application
 
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-
 using MediaPi.Core.Authorization;
+using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Data;
+using MediaPi.Core.Settings;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MediaPi.Core.Controllers;
 
 /// <summary>
 /// AuthController handles user authentication and authorization operations for the Media Pi application.
-/// This controller provides endpoints for user login and authentication status verification.
+/// This controller provides endpoints for user login, authentication status verification, and SSH device authorization.
 /// 
 /// Key responsibilities:
 /// - User authentication via email/password credentials
 /// - JWT token generation and validation
 /// - Role-based access control verification
 /// - Account information retrieval for authenticated users
+/// - SSH device authorization for gateway services
 /// </summary>
 /// <remarks>
 /// This controller uses BCrypt for password hashing and verification, and JWT tokens for maintaining
 /// user sessions. User roles and account associations are loaded during authentication to provide
 /// complete user context in the response.
+/// 
+/// The SSH authorization functionality allows secure gateway services to verify device access
+/// using shared bearer token authentication.
 /// </remarks>
 [ApiController]
 [Authorize]
@@ -32,12 +37,18 @@ namespace MediaPi.Core.Controllers;
 public class AuthController(
     AppDbContext db, 
     IJwtUtils jwtUtils,
+    IOptions<AppSettings> appSettings,
     ILogger<AuthController> logger) : FuelfluxControllerPreBase(db, logger)
 {
     /// <summary>
     /// JWT utilities service for generating and validating authentication tokens
     /// </summary>
     private readonly IJwtUtils _jwtUtils = jwtUtils;
+    
+    /// <summary>
+    /// Application settings containing security tokens and configuration
+    /// </summary>
+    private readonly AppSettings _appSettings = appSettings.Value;
 
     /// <summary>
     /// Authenticates a user with email and password credentials and returns a JWT token.
@@ -67,7 +78,7 @@ public class AuthController(
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UserViewItemWithJWT))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<UserViewItem>> Login(Credentials crd)
+    public async Task<ActionResult<UserViewItem>> Login(Credentials crd, CancellationToken ct = default)
     {
         // Log the authentication attempt for security auditing
         _logger.LogDebug("Login attempt for {email}", crd.Email);
@@ -81,7 +92,7 @@ public class AuthController(
             .Include(u => u.UserAccounts)
             .ThenInclude(ua => ua.Account)
             .Where(u => u.Email.ToLower() == crd.Email.ToLower()) // Case-insensitive email comparison
-            .SingleOrDefaultAsync();
+            .SingleOrDefaultAsync(ct);
 
         // Return 401 if user doesn't exist (same response as invalid password for security)
         if (user == null) return _401();
@@ -136,5 +147,6 @@ public class AuthController(
         // The [Authorize] attribute ensures only authenticated users reach this point
         return NoContent();
     }
+
 }
 

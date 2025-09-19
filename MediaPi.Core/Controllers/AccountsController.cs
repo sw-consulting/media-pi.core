@@ -48,7 +48,7 @@ public class AccountsController(
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AccountViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<AccountViewItem>>> GetAll()
+    public async Task<ActionResult<IEnumerable<AccountViewItem>>> GetAll(CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -73,7 +73,7 @@ public class AccountsController(
             return _403();
         }
 
-        var accounts = await query.ToListAsync();
+        var accounts = await query.ToListAsync(ct);
         var result = accounts.Select(a => {
             var viewItem = a.ToViewItem();
             if (user.IsAdministrator())
@@ -95,12 +95,12 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AccountViewItem))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<AccountViewItem>> GetAccount(int id)
+    public async Task<ActionResult<AccountViewItem>> GetAccount(int id, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id);
+        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id, ct);
         if (account == null) return _404Account(id);
 
         if (user.IsAdministrator() || _userInformationService.ManagerOwnsAccount(user, account))
@@ -119,7 +119,7 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AccountViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<AccountViewItem>>> GetAccountsByManager(int userId)
+    public async Task<ActionResult<IEnumerable<AccountViewItem>>> GetAccountsByManager(int userId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetAccountsByManager for userId={userId}", userId);
 
@@ -140,7 +140,7 @@ public class AccountsController(
                 .ThenInclude(ur => ur.Role)
             .Include(u => u.UserAccounts)
                 .ThenInclude(ua => ua.Account)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+            .FirstOrDefaultAsync(u => u.Id == userId, ct);
 
         if (user == null)
         {
@@ -170,16 +170,16 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> AddAccount(AccountCreateItem item)
+    public async Task<ActionResult<Reference>> AddAccount(AccountCreateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        if (await _db.Accounts.AnyAsync(a => a.Name == item.Name)) return _409Account(item.Name);
+        if (await _db.Accounts.AnyAsync(a => a.Name == item.Name, ct)) return _409Account(item.Name);
 
         var account = new Account { Name = item.Name };
         _db.Accounts.Add(account);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         // Handle UserIds for AccountManager role
         if (item.UserIds != null && item.UserIds.Count > 0)
@@ -193,7 +193,7 @@ public class AccountsController(
             {
                 _db.UserAccounts.Add(new UserAccount { UserId = userId, AccountId = account.Id });
             }
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
         }
 
         return CreatedAtAction(nameof(GetAccount), new { id = account.Id }, new Reference { Id = account.Id });
@@ -205,22 +205,21 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> UpdateAccount(int id, AccountUpdateItem item)
+    public async Task<IActionResult> UpdateAccount(int id, AccountUpdateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
 
-        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id);
+        var account = await _db.Accounts.Include(a => a.UserAccounts).FirstOrDefaultAsync(a => a.Id == id, ct);
         if (account == null) return _404Account(id);
 
-        if (item.Name != null && await _db.Accounts.AnyAsync(a => a.Name == item.Name && a.Id != id))
+        if (item.Name != null && await _db.Accounts.AnyAsync(a => a.Name == item.Name && a.Id != id, ct))
         {
             return _409Account(item.Name);
         }
 
         account.UpdateFrom(item);
-        _db.Entry(account).State = EntityState.Modified;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         // Handle UserIds for AccountManager role
         var existingUserAccounts = _db.UserAccounts.Where(ua => ua.AccountId == id);
@@ -237,7 +236,7 @@ public class AccountsController(
                 _db.UserAccounts.Add(new UserAccount { UserId = userId, AccountId = id });
             }
         }
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 
@@ -246,7 +245,7 @@ public class AccountsController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> DeleteAccount(int id)
+    public async Task<IActionResult> DeleteAccount(int id, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null || !user.IsAdministrator()) return _403();
@@ -258,7 +257,7 @@ public class AccountsController(
             .Include(a => a.Playlists)
             .Include(a => a.Subscriptions)
             .Include(a => a.UserAccounts)
-            .FirstOrDefaultAsync(a => a.Id == id);
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
         if (account == null) return _404Account(id);
 
         _db.DeviceGroups.RemoveRange(account.DeviceGroups);
@@ -268,7 +267,7 @@ public class AccountsController(
         _db.UserAccounts.RemoveRange(account.UserAccounts);
 
         _db.Accounts.Remove(account);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 }

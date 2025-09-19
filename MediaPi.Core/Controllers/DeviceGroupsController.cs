@@ -46,7 +46,7 @@ public class DeviceGroupsController(
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceGroupViewItem>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<DeviceGroupViewItem>>> GetAll()
+    public async Task<ActionResult<IEnumerable<DeviceGroupViewItem>>> GetAll(CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
@@ -66,7 +66,7 @@ public class DeviceGroupsController(
             return _403();
         }
 
-        var groups = await query.ToListAsync();
+        var groups = await query.ToListAsync(ct);
         return groups.Select(g => g.ToViewItem()).ToList();
     }
 
@@ -75,12 +75,12 @@ public class DeviceGroupsController(
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceGroupViewItem))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<DeviceGroupViewItem>> GetGroup(int id)
+    public async Task<ActionResult<DeviceGroupViewItem>> GetGroup(int id, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var group = await _db.DeviceGroups.FindAsync(id);
+        var group = await _db.DeviceGroups.FindAsync([id], ct);
         if (group == null) return _404DeviceGroup(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))
@@ -96,12 +96,12 @@ public class DeviceGroupsController(
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> PostGroup(DeviceGroupCreateItem item)
+    public async Task<ActionResult<Reference>> PostGroup(DeviceGroupCreateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var account = await _db.Accounts.FindAsync(item.AccountId);
+        var account = await _db.Accounts.FindAsync([item.AccountId], ct);
         if (account == null) return _404Account(item.AccountId);
 
         if (!(user.IsAdministrator() || userInformationService.ManagerOwnsAccount(user, account)))
@@ -111,7 +111,7 @@ public class DeviceGroupsController(
 
         var group = new DeviceGroup { Name = item.Name, AccountId = item.AccountId };
         _db.DeviceGroups.Add(group);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(GetGroup), new { id = group.Id }, new Reference { Id = group.Id });
     }
 
@@ -120,19 +120,18 @@ public class DeviceGroupsController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> UpdateGroup(int id, DeviceGroupUpdateItem item)
+    public async Task<IActionResult> UpdateGroup(int id, DeviceGroupUpdateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var group = await _db.DeviceGroups.FindAsync(id);
+        var group = await _db.DeviceGroups.FindAsync([id], ct);
         if (group == null) return _404DeviceGroup(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))
         {
             group.UpdateFrom(item);
-            _db.Entry(group).State = EntityState.Modified;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
             return NoContent();
         }
 
@@ -144,12 +143,12 @@ public class DeviceGroupsController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> DeleteGroup(int id)
+    public async Task<IActionResult> DeleteGroup(int id, CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var group = await _db.DeviceGroups.Include(g => g.Devices).FirstOrDefaultAsync(g => g.Id == id);
+        var group = await _db.DeviceGroups.Include(g => g.Devices).FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return _404DeviceGroup(id);
 
         if (!(user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))) return _403();
@@ -160,7 +159,7 @@ public class DeviceGroupsController(
         }
 
         _db.DeviceGroups.Remove(group);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         return NoContent();
     }

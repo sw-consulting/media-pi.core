@@ -42,7 +42,7 @@ namespace MediaPi.Core.Controllers
         // GET: api/roles
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<RoleViewItem>))]
-        public async Task<ActionResult<IEnumerable<RoleViewItem>>> GetAll()
+        public async Task<ActionResult<IEnumerable<RoleViewItem>>> GetAll(CancellationToken ct = default)
         {
             var roles = await _db.Roles
                 .OrderBy(r => r.Id)
@@ -52,7 +52,7 @@ namespace MediaPi.Core.Controllers
                     RoleId = r.RoleId,
                     Name = r.Name
                 })
-                .ToListAsync();
+                .ToListAsync(ct);
 
             return roles;
         }
@@ -61,9 +61,9 @@ namespace MediaPi.Core.Controllers
         [HttpGet("{id}")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(RoleViewItem))]
         [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-        public async Task<ActionResult<RoleViewItem>> GetById(int id)
+        public async Task<ActionResult<RoleViewItem>> GetById(int id, CancellationToken ct = default)
         {
-            var role = await _db.Roles.FindAsync(id);
+            var role = await _db.Roles.FindAsync([id], ct);
 
             if (role == null)
             {
@@ -83,9 +83,9 @@ namespace MediaPi.Core.Controllers
         [HttpGet("by-role-id/{roleId}")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(RoleViewItem))]
         [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-        public async Task<ActionResult<RoleViewItem>> GetByRoleId(UserRoleConstants roleId)
+        public async Task<ActionResult<RoleViewItem>> GetByRoleId(UserRoleConstants roleId, CancellationToken ct = default)
         {
-            var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == roleId);
+            var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == roleId, ct);
 
             if (role == null)
             {

@@ -48,9 +48,9 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceStatusItem))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<DeviceStatusItem>> Get(int id)
+    public async Task<ActionResult<DeviceStatusItem>> Get(int id, CancellationToken ct = default)
     {
-        var snapshot = await monitoringService.Test(id);
+        var snapshot = await monitoringService.Test(id, ct);
         if (snapshot is null)
         {
             return NotFound(new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
@@ -61,9 +61,9 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
     [HttpPost("{id}/test")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceStatusItem))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<DeviceStatusItem>> Test(int id)
+    public async Task<ActionResult<DeviceStatusItem>> Test(int id, CancellationToken ct = default)
     {
-        var snapshot = await monitoringService.Test(id);
+        var snapshot = await monitoringService.Test(id, ct);
         if (snapshot is null)
         {
             return NotFound(new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
