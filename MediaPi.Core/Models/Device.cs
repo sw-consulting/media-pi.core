@@ -21,10 +21,12 @@
 // SOFTWARE.
 
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Models
 {
     [Table("devices")]
+    [Index(nameof(IpAddress), IsUnique = true)]
     public class Device
     {
         [Column("id")]

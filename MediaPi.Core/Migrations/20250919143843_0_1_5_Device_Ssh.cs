@@ -5,18 +5,11 @@
 namespace MediaPi.Core.Migrations
 {
     /// <inheritdoc />
-    public partial class _0_1_5_Cockpit_Bridge : Migration
+    public partial class _0_1_5_Device_Ssh : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "pi_device_id",
-                table: "devices",
-                type: "text",
-                nullable: false,
-                defaultValue: "");
-
             migrationBuilder.AddColumn<string>(
                 name: "public_key_open_ssh",
                 table: "devices",
@@ -35,10 +28,6 @@ namespace MediaPi.Core.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "pi_device_id",
-                table: "devices");
-
             migrationBuilder.DropColumn(
                 name: "public_key_open_ssh",
                 table: "devices");

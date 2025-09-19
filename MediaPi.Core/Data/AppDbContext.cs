@@ -101,10 +101,6 @@ namespace MediaPi.Core.Data
                 .HasForeignKey(d => d.DeviceGroupId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            modelBuilder.Entity<Device>()
-                .HasIndex(d => d.IpAddress)
-                .IsUnique();
-
             modelBuilder.Entity<VideoStatus>().HasData(
                 new VideoStatus { Id = StatusConstants.Queued, Name = "Queued" },
                 new VideoStatus { Id = StatusConstants.Loading, Name = "Loading" },
