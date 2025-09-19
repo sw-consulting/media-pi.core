@@ -22,7 +22,6 @@
 
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Utils;
 
 namespace MediaPi.Core.Extensions;
 
