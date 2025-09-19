@@ -66,24 +66,22 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
 
-  ui:
+#  ui:
 #    image: ghcr.io/sw-consulting/media-pi.ui
-    build:
-      context: ../media-pi.ui
-      dockerfile: Dockerfile
+#    build:
+#      context: ../media-pi.ui
+#      dockerfile: Dockerfile
 
-    ports:
-      - "8087:8082"
-      - "8088:8083"
-    depends_on:
-      api:
-        condition: service_started
-      gateway:
-        condition: service_started
-    volumes:
-      - R:/Projects/certificates:/etc/nginx/certificate:ro
-    environment:
-      API_URL: http://localhost:8085/api
+#    ports:
+#      - "8087:8082"
+#      - "8088:8083"
+#    depends_on:
+#      api:
+#        condition: service_started
+#    volumes:
+#      - R:/Projects/certificates:/etc/nginx/certificate:ro
+#    environment:
+#      API_URL: http://localhost:8085/api
 
 volumes:
   pgdata:
