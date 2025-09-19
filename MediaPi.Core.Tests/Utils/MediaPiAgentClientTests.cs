@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Models;
@@ -15,7 +16,8 @@ public class MediaPiAgentClientTests
     {
         var responses = new Dictionary<string, string>
         {
-            ["media-pi-agent list"] = "{\"ok\":true,\"units\":[\"mpd.service\",\"kiosk.service\"]}\n",
+            ["media-pi-agent list"] =
+                "{\"ok\":true,\"units\":[{\"unit\":\"mpd.service\",\"active\":\"active\",\"sub\":\"running\"},{\"unit\":\"kiosk.service\",\"error\":\"dbus unavailable\"}]}\n",
         };
 
         var factory = new FakeSessionFactory(command => responses.TryGetValue(command, out var value)
@@ -26,8 +28,62 @@ public class MediaPiAgentClientTests
         var result = await client.ListUnitsAsync(CreateDevice());
 
         Assert.That(result.Ok, Is.True);
-        Assert.That(result.Units, Is.EqualTo(new[] { "mpd.service", "kiosk.service" }));
+        Assert.That(result.Units, Has.Count.EqualTo(2));
+
+        var first = result.Units[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.Unit, Is.EqualTo("mpd.service"));
+            Assert.That(first.Active.ValueKind, Is.EqualTo(JsonValueKind.String));
+            Assert.That(first.ActiveState, Is.EqualTo("active"));
+            Assert.That(first.Sub.ValueKind, Is.EqualTo(JsonValueKind.String));
+            Assert.That(first.SubState, Is.EqualTo("running"));
+            Assert.That(first.Error, Is.Null);
+        });
+
+        var second = result.Units[1];
+        Assert.Multiple(() =>
+        {
+            Assert.That(second.Unit, Is.EqualTo("kiosk.service"));
+            Assert.That(second.Active.ValueKind, Is.EqualTo(JsonValueKind.Undefined));
+            Assert.That(second.Sub.ValueKind, Is.EqualTo(JsonValueKind.Undefined));
+            Assert.That(second.ActiveState, Is.Null);
+            Assert.That(second.SubState, Is.Null);
+            Assert.That(second.Error, Is.EqualTo("dbus unavailable"));
+        });
+
         Assert.That(factory.Commands, Is.EqualTo(new[] { "media-pi-agent list" }));
+    }
+
+    [Test]
+    public async Task ListUnitsAsync_ReturnsStructuredStatesWhenProvided()
+    {
+        var responses = new Dictionary<string, string>
+        {
+            ["media-pi-agent list"] =
+                "{\"ok\":true,\"units\":[{\"unit\":\"mpd.service\",\"active\":{\"Sig\":\"s\",\"Value\":\"active\"},\"sub\":{\"Sig\":\"s\",\"Value\":\"running\"}}]}\n",
+        };
+
+        var factory = new FakeSessionFactory(command => responses.TryGetValue(command, out var value)
+            ? value
+            : throw new InvalidOperationException($"Unexpected command: {command}"));
+        var client = new MediaPiAgentClient(factory);
+
+        var result = await client.ListUnitsAsync(CreateDevice());
+
+        Assert.That(result.Ok, Is.True);
+        Assert.That(result.Units, Has.Count.EqualTo(1));
+
+        var unit = result.Units[0];
+        Assert.That(unit.Active.ValueKind, Is.EqualTo(JsonValueKind.Object));
+        Assert.That(unit.ActiveState, Is.Null);
+        Assert.That(unit.Active.TryGetProperty("Value", out var activeValue), Is.True);
+        Assert.That(activeValue.GetString(), Is.EqualTo("active"));
+
+        Assert.That(unit.Sub.ValueKind, Is.EqualTo(JsonValueKind.Object));
+        Assert.That(unit.SubState, Is.Null);
+        Assert.That(unit.Sub.TryGetProperty("Value", out var subValue), Is.True);
+        Assert.That(subValue.GetString(), Is.EqualTo("running"));
     }
 
     [Test]
@@ -46,8 +102,10 @@ public class MediaPiAgentClientTests
         var result = await client.GetStatusAsync(CreateDevice(), "mpd.service");
 
         Assert.That(result.Ok, Is.True);
-        Assert.That(result.Active, Is.EqualTo("active"));
-        Assert.That(result.Sub, Is.EqualTo("running"));
+        Assert.That(result.Active.ValueKind, Is.EqualTo(JsonValueKind.String));
+        Assert.That(result.ActiveState, Is.EqualTo("active"));
+        Assert.That(result.Sub.ValueKind, Is.EqualTo(JsonValueKind.String));
+        Assert.That(result.SubState, Is.EqualTo("running"));
         Assert.That(factory.Commands, Is.EqualTo(new[] { "media-pi-agent status \"mpd.service\"" }));
     }
 

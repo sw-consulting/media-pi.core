@@ -236,7 +236,28 @@ public record class MediaPiAgentResponse
 public record class MediaPiAgentListResponse : MediaPiAgentResponse
 {
     [JsonPropertyName("units")]
-    public IReadOnlyList<string> Units { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<MediaPiAgentListUnit> Units { get; init; } = Array.Empty<MediaPiAgentListUnit>();
+}
+
+public record class MediaPiAgentListUnit
+{
+    [JsonPropertyName("unit")]
+    public string? Unit { get; init; }
+
+    [JsonPropertyName("active")]
+    public JsonElement Active { get; init; }
+
+    [JsonIgnore]
+    public string? ActiveState => Active.ValueKind == JsonValueKind.String ? Active.GetString() : null;
+
+    [JsonPropertyName("sub")]
+    public JsonElement Sub { get; init; }
+
+    [JsonIgnore]
+    public string? SubState => Sub.ValueKind == JsonValueKind.String ? Sub.GetString() : null;
+
+    [JsonPropertyName("error")]
+    public string? Error { get; init; }
 }
 
 public record class MediaPiAgentStatusResponse : MediaPiAgentResponse
@@ -245,10 +266,16 @@ public record class MediaPiAgentStatusResponse : MediaPiAgentResponse
     public string? Unit { get; init; }
 
     [JsonPropertyName("active")]
-    public string? Active { get; init; }
+    public JsonElement Active { get; init; }
+
+    [JsonIgnore]
+    public string? ActiveState => Active.ValueKind == JsonValueKind.String ? Active.GetString() : null;
 
     [JsonPropertyName("sub")]
-    public string? Sub { get; init; }
+    public JsonElement Sub { get; init; }
+
+    [JsonIgnore]
+    public string? SubState => Sub.ValueKind == JsonValueKind.String ? Sub.GetString() : null;
 }
 
 public record class MediaPiAgentUnitResultResponse : MediaPiAgentResponse
