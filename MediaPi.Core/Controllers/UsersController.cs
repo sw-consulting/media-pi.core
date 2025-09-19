@@ -11,8 +11,8 @@ using MediaPi.Core.RestModels;
 using MediaPi.Core.Settings;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
-using MediaPi.Core.Services;
 using MediaPi.Core.Extensions;
+using MediaPi.Core.Services.Interfaces;
 
 namespace MediaPi.Core.Controllers;
 

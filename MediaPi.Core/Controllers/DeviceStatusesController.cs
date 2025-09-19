@@ -3,7 +3,7 @@
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Services;
+using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Settings;
 using Microsoft.AspNetCore.Mvc;
 

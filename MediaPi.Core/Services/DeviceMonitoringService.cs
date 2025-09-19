@@ -4,6 +4,7 @@
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
 using MediaPi.Core.Settings;
 using Microsoft.EntityFrameworkCore;

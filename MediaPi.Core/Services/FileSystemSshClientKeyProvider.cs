@@ -1,6 +1,7 @@
 // Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
+using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Settings;
 using Microsoft.Extensions.Options;
 

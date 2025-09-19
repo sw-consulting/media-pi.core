@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services.Interfaces;
 
 namespace MediaPi.Core.Services
 {

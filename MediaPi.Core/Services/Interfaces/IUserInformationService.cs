@@ -5,7 +5,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using Microsoft.AspNetCore.Mvc;
 
-namespace MediaPi.Core.Services
+namespace MediaPi.Core.Services.Interfaces
 {
     public interface IUserInformationService
     {

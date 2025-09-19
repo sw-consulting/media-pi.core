@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Controllers;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Services;
+using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
