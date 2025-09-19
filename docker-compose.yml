@@ -66,19 +66,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
 
-  gateway:
-    image: ghcr.io/sw-consulting/media-pi.cockpit
-    restart: always
-    ports:
-      - "2222:22"
-    environment:
-      CORE_API: "http://localhost:8087/api"
-      CORE_TOKEN: "0e2c3c7e248fa937d35f446803d449181fd1ddc09dd56a4a8b64d0311998fead"
-    depends_on:
-      - api
-    volumes:
-      - sshd-keys:/etc/ssh
-
   ui:
 #    image: ghcr.io/sw-consulting/media-pi.ui
     build:
@@ -100,4 +87,3 @@ services:
 
 volumes:
   pgdata:
-  sshd-keys: {}
