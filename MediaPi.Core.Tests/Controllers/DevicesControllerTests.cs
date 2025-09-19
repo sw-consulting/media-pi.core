@@ -149,12 +149,8 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
+        var response = ok!.Value as Reference;
         Assert.That(response, Is.Not.Null);
-        
-        // Check that PiDeviceId is computed from SSH key
-        Assert.That(response!.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(response.PiDeviceId, Does.StartWith("fp-"));
         
         // Find device by IP address to verify it was created
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "5.6.7.8");
@@ -165,9 +161,6 @@ public class DevicesControllerTests
         Assert.That(dev.DeviceGroupId, Is.Null);
         Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINewKeyComplete123456789"));
         Assert.That(dev.SshUser, Is.EqualTo("testuser"));
-        Assert.That(dev.PiDeviceId, Is.EqualTo(response.PiDeviceId));
-        Assert.That(response.Alias, Is.EqualTo($"pi-{response.PiDeviceId}"));
-        Assert.That(response.SocketPath, Is.EqualTo($"/run/mediapi/{response.PiDeviceId}.ssh.sock"));
     }
 
     [Test]
@@ -182,12 +175,8 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
+        var response = ok!.Value as Reference;
         Assert.That(response, Is.Not.Null);
-        
-        // Check that PiDeviceId is generated for empty SSH key
-        Assert.That(response!.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(response.PiDeviceId, Does.StartWith("fp-"));
         
         // Find device by IP address to verify it was created
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "9.8.7.6");
@@ -195,7 +184,6 @@ public class DevicesControllerTests
         Assert.That(dev!.IpAddress, Is.EqualTo("9.8.7.6"));
         Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
         Assert.That(dev.SshUser, Is.EqualTo("pi")); // Should default to "pi"
-        Assert.That(dev.PiDeviceId, Is.EqualTo(response.PiDeviceId));
     }
 
     [Test]
@@ -242,7 +230,7 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
+        var response = ok!.Value as Reference;
         Assert.That(response, Is.Not.Null);
 
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
@@ -264,7 +252,7 @@ public class DevicesControllerTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
+        var response = ok!.Value as Reference;
         Assert.That(response, Is.Not.Null);
 
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
@@ -650,11 +638,7 @@ public class DevicesControllerTests
         Assert.That(dev.SshUser, Is.EqualTo("updateduser"));
         Assert.That(dev.AccountId, Is.Null);
         Assert.That(dev.DeviceGroupId, Is.Null);
-        
-        // Check that PiDeviceId is recalculated when SSH key changes
-        Assert.That(dev.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(dev.PiDeviceId, Does.StartWith("fp-"));
-    }
+            }
 
     [Test]
     public async Task Update_Admin_PublicKeyOpenSsh_RecalculatesPiDeviceId()
@@ -663,7 +647,6 @@ public class DevicesControllerTests
         
         // Get original device and PiDeviceId
         var originalDevice = await _dbContext.Devices.FindAsync(1);
-        var originalPiDeviceId = originalDevice!.PiDeviceId;
         
         var dto = new DeviceUpdateItem 
         { 
@@ -673,12 +656,7 @@ public class DevicesControllerTests
         Assert.That(response, Is.TypeOf<NoContentResult>());
         
         var dev = await _dbContext.Devices.FindAsync(1);
-        Assert.That(dev!.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINewKeyComplete123456789"));
-        
-        // Check that PiDeviceId is recalculated and different from original
-        Assert.That(dev.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(dev.PiDeviceId, Does.StartWith("fp-"));
-        Assert.That(dev.PiDeviceId, Is.Not.EqualTo(originalPiDeviceId));
+        Assert.That(dev!.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINewKeyComplete123456789"));       
     }
 
     [Test]
@@ -688,7 +666,6 @@ public class DevicesControllerTests
         
         // Get original device and PiDeviceId
         var originalDevice = await _dbContext.Devices.FindAsync(1);
-        var originalPiDeviceId = originalDevice!.PiDeviceId;
         
         var dto = new DeviceUpdateItem 
         { 
@@ -699,11 +676,7 @@ public class DevicesControllerTests
         
         var dev = await _dbContext.Devices.FindAsync(1);
         Assert.That(dev!.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
-        
-        // Check that PiDeviceId is generated and different from original
-        Assert.That(dev.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(dev.PiDeviceId, Does.StartWith("fp-"));
-        Assert.That(dev.PiDeviceId, Is.Not.EqualTo(originalPiDeviceId));
+       
     }
 
     [Test]

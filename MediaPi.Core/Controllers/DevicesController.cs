@@ -49,10 +49,10 @@ public class DevicesController(
     // POST: api/devices/register
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Reference))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
+    public async Task<ActionResult<Reference>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
         string ip;
         if (!string.IsNullOrWhiteSpace(req.IpAddress))
@@ -99,7 +99,6 @@ public class DevicesController(
         {
             Name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name!, // Placeholder name if not provided
             IpAddress = ip,
-            PiDeviceId = piDeviceId,
             PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
             SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
         };
@@ -116,7 +115,7 @@ public class DevicesController(
 
         deviceEventsService.OnDeviceCreated(device);
 
-        return Ok(new DeviceRegisterResponse { Id = device.Id, PiDeviceId = device.PiDeviceId });
+        return Ok(new Reference { Id = device.Id });
     }
 
     // GET: api/devices

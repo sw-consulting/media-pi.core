@@ -362,13 +362,10 @@ public class DevicesControllerErrorTests
         var result = await _controller.Register(req, System.Threading.CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
+        var response = ok!.Value as Reference;
         Assert.That(response, Is.Not.Null);
         
-        // Check that PiDeviceId is generated for empty SSH key
-        Assert.That(response!.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(response.PiDeviceId, Does.StartWith("fp-"));
-        
+       
         // Find device by IP address to verify it was created
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString());
         Assert.That(dev, Is.Not.Null);
@@ -378,7 +375,6 @@ public class DevicesControllerErrorTests
         Assert.That(dev!.IpAddress, Is.EqualTo(expectedFormat));
         Assert.That(dev.SshUser, Is.EqualTo("ipv6user"));
         Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
-        Assert.That(dev.PiDeviceId, Is.EqualTo(response.PiDeviceId));
     }
 
     [Test]
@@ -422,18 +418,13 @@ public class DevicesControllerErrorTests
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
+        var response = ok!.Value as Reference;
         Assert.That(response, Is.Not.Null);
-        
-        // Check that PiDeviceId is computed from SSH key
-        Assert.That(response!.PiDeviceId, Is.Not.Null.And.Not.Empty);
-        Assert.That(response.PiDeviceId, Does.StartWith("fp-"));
         
         // Find device by IP address to verify it was created
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "10.0.0.101");
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.SshUser, Is.EqualTo("pi")); // Should default to "pi"
         Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHGnxZfBr2fAjqk8GK7q1eMB2LO5GtE7QA8k1w8uCLjC test@example.com"));
-        Assert.That(dev.PiDeviceId, Is.EqualTo(response.PiDeviceId));
     }
 }

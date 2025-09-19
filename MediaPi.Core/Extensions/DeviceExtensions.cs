@@ -37,24 +37,6 @@ public static class DeviceExtensions
         if (item.PublicKeyOpenSsh != null) 
         {
             device.PublicKeyOpenSsh = item.PublicKeyOpenSsh;
-            
-            // Recalculate PiDeviceId when SSH key changes
-            try
-            {
-                device.PiDeviceId = string.IsNullOrWhiteSpace(item.PublicKeyOpenSsh) 
-                    ? KeyFingerprint.GenerateRandomDeviceId()
-                    : KeyFingerprint.ComputeDeviceIdFromOpenSshKey(item.PublicKeyOpenSsh);
-            }
-            catch (ArgumentException)
-            {
-                // If SSH key is invalid, generate a random device ID
-                device.PiDeviceId = KeyFingerprint.GenerateRandomDeviceId();
-            }
-            catch (FormatException)
-            {
-                // If SSH key base64 content is malformed, generate a random device ID
-                device.PiDeviceId = KeyFingerprint.GenerateRandomDeviceId();
-            }
         }
 
         if (item.SshUser != null) device.SshUser = item.SshUser;

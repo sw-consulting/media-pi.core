@@ -36,9 +36,6 @@ namespace MediaPi.Core.Models
         [Column("ip_address")]
         public required string IpAddress { get; set; }
 
-        [Column("pi_device_id")]
-        public string PiDeviceId { get; set; } = string.Empty;
-
         [Column("public_key_open_ssh")]
         public string PublicKeyOpenSsh { get; set; } = string.Empty;
 
@@ -54,12 +51,6 @@ namespace MediaPi.Core.Models
         public DeviceGroup? DeviceGroup { get; set; }
 
         public ICollection<Screenshot> Screenshots { get; set; } = [];
-
-        [NotMapped]
-        public string Alias => $"pi-{PiDeviceId}";
-
-        [NotMapped]
-        public string SocketPath => $"/run/mediapi/{PiDeviceId}.ssh.sock";
 
     }
 }
