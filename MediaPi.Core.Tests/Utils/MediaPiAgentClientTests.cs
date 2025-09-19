@@ -4,7 +4,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Models;
-using MediaPi.Core.Utils;
+using MediaPi.Core.Services;
+using MediaPi.Core.Services.Interfaces;
 using NUnit.Framework;
 
 namespace MediaPi.Core.Tests.Utils;

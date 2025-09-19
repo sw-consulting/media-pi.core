@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Settings;
 using Microsoft.Extensions.Options;
 

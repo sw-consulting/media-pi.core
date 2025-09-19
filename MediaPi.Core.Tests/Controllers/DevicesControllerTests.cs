@@ -21,7 +21,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Models;
-using MediaPi.Core.Utils;
+using MediaPi.Core.Services.Interfaces;
 
 namespace MediaPi.Core.Tests.Controllers;
 

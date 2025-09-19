@@ -23,7 +23,7 @@
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services.Models;
 
-namespace MediaPi.Core.Services;
+namespace MediaPi.Core.Services.Interfaces;
 
 public interface IDeviceMonitoringService
 {
