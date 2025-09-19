@@ -40,6 +40,9 @@ namespace MediaPi.Core.Services
         public bool ManagerOwnsAccount(User user, Account account);
         public bool ManagerOwnsGroup(User user, DeviceGroup group);
         public bool ManagerOwnsDevice(User user, Device device);
+        public bool UserCanManageDeviceServices(User user, Device device);
+        public bool UserCanViewDevice(User user, Device device);
+        public bool UserCanAssignGroup(User user, Device device);
 
     }
 }

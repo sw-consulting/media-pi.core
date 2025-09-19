@@ -65,6 +65,8 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+    volumes:
+      - R:/Projects/certificates:/certificate:ro
 
 #  ui:
 #    image: ghcr.io/sw-consulting/media-pi.ui

@@ -518,4 +518,156 @@ public class UserInformationServiceTests
 
     #endregion
 
+    #region Permission helpers
+
+    [Test]
+    public void UserCanViewDevice_AdminSeesAll()
+    {
+        using var ctx = CreateContext();
+        var svc = new UserInformationService(ctx);
+
+        var acc1 = new Account { Id = 101, Name = "A101" };
+        var acc2 = new Account { Id = 102, Name = "A102" };
+        ctx.Accounts.AddRange(acc1, acc2);
+
+        var d1 = new Device { Id = 201, Name = "D201", IpAddress = "10.0.0.1", AccountId = acc1.Id };
+        var d2 = new Device { Id = 202, Name = "D202", IpAddress = "10.0.0.2", AccountId = acc2.Id };
+        var d3 = new Device { Id = 203, Name = "D203", IpAddress = "10.0.0.3" };
+        ctx.Devices.AddRange(d1, d2, d3);
+
+        var admin = CreateUser(900, "admin@x", "pwd", "A", "B", null, [GetAdminRole(ctx)]);
+        ctx.Users.Add(admin);
+        ctx.SaveChanges();
+
+        var trackedAdmin = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Single(u => u.Id == 900);
+
+        Assert.That(svc.UserCanViewDevice(trackedAdmin, d1));
+        Assert.That(svc.UserCanViewDevice(trackedAdmin, d2));
+        Assert.That(svc.UserCanViewDevice(trackedAdmin, d3));
+    }
+
+    [Test]
+    public void ManagerSeesOwnedOnly()
+    {
+        using var ctx = CreateContext();
+        var svc = new UserInformationService(ctx);
+
+        var acc1 = new Account { Id = 111, Name = "A111" };
+        var acc2 = new Account { Id = 112, Name = "A112" };
+        ctx.Accounts.AddRange(acc1, acc2);
+
+        var d1 = new Device { Id = 301, Name = "D301", IpAddress = "10.1.0.1", AccountId = acc1.Id };
+        var d2 = new Device { Id = 302, Name = "D302", IpAddress = "10.1.0.2", AccountId = acc2.Id };
+        var d3 = new Device { Id = 303, Name = "D303", IpAddress = "10.1.0.3" };
+        ctx.Devices.AddRange(d1, d2, d3);
+
+        var mgr = CreateUser(901, "mgr@x", "pwd", "M", "G", null, [GetOperatorRole(ctx)]);
+        mgr.UserAccounts = [new UserAccount { UserId = 901, AccountId = acc1.Id, Account = acc1 }];
+        ctx.Users.Add(mgr);
+        ctx.SaveChanges();
+
+        var trackedMgr = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Include(u => u.UserAccounts).Single(u => u.Id == 901);
+
+        Assert.That(svc.UserCanViewDevice(trackedMgr, d1));
+        Assert.That(svc.UserCanViewDevice(trackedMgr, d2), Is.False);
+        Assert.That(svc.UserCanViewDevice(trackedMgr, d3), Is.False);
+    }
+
+    [Test]
+    public void EngineerSeesUnassignedOnly()
+    {
+        using var ctx = CreateContext();
+        var svc = new UserInformationService(ctx);
+
+        var acc1 = new Account { Id = 121, Name = "A121" };
+        ctx.Accounts.Add(acc1);
+
+        var d1 = new Device { Id = 401, Name = "D401", IpAddress = "10.2.0.1", AccountId = acc1.Id };
+        var d3 = new Device { Id = 403, Name = "D403", IpAddress = "10.2.0.3" };
+        ctx.Devices.AddRange(d1, d3);
+
+        var eng = CreateUser(902, "eng@x", "pwd", "E", "N", null, [ctx.Roles.Single(r => r.RoleId == UserRoleConstants.InstallationEngineer)]);
+        ctx.Users.Add(eng);
+        ctx.SaveChanges();
+
+        var trackedEng = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Single(u => u.Id == 902);
+
+        Assert.That(svc.UserCanViewDevice(trackedEng, d1), Is.False);
+        Assert.That(svc.UserCanViewDevice(trackedEng, d3));
+    }
+
+    [Test]
+    public void UserCanAssignGroup_AdminAndManager()
+    {
+        using var ctx = CreateContext();
+        var svc = new UserInformationService(ctx);
+
+        var acc1 = new Account { Id = 131, Name = "A131" };
+        var acc2 = new Account { Id = 132, Name = "A132" };
+        ctx.Accounts.AddRange(acc1, acc2);
+
+        var d1 = new Device { Id = 501, Name = "D501", IpAddress = "10.3.0.1", AccountId = acc1.Id };
+        var d2 = new Device { Id = 502, Name = "D502", IpAddress = "10.3.0.2", AccountId = acc2.Id };
+        ctx.Devices.AddRange(d1, d2);
+
+        var admin = CreateUser(910, "admin2@x", "pwd", "A2", "B2", null, [GetAdminRole(ctx)]);
+        ctx.Users.Add(admin);
+
+        var mgr = CreateUser(911, "mgr2@x", "pwd", "M2", "G2", null, [GetOperatorRole(ctx)]);
+        mgr.UserAccounts = [new UserAccount { UserId = 911, AccountId = acc1.Id, Account = acc1 }];
+        ctx.Users.Add(mgr);
+
+        var eng = CreateUser(912, "eng2@x", "pwd", "E2", "N2", null, [ctx.Roles.Single(r => r.RoleId == UserRoleConstants.InstallationEngineer)]);
+        ctx.Users.Add(eng);
+
+        ctx.SaveChanges();
+
+        var trackedAdmin = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Single(u => u.Id == 910);
+        var trackedMgr = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Include(u => u.UserAccounts).Single(u => u.Id == 911);
+        var trackedEng = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Single(u => u.Id == 912);
+
+        Assert.That(svc.UserCanAssignGroup(trackedAdmin, d1));
+        Assert.That(svc.UserCanAssignGroup(trackedMgr, d1));
+        Assert.That(svc.UserCanAssignGroup(trackedMgr, d2), Is.False);
+        Assert.That(svc.UserCanAssignGroup(trackedEng, d1), Is.False);
+    }
+
+    [Test]
+    public void UserCanManageDeviceServices_ExpectedBehavior()
+    {
+        using var ctx = CreateContext();
+        var svc = new UserInformationService(ctx);
+
+        var acc1 = new Account { Id = 141, Name = "A141" };
+        ctx.Accounts.Add(acc1);
+
+        var dAssigned = new Device { Id = 601, Name = "D601", IpAddress = "10.4.0.1", AccountId = acc1.Id };
+        var dUnassigned = new Device { Id = 602, Name = "D602", IpAddress = "10.4.0.2" };
+        ctx.Devices.AddRange(dAssigned, dUnassigned);
+
+        var admin = CreateUser(920, "admin3@x", "pwd", "A3", "B3", null, [GetAdminRole(ctx)]);
+        ctx.Users.Add(admin);
+
+        var mgr = CreateUser(921, "mgr3@x", "pwd", "M3", "G3", null, [GetOperatorRole(ctx)]);
+        mgr.UserAccounts = [new UserAccount { UserId = 921, AccountId = acc1.Id, Account = acc1 }];
+        ctx.Users.Add(mgr);
+
+        var eng = CreateUser(922, "eng3@x", "pwd", "E3", "N3", null, [ctx.Roles.Single(r => r.RoleId == UserRoleConstants.InstallationEngineer)]);
+        ctx.Users.Add(eng);
+
+        ctx.SaveChanges();
+
+        var tAdmin = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Single(u => u.Id == 920);
+        var tMgr = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Include(u => u.UserAccounts).Single(u => u.Id == 921);
+        var tEng = ctx.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).Single(u => u.Id == 922);
+
+        Assert.That(svc.UserCanManageDeviceServices(tAdmin, dAssigned));
+        Assert.That(svc.UserCanManageDeviceServices(tMgr, dAssigned));
+        Assert.That(svc.UserCanManageDeviceServices(tMgr, dUnassigned), Is.False);
+        Assert.That(svc.UserCanManageDeviceServices(tEng, dUnassigned));
+        Assert.That(svc.UserCanManageDeviceServices(tEng, dAssigned), Is.False);
+    }
+
+    #endregion
+
 }

@@ -135,5 +135,29 @@ namespace MediaPi.Core.Services
             return device.AccountId != null && accountIds.Contains(device.AccountId.Value);
         }
 
+        public bool UserCanManageDeviceServices(User user, Device device)
+        {
+            if (user == null) return false;
+            if (user.IsAdministrator()) return true;
+            if (ManagerOwnsDevice(user, device)) return true;
+            return user.IsEngineer() && device.AccountId == null;
+        }
+
+        public bool UserCanViewDevice(User user, Device device)
+        {
+            if (user == null) return false;
+            if (user.IsAdministrator()) return true;
+            if (ManagerOwnsDevice(user, device)) return true;
+            if (user.IsEngineer()) return device.AccountId == null;
+            return false;
+        }
+
+        public bool UserCanAssignGroup(User user, Device device)
+        {
+            if (user == null) return false;
+            if (user.IsAdministrator()) return true;
+            return ManagerOwnsDevice(user, device);
+        }
+
     }
 }

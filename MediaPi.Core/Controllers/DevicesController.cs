@@ -252,8 +252,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
-            (user.IsEngineer() && device.AccountId == null))
+        if (userInformationService.UserCanViewDevice(user, device))
         {
             monitoringService.TryGetStatusItem(device.Id, out var status);
             return device.ToViewItem(status);
@@ -438,7 +437,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device))
+        if (userInformationService.UserCanAssignGroup(user, device))
         {
             // Validate device group assignment if not setting to null
             if (item.Id != 0)
@@ -499,18 +498,11 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return (null, _404Device(id));
 
-        if (!UserCanManageDeviceServices(user, device)) return (null, _403());
+        if (!userInformationService.UserCanManageDeviceServices(user, device)) return (null, _403());
 
         return (device, null);
     }
-
-    private bool UserCanManageDeviceServices(User user, Device device)
-    {
-        if (user.IsAdministrator()) return true;
-        if (userInformationService.ManagerOwnsDevice(user, device)) return true;
-        return user.IsEngineer() && device.AccountId == null;
-    }
-
+    
     private async Task<ActionResult<TResponse>> ExecuteAgentOperation<TResponse>(
         int id,
         string operationName,
