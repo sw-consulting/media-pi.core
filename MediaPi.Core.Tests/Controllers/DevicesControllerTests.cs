@@ -21,6 +21,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Models;
+using MediaPi.Core.Utils;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -46,6 +47,7 @@ public class DevicesControllerTests
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
     private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
+    private Mock<IMediaPiAgentClient> _agentClientMock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -60,6 +62,7 @@ public class DevicesControllerTests
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
         _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
         _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
+        _agentClientMock = new Mock<IMediaPiAgentClient>();
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -127,7 +130,8 @@ public class DevicesControllerTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _sshKeyProviderMock.Object
+            _sshKeyProviderMock.Object,
+            _agentClientMock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -947,6 +951,144 @@ public class DevicesControllerTests
         Assert.That(response, Is.TypeOf<ObjectResult>());
         var obj = response as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task ListServices_Admin_ReturnsAgentResponse()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiAgentListResponse
+        {
+            Ok = true,
+            Units =
+            [
+                new MediaPiAgentListUnit { Unit = "svc1" }
+            ]
+        };
+
+        _agentClientMock
+            .Setup(c => c.ListUnitsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.ListServices(1, CancellationToken.None);
+
+        var okResult = result.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        Assert.That(okResult!.Value, Is.SameAs(agentResponse));
+
+        _agentClientMock.Verify(c => c.ListUnitsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task ListServices_ManagerOwnsDevice_ReturnsAgentResponse()
+    {
+        SetCurrentUser(_manager.Id);
+        var response = new MediaPiAgentListResponse { Ok = true };
+        _agentClientMock
+            .Setup(c => c.ListUnitsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(response);
+
+        var result = await _controller.ListServices(1, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(response));
+    }
+
+    [Test]
+    public async Task ListServices_EngineerUnassignedDevice_ReturnsAgentResponse()
+    {
+        SetCurrentUser(_engineer.Id);
+        var response = new MediaPiAgentListResponse { Ok = true };
+        _agentClientMock
+            .Setup(c => c.ListUnitsAsync(It.Is<Device>(d => d.Id == 2), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(response);
+
+        var result = await _controller.ListServices(2, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(response));
+    }
+
+    [Test]
+    public async Task StartService_Admin_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiAgentUnitResultResponse { Ok = true, Unit = "svc", Result = "started" };
+        _agentClientMock
+            .Setup(c => c.StartUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.StartService(1, "svc", CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task StopService_Admin_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiAgentUnitResultResponse { Ok = true, Unit = "svc", Result = "stopped" };
+        _agentClientMock
+            .Setup(c => c.StopUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.StopService(1, "svc", CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task RestartService_Admin_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiAgentUnitResultResponse { Ok = true, Unit = "svc", Result = "restarted" };
+        _agentClientMock
+            .Setup(c => c.RestartUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.RestartService(1, "svc", CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task EnableService_Admin_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiAgentEnableResponse { Ok = true, Unit = "svc", Enabled = true };
+        _agentClientMock
+            .Setup(c => c.EnableUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.EnableService(1, "svc", CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task DisableService_Admin_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiAgentEnableResponse { Ok = true, Unit = "svc", Enabled = false };
+        _agentClientMock
+            .Setup(c => c.DisableUnitAsync(It.Is<Device>(d => d.Id == 1), "svc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.DisableService(1, "svc", CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
     }
 
 }

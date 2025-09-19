@@ -26,8 +26,10 @@ using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Net;
 
 namespace MediaPi.Core.Controllers;
@@ -44,7 +46,8 @@ public class DevicesController(
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
     IDeviceMonitoringService monitoringService,
-    ISshClientKeyProvider sshClientKeyProvider) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    ISshClientKeyProvider sshClientKeyProvider,
+    IMediaPiAgentClient mediaPiAgentClient) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
     [AllowAnonymous]
@@ -311,6 +314,116 @@ public class DevicesController(
         return NoContent();
     }
 
+    // GET: api/devices/{id}/services
+    [HttpGet("{id}/services")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentListResponse))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentListResponse>> ListServices(int id, CancellationToken ct = default)
+    {
+        return await ExecuteAgentOperation(
+            id,
+            "list services",
+            (device, token) => mediaPiAgentClient.ListUnitsAsync(device, token),
+            ct);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/start
+    [HttpPost("{id}/services/{unit}/start")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentUnitResultResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StartService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "start service",
+            (device, token) => mediaPiAgentClient.StartUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/stop
+    [HttpPost("{id}/services/{unit}/stop")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentUnitResultResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StopService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "stop service",
+            (device, token) => mediaPiAgentClient.StopUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/restart
+    [HttpPost("{id}/services/{unit}/restart")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentUnitResultResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentUnitResultResponse>> RestartService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "restart service",
+            (device, token) => mediaPiAgentClient.RestartUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/enable
+    [HttpPost("{id}/services/{unit}/enable")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentEnableResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentEnableResponse>> EnableService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "enable service",
+            (device, token) => mediaPiAgentClient.EnableUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/disable
+    [HttpPost("{id}/services/{unit}/disable")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentEnableResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentEnableResponse>> DisableService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "disable service",
+            (device, token) => mediaPiAgentClient.DisableUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
     // PATCH: api/devices/assign-group/{id}
     [HttpPatch("assign-group/{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -376,6 +489,72 @@ public class DevicesController(
         }
 
         return _403();
+    }
+
+    private async Task<(Device? Device, ActionResult? Error)> GetDeviceForServiceAsync(int id, CancellationToken ct)
+    {
+        var user = await CurrentUser();
+        if (user == null) return (null, _403());
+
+        var device = await _db.Devices.FindAsync([id], ct);
+        if (device == null) return (null, _404Device(id));
+
+        if (!UserCanManageDeviceServices(user, device)) return (null, _403());
+
+        return (device, null);
+    }
+
+    private bool UserCanManageDeviceServices(User user, Device device)
+    {
+        if (user.IsAdministrator()) return true;
+        if (userInformationService.ManagerOwnsDevice(user, device)) return true;
+        return user.IsEngineer() && device.AccountId == null;
+    }
+
+    private async Task<ActionResult<TResponse>> ExecuteAgentOperation<TResponse>(
+        int id,
+        string operationName,
+        Func<Device, CancellationToken, Task<TResponse>> operation,
+        CancellationToken ct,
+        string? unit = null)
+        where TResponse : MediaPiAgentResponse
+    {
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await operation(targetDevice, ct);
+            if (!response.Ok)
+            {
+                if (string.IsNullOrWhiteSpace(unit))
+                {
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, id, response.Error ?? "неизвестная ошибка");
+                }
+                else
+                {
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.Error ?? "неизвестная ошибка");
+                }
+                return _502Agent(response.Error);
+            }
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            if (string.IsNullOrWhiteSpace(unit))
+            {
+                logger.LogError(ex, "Ошибка при операции {Operation} для устройства {DeviceId}", operationName, id);
+            }
+            else
+            {
+                logger.LogError(ex, "Ошибка при операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
+            }
+
+            return _502Agent();
+        }
     }
 }
 
