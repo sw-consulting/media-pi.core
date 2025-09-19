@@ -1,5 +1,5 @@
-// Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
-// This file is a part of Media Pi backend application
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
@@ -149,4 +149,3 @@ public class AuthController(
     }
 
 }
-

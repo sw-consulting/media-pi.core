@@ -1,5 +1,5 @@
-// Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
-// This file is a part of Media Pi backend application
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -37,9 +37,9 @@ namespace MediaPi.Core.Tests.Controllers
             _dbContext = new AppDbContext(options);
             
             // Seed roles
-            var adminRole = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" };
-            var managerRole = new Role { Id = 2, RoleId = UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" };
-            var engineerRole = new Role { Id = 3, RoleId = UserRoleConstants.InstallationEngineer, Name = "Инженер-установщик" };
+            var adminRole = new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ СЃРёСЃС‚РµРјС‹" };
+            var managerRole = new Role { Id = 2, RoleId = UserRoleConstants.AccountManager, Name = "РњРµРЅРµРґР¶РµСЂ Р»РёС†РµРІРѕРіРѕ СЃС‡С‘С‚Р°" };
+            var engineerRole = new Role { Id = 3, RoleId = UserRoleConstants.InstallationEngineer, Name = "РРЅР¶РµРЅРµСЂ-СѓСЃС‚Р°РЅРѕРІС‰РёРє" };
             
             _dbContext.Roles.AddRange(adminRole, managerRole, engineerRole);
             

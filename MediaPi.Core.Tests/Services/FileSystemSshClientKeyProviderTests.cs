@@ -1,3 +1,6 @@
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
+
 using System;
 using System.Collections.Generic;
 using System.IO;
