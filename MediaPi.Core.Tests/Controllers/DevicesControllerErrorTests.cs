@@ -406,7 +406,6 @@ public class DevicesControllerErrorTests
         var devices = result.Value!.ToList();
         Assert.That(devices, Has.Count.EqualTo(1));
         Assert.That(devices[0].Id, Is.EqualTo(6));
-        Assert.That(devices[0].PublicKeyOpenSsh, Is.EqualTo("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDev6"));
         Assert.That(devices[0].SshUser, Is.EqualTo("testuser"));
     }
 

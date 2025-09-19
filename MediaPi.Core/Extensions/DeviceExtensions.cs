@@ -33,11 +33,6 @@ public static class DeviceExtensions
     {
         if (item.Name != null) device.Name = item.Name;
         
-        if (item.PublicKeyOpenSsh != null) 
-        {
-            device.PublicKeyOpenSsh = item.PublicKeyOpenSsh;
-        }
-
         if (item.SshUser != null) device.SshUser = item.SshUser;
         
         if (item.AccountId.HasValue) 
