@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -57,6 +58,8 @@ public class DeviceAgentRestClientTests
             }
             """;
 
+            await Task.Delay(10, cancellationToken); // Simulate some async work
+
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -88,7 +91,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{""ok"":true}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":true}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);
@@ -110,7 +113,7 @@ public class DeviceAgentRestClientTests
             observedUri = request.RequestUri;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(string.Empty, Encoding.UTF8, "application/json")
+                Content = new StringContent("""{"ok":false}""", Encoding.UTF8, "application/json")
             });
         });
 
@@ -152,7 +155,7 @@ public class DeviceAgentRestClientTests
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("""{""ok"":true,""data"":{""unit"":""alpha"",""result"":""started""}}""", Encoding.UTF8, "application/json")
+                Content = new StringContent("""{"ok":true,"data":{"unit":"alpha","result":"started"}}""", Encoding.UTF8, "application/json")
             };
         });
 
@@ -176,7 +179,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{""ok"":true,""data"":{""unit"":""alpha"",""result"":""stopped""}}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":true,"data":{"unit":"alpha","result":"stopped"}}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);
@@ -194,7 +197,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{""ok"":false,""error"":""something wrong"",""data"":{""unit"":""alpha""}}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":false,"error":"something wrong","data":{"unit":"alpha"}}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);
@@ -221,7 +224,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{""ok"":true,""data"":{""unit"":""alpha"",""result"":""ENABLED""}}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":true,"data":{"unit":"alpha","result":"enabled"}}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);
@@ -232,7 +235,7 @@ public class DeviceAgentRestClientTests
         Assert.That(response.Ok, Is.True);
         Assert.That(response.Unit, Is.EqualTo("alpha"));
         Assert.That(response.Enabled, Is.True);
-        Assert.That(response.Result, Is.EqualTo("ENABLED"));
+        Assert.That(response.Result, Is.EqualTo("enabled"));
         Assert.That(response.Error, Is.Null);
     }
 
@@ -241,7 +244,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
-            Content = new StringContent("""{""ok"":false,""data"":{""unit"":""alpha"",""result"":""enabled""}}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":false,"data":{"unit":"alpha","result":"enabled"}}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);

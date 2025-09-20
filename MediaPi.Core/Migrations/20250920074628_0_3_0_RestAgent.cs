@@ -15,7 +15,7 @@ namespace MediaPi.Core.Migrations
                 table: "devices",
                 type: "text",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "8080");
 
             migrationBuilder.AddColumn<string>(
                 name: "server_key",
