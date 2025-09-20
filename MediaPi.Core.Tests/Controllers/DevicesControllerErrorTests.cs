@@ -46,7 +46,6 @@ public class DevicesControllerErrorTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
-    private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
 #pragma warning restore CS8618
 
@@ -60,8 +59,6 @@ public class DevicesControllerErrorTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
-        _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
-        _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
         _agentClientMock = new Mock<IMediaPiAgentClient>();
 
         _adminRole = new Role { Id = (int)UserRoleConstants.SystemAdministrator, RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
@@ -134,7 +131,6 @@ public class DevicesControllerErrorTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _sshKeyProviderMock.Object,
             _agentClientMock.Object
         )
         {

@@ -28,7 +28,6 @@ public class DevicesController(
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
     IDeviceMonitoringService monitoringService,
-    ISshClientKeyProvider sshClientKeyProvider,
     IMediaPiAgentClient mediaPiAgentClient) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
@@ -82,8 +81,7 @@ public class DevicesController(
 
         return Ok(new DeviceRegisterResponse
         {
-            Id = device.Id,
-            ServerPublicSshKey = sshClientKeyProvider.GetPublicKey()
+            Id = device.Id
         });
     }
 

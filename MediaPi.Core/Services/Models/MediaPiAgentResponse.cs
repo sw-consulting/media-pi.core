@@ -46,5 +46,6 @@ namespace MediaPi.Core.Services.Models
     {
         [JsonPropertyName("unit")] public string? Unit { get; init; }
         [JsonPropertyName("enabled")] public bool? Enabled { get; init; }
+        [JsonPropertyName("result")] public string? Result { get; init; }
     }
 }

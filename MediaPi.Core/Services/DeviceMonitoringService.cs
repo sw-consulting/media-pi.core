@@ -12,7 +12,8 @@ using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace MediaPi.Core.Services;
@@ -24,18 +25,21 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly ConcurrentDictionary<int, DeviceStatusSnapshot> _snapshot = new();
     private readonly ILogger<DeviceMonitoringService> _logger;
     private readonly DeviceEventsService _deviceEventsService;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
 
     public DeviceMonitoringService(
-        IServiceScopeFactory scopeFactory, 
-        IOptions<DeviceMonitorSettings> options, 
-        ILogger<DeviceMonitoringService> logger, 
-        DeviceEventsService deviceEventsService)
+        IServiceScopeFactory scopeFactory,
+        IOptions<DeviceMonitorSettings> options,
+        ILogger<DeviceMonitoringService> logger,
+        DeviceEventsService deviceEventsService,
+        IHttpClientFactory httpClientFactory)
     {
         _scopeFactory = scopeFactory;
         _settings = options.Value;
         _logger = logger;
         _deviceEventsService = deviceEventsService;
+        _httpClientFactory = httpClientFactory;
         _deviceEventsService.DeviceDeleted += OnDeviceDeleted;
     }
 
@@ -122,7 +126,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
     private async Task<(DeviceStatusSnapshot Snapshot, DeviceProbe Probe)> ProbeDevice(Device device, CancellationToken token)
     {
-        var (IsOnline, ConnectMs, TotalMs) = await Probe(device.IpAddress, token);
+        var (IsOnline, ConnectMs, TotalMs) = await Probe(device, token);
         var snap = new DeviceStatusSnapshot
         {
             IpAddress = device.IpAddress,
@@ -234,59 +238,90 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         }
     }
 
-    private async Task<(bool IsOnline, long ConnectMs, long TotalMs)> Probe(string ip, CancellationToken token)
+    private async Task<(bool IsOnline, long ConnectMs, long TotalMs)> Probe(Device device, CancellationToken token)
     {
         var sw = Stopwatch.StartNew();
         try
         {
-            if (!IPAddress.TryParse(ip, out var ipAddress))
+            if (!IPAddress.TryParse(device.IpAddress, out var ipAddress))
             {
                 sw.Stop();
-                _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", ip);
+                _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", device.IpAddress);
                 return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
             }
-            using var client = new TcpClient();
-            var connectTask = client.ConnectAsync(ipAddress, 22);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(_settings.TimeoutSeconds), token);
-            var completed = await Task.WhenAny(connectTask, timeoutTask);
-            if (completed != connectTask || !client.Connected)
+
+            var port = ResolvePort(device);
+            var uriBuilder = new UriBuilder
             {
-                sw.Stop();
-                return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
+                Scheme = "http",
+                Host = ipAddress.ToString(),
+                Port = port,
+                Path = "/health"
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
+
+            var client = _httpClientFactory.CreateClient(nameof(DeviceMonitoringService));
+            var connectWatch = Stopwatch.StartNew();
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+            connectWatch.Stop();
+            var connectMs = connectWatch.ElapsedMilliseconds;
+            var raw = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+            sw.Stop();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned status {StatusCode}.", device.Id, device.IpAddress, (int)response.StatusCode);
+                return (false, connectMs, sw.ElapsedMilliseconds);
             }
-            var connectMs = sw.ElapsedMilliseconds;
-            using var stream = client.GetStream();
-            var buffer = new byte[256];
-            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            readCts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
-            int bytesRead;
+
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) returned empty response.", device.Id, device.IpAddress);
+                return (false, connectMs, sw.ElapsedMilliseconds);
+            }
+
             try
             {
-                bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), readCts.Token);
+                using var doc = JsonDocument.Parse(raw);
+                if (doc.RootElement.TryGetProperty("ok", out var okProperty) && okProperty.ValueKind == JsonValueKind.True)
+                {
+                    return (true, connectMs, sw.ElapsedMilliseconds);
+                }
+
+                _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) returned non-OK payload.", device.Id, device.IpAddress);
             }
-            catch (OperationCanceledException)
+            catch (JsonException ex)
             {
-                sw.Stop();
-                _logger.LogWarning("Probe for IP {IpAddress} timed out during read.", ip);
-                return (false, connectMs, sw.ElapsedMilliseconds);
+                _logger.LogWarning(ex, "Failed to parse health response for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
             }
+
+            return (false, connectMs, sw.ElapsedMilliseconds);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
             sw.Stop();
-            if (bytesRead == 0)
-            {
-                _logger.LogWarning("Probe for IP {IpAddress} succeeded in connecting, but no data was read from the stream.", ip);
-                return (false, connectMs, sw.ElapsedMilliseconds);
-            }
-            if (bytesRead < buffer.Length)
-            {
-                _logger.LogDebug("Probe for IP {IpAddress} read partial data: {BytesRead} bytes.", ip, bytesRead);
-            }
-            return (true, connectMs, sw.ElapsedMilliseconds);
+            _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) timed out.", device.Id, device.IpAddress);
+            return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             sw.Stop();
-            _logger.LogWarning(ex, "Probe failed for IP {IpAddress}", ip);
+            _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
             return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
         }
+    }
+
+    private int ResolvePort(Device device)
+    {
+        if (!string.IsNullOrWhiteSpace(device.Port) && int.TryParse(device.Port, out var port) && port is > 0 and <= 65535)
+        {
+            return port;
+        }
+
+        _logger.LogWarning("Device {DeviceId} has invalid port '{PortValue}'. Falling back to default 8080 for monitoring.", device.Id, device.Port);
+        return 8080;
     }
 }

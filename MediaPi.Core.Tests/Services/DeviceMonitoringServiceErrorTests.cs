@@ -4,7 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Sockets;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Data;
@@ -17,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Moq.Protected;
 using NUnit.Framework;
 using System.Reflection;
 
@@ -97,6 +99,29 @@ public class DeviceMonitoringServiceErrorTests
         return new DeviceEventsService();
     }
 
+    private static IHttpClientFactory CreateHttpClientFactory(Func<HttpRequestMessage, HttpResponseMessage>? responder = null)
+    {
+        responder ??= _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"ok\":true}")
+        };
+
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken _) =>
+            {
+                var response = responder(request);
+                response.RequestMessage = request;
+                return response;
+            });
+
+        var client = new HttpClient(handler.Object);
+        var factory = new Mock<IHttpClientFactory>();
+        factory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(client);
+        return factory.Object;
+    }
+
 
 
     [Test]
@@ -110,7 +135,8 @@ public class DeviceMonitoringServiceErrorTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            eventsService);
+            eventsService,
+            CreateHttpClientFactory());
         
         // Add a device to the snapshot
         service.TryGetStatus(1, out _); // This will create an empty entry if it doesn't exist
@@ -129,7 +155,7 @@ public class DeviceMonitoringServiceErrorTests
     }
 
     [Test]
-    public async Task ProbeDevice_HandlesException_InTcpClient()
+    public async Task ProbeDevice_HandlesInvalidIp()
     {
         // This test requires internals access, so we use a different approach
 
@@ -141,7 +167,8 @@ public class DeviceMonitoringServiceErrorTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         // Act
         var result = await service.Test(device.Id);
@@ -162,7 +189,8 @@ public class DeviceMonitoringServiceErrorTests
             CreateFailingScopeFactory(),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         // Act
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -177,10 +205,9 @@ public class DeviceMonitoringServiceErrorTests
     }
 
     [Test]
-    public async Task ProbeDevice_HandlesZeroBytesRead()
+    public async Task ProbeDevice_HandlesErrorResponse()
     {
-        // We'll simulate this by using a special IP address that might connect but return no data
-        // In a real test, this would be difficult to simulate perfectly
+        // Simulate a device health endpoint returning a server error response.
 
         // Arrange
         var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = "8080", Name = "LocalDevice" }; // Local IP might connect but no SSH service
@@ -190,7 +217,11 @@ public class DeviceMonitoringServiceErrorTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
+            {
+                Content = new StringContent("{\"ok\":false,\"error\":\"failure\"}")
+            }));
 
         // Act
         var result = await service.Test(device.Id);

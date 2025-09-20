@@ -46,7 +46,6 @@ public class DevicesControllerTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
-    private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
 #pragma warning restore CS8618
 
@@ -60,8 +59,6 @@ public class DevicesControllerTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
-        _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
-        _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
         _agentClientMock = new Mock<IMediaPiAgentClient>();
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
@@ -130,7 +127,6 @@ public class DevicesControllerTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _sshKeyProviderMock.Object,
             _agentClientMock.Object
         )
         {
@@ -160,7 +156,6 @@ public class DevicesControllerTests
         Assert.That(ok, Is.Not.Null);
         var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
-        Assert.That(response!.ServerPublicSshKey, Is.EqualTo("ssh-ed25519 AAAATESTSERVERPUBKEY test@server"));
 
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "5.6.7.8");
         Assert.That(dev, Is.Not.Null);
