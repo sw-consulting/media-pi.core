@@ -18,6 +18,24 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status400BadRequest,
                           new ErrMessage() { Msg = "Нарушена целостность запроса" });
     }
+
+    protected ObjectResult _400DeviceIpMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не указан IP адрес устройства" });
+    }
+
+    protected ObjectResult _400DevicePortMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не указан порт устройства" });
+    }
+
+    protected ObjectResult _400DeviceServerKeyMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не указан ключ сервера устройства" });
+    }
     protected ObjectResult _400Ip(string ip)
     {
         return StatusCode(StatusCodes.Status400BadRequest,

@@ -104,13 +104,13 @@ public class DevicesControllerErrorTests
             UserRoles = [new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole }]
         };
 
-        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDerr1", SshUser = "pi", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
-        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", PublicKeyOpenSsh = string.Empty, SshUser = "pi" };
-        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIErr3", SshUser = "admin", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
+        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = "8080", ServerKey = "error-key-1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
+        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", Port = "8081", ServerKey = "error-key-2" };
+        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", Port = "8082", ServerKey = "error-key-3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
         // Device with IPv6 address
-        var d4 = new Device { Id = 4, Name = "Dev4", IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7334", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDerr4", SshUser = "root" };
+        var d4 = new Device { Id = 4, Name = "Dev4", IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7334", Port = "8083", ServerKey = "error-key-4" };
         // Device with mapped IPv4 address
-        var d5 = new Device { Id = 5, Name = "Dev5", IpAddress = "::ffff:192.168.1.1", PublicKeyOpenSsh = string.Empty, SshUser = "pi" };
+        var d5 = new Device { Id = 5, Name = "Dev5", IpAddress = "::ffff:192.168.1.1", Port = "8084", ServerKey = "error-key-5" };
 
         _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.Devices.AddRange(d1, d2, d3, d4, d5);
@@ -363,28 +363,29 @@ public class DevicesControllerErrorTests
     [Test]
     public async Task Register_IPv6Address_CreatesDeviceWithIpv6()
     {
-        SetCurrentUser(null, "2001:0db8:85a3:0000:0000:8a2e:0370:7335");
-        var req = new DeviceRegisterRequest 
-        { 
-            PublicKeyOpenSsh = string.Empty, 
-            SshUser = "ipv6user" 
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7335",
+            Port = "8200",
+            ServerKey = "ipv6-device-key"
         };
-        var result = await _controller.Register(req, System.Threading.CancellationToken.None);
+        var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
-        
-       
+
+
         // Find device by IP address to verify it was created
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString());
         Assert.That(dev, Is.Not.Null);
-        
+
         // Use IPAddress.Parse to get the expected standardized format
         string expectedFormat = IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString();
         Assert.That(dev!.IpAddress, Is.EqualTo(expectedFormat));
-        Assert.That(dev.SshUser, Is.EqualTo("ipv6user"));
-        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
+        Assert.That(dev.Port, Is.EqualTo("8200"));
+        Assert.That(dev.ServerKey, Is.EqualTo("ipv6-device-key"));
     }
 
     [Test]
@@ -401,7 +402,7 @@ public class DevicesControllerErrorTests
     public async Task GetAllByDeviceGroup_Manager_NullButAssigned_Works()
     {
         // Create a new device with account but no group
-        var newDevice = new Device { Id = 6, Name = "DevNoGroup", IpAddress = "6.6.6.6", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDev6", SshUser = "testuser", AccountId = _account1.Id };
+        var newDevice = new Device { Id = 6, Name = "DevNoGroup", IpAddress = "6.6.6.6", Port = "8300", ServerKey = "error-key-6", AccountId = _account1.Id };
         _dbContext.Devices.Add(newDevice);
         await _dbContext.SaveChangesAsync();
 
@@ -412,29 +413,22 @@ public class DevicesControllerErrorTests
         var devices = result.Value!.ToList();
         Assert.That(devices, Has.Count.EqualTo(1));
         Assert.That(devices[0].Id, Is.EqualTo(6));
-        Assert.That(devices[0].SshUser, Is.EqualTo("testuser"));
     }
 
     [Test]
-    public async Task Register_EmptySshUser_DefaultsToPi()
+    public async Task Register_WhitespaceServerKey_ReturnsBadRequest()
     {
-        SetCurrentUser(null, "10.0.0.101");
-        var req = new DeviceRegisterRequest 
-        { 
-            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHGnxZfBr2fAjqk8GK7q1eMB2LO5GtE7QA8k1w8uCLjC test@example.com", 
-            SshUser = "" 
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "10.0.0.101",
+            Port = "9300",
+            ServerKey = "  "
         };
         var result = await _controller.Register(req, CancellationToken.None);
-        var ok = result.Result as OkObjectResult;
-        Assert.That(ok, Is.Not.Null);
-        var response = ok!.Value as DeviceRegisterResponse;
-        Assert.That(response, Is.Not.Null);
-        
-        // Find device by IP address to verify it was created
-        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "10.0.0.101");
-        Assert.That(dev, Is.Not.Null);
-        Assert.That(dev!.SshUser, Is.EqualTo("pi")); // Should default to "pi"
-        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHGnxZfBr2fAjqk8GK7q1eMB2LO5GtE7QA8k1w8uCLjC test@example.com"));
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
