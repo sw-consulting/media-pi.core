@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250920153137_0_3_0_RestAgent")]
+    [Migration("20250920165533_0_3_0_RestAgent")]
     partial class _0_3_0_RestAgent
     {
         /// <inheritdoc />
@@ -90,8 +90,8 @@ namespace MediaPi.Core.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<short>("Port")
-                        .HasColumnType("smallint")
+                    b.Property<int>("Port")
+                        .HasColumnType("integer")
                         .HasColumnName("port");
 
                     b.Property<string>("ServerKey")

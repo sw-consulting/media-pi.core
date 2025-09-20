@@ -380,7 +380,7 @@ public class DevicesControllerErrorTests
         // Use IPAddress.Parse to get the expected standardized format
         string expectedFormat = IPAddress.Parse("2001:0db8:85a3:0000:0000:8a2e:0370:7335").ToString();
         Assert.That(dev!.IpAddress, Is.EqualTo(expectedFormat));
-        Assert.That(dev.Port, Is.EqualTo("8200"));
+        Assert.That(dev.Port, Is.EqualTo(8200));
         Assert.That(dev.ServerKey, Is.EqualTo("ipv6-device-key"));
     }
 

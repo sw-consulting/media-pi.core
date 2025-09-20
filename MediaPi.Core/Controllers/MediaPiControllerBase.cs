@@ -31,7 +31,7 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = "Не указан порт устройства" });
     }
 
-    protected ObjectResult _400DevicePortInvalid(short port)
+    protected ObjectResult _400DevicePortInvalid(ushort port)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
                           new ErrMessage { Msg = $"Неверный порт устройства [{port}]. Порт должен быть в диапазоне 1-65535" });

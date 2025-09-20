@@ -663,7 +663,7 @@ public class DevicesControllerTests
         var dev = await _dbContext.Devices.FindAsync(1);
         Assert.That(dev!.Name, Is.EqualTo("UpdatedDevice"));
         Assert.That(dev.IpAddress, Is.EqualTo("192.168.1.100"));
-        Assert.That(dev.Port, Is.EqualTo("8080"));
+        Assert.That(dev.Port, Is.EqualTo(8080));
         Assert.That(dev.ServerKey, Is.EqualTo("server-key-1"));
         Assert.That(dev.AccountId, Is.Null);
         Assert.That(dev.DeviceGroupId, Is.Null);

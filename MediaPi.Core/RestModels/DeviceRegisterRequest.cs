@@ -8,5 +8,5 @@ public sealed class DeviceRegisterRequest
     public string? ServerKey { get; set; }
     public string? Name { get; set; }
     public string? IpAddress { get; set; }
-    public short? Port { get; set; }
+    public ushort? Port { get; set; }
 }

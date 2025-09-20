@@ -20,7 +20,7 @@ namespace MediaPi.Core.Models
         public required string IpAddress { get; set; }
 
         [Column("port")]
-        public required short Port { get; set; }
+        public required ushort Port { get; set; }
 
         [Column("server_key")]
         public string ServerKey { get; set; } = string.Empty;

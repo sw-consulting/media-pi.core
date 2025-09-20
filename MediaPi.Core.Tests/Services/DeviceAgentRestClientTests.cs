@@ -124,7 +124,7 @@ public class DeviceAgentRestClientTests
         var result = await client.GetStatusAsync(device, " status ", CancellationToken.None);
 
         Assert.That(observedUri, Is.Not.Null);
-        Assert.That(observedUri!.Port, Is.EqualTo(8080));
+        Assert.That(observedUri!.Port, Is.EqualTo(9999));
         Assert.That(observedUri.Query, Is.EqualTo("?unit=status"));
         Assert.That(result.Ok, Is.False);
         Assert.That(result.Unit, Is.EqualTo(" status "));
@@ -401,7 +401,7 @@ public class DeviceAgentRestClientTests
         return new DeviceAgentRestClient(httpClient, logger ?? new TestLogger<DeviceAgentRestClient>());
     }
 
-    private static Device CreateDevice(string? ip = "127.0.0.1", short port = 8080, string? serverKey = "token") => new Device
+    private static Device CreateDevice(string? ip = "127.0.0.1", ushort port = 8080, string? serverKey = "token") => new Device
     {
         Id = 42,
         Name = "Device",
