@@ -39,34 +39,33 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
     public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
-        string ip;
-        if (!string.IsNullOrWhiteSpace(req.IpAddress))
-        {
-            if (!IPAddress.TryParse(req.IpAddress, out var addr)) return _400Ip(req.IpAddress);
-            if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
-            ip = addr.ToString();
-        }
-        else
-        {
-            var ipAddress = HttpContext.Connection.RemoteIpAddress;
-            if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
-            {
-                ipAddress = ipAddress.MapToIPv4();
-            }
-            ip = ipAddress?.ToString() ?? string.Empty;
-        }
+        if (string.IsNullOrWhiteSpace(req.IpAddress)) return _400DeviceIpMissing();
+        if (string.IsNullOrWhiteSpace(req.Port)) return _400DevicePortMissing();
+        if (string.IsNullOrWhiteSpace(req.ServerKey)) return _400DeviceServerKeyMissing();
 
-        if (string.IsNullOrWhiteSpace(ip)) return _400Ip(ip);
+        var ipInput = req.IpAddress.Trim();
+        if (!IPAddress.TryParse(ipInput, out var addr)) return _400Ip(req.IpAddress);
+        if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+        var ip = addr.ToString();
 
         if (await _db.Devices.AnyAsync(d => d.IpAddress == ip, ct)) return _409Ip(ip);
+
+        var port = req.Port.Trim();
+        if (port.Length == 0) return _400DevicePortMissing();
+
+        var serverKey = req.ServerKey.Trim();
+        if (serverKey.Length == 0) return _400DeviceServerKeyMissing();
+
+        var name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name.Trim();
+        if (string.IsNullOrEmpty(name)) name = "Устройство";
 
         // Create device with auto-generated ID
         var device = new Device
         {
-            Name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name!, // Placeholder name if not provided
+            Name = name,
             IpAddress = ip,
-            Port = req.Port ?? "8080",
-            ServerKey = req.ServerKey ?? string.Empty,
+            Port = port,
+            ServerKey = serverKey,
         };
 
         _db.Devices.Add(device);
