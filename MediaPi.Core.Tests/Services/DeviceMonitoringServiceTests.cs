@@ -4,6 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Data;
@@ -11,11 +13,13 @@ using MediaPi.Core.Models;
 using MediaPi.Core.Services;
 using MediaPi.Core.Settings;
 using MediaPi.Core.Services.Models;
+using MediaPi.Core.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Moq.Protected;
 using NUnit.Framework;
 
 namespace MediaPi.Core.Tests.Services;
@@ -84,6 +88,23 @@ public class DeviceMonitoringServiceTests
         return new DeviceEventsService();
     }
 
+    private static IMediaPiAgentClient CreateAgentClient(bool isHealthy = true, string? error = null)
+    {
+        var mock = new Mock<IMediaPiAgentClient>();
+        
+        mock.Setup(c => c.CheckHealthAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiAgentHealthResponse
+            {
+                Ok = isHealthy,
+                Error = error,
+                Status = isHealthy ? "healthy" : "unhealthy",
+                Uptime = 12345.67,
+                Version = "1.0.0"
+            });
+
+        return mock.Object;
+    }
+
     [Test]
     public void TryGetStatus_ReturnsFalse_WhenNotPresent()
     {
@@ -93,7 +114,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
         // With
         Assert.That(service.Snapshot, Is.Not.Null);
         Assert.That(service.TryGetStatus(123, out var _), Is.False);
@@ -102,14 +124,15 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task ExecuteAsync_UpdatesSnapshot_ForOnlineDevice()
     {
-        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Name = "TestDevice1" };
+        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice1" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient(isHealthy: true));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var task = service.StartAsync(cts.Token);
@@ -130,9 +153,33 @@ public class DeviceMonitoringServiceTests
     }
 
     [Test]
+    public async Task ExecuteAsync_UpdatesSnapshot_ForOfflineDevice()
+    {
+        var device = new Device { Id = 2, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice2" };
+        var db = CreateDbContext(device);
+        var logs = new List<string>();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            CreateDeviceEventsService(),
+            CreateAgentClient(isHealthy: false, error: "Service unavailable"));
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var task = service.StartAsync(cts.Token);
+        await Task.Delay(1500);
+        cts.Cancel();
+        await task;
+
+        Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
+        var snapshot = service.Snapshot[device.Id];
+        Assert.That(snapshot.IsOnline, Is.False);
+    }
+
+    [Test]
     public async Task ExecuteAsync_RemovesDevice_WhenDeleted()
     {
-        var device = new Device { Id = 2, IpAddress = "127.0.0.1", Name = "TestDevice2" };
+        var device = new Device { Id = 3, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice3" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var eventsService = CreateDeviceEventsService();
@@ -140,7 +187,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            eventsService);
+            eventsService,
+            CreateAgentClient());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var task = service.StartAsync(cts.Token);
@@ -170,10 +218,11 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
         var method = typeof(DeviceMonitoringService).GetMethod("Probe", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.That(method, Is.Not.Null); // Ensure method is found to avoid null dereference
-        var task = method?.Invoke(service, new object[] { "invalid_ip", CancellationToken.None }) as Task<(bool, long, long)>;
+        var task = method?.Invoke(service, new object[] { new Device { Id = 99, IpAddress = "invalid_ip", Port = 8080, Name = "Invalid" }, CancellationToken.None }) as Task<(bool, long, long)>;
         Assert.That(task, Is.Not.Null); // Ensure task is not null to avoid null dereference
         var result = await task!;
         Assert.That(result.Item1, Is.False);
@@ -182,14 +231,15 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task ExecuteAsync_SavesDeviceProbes()
     {
-        var device = new Device { Id = 3, IpAddress = "127.0.0.1", Name = "TestDevice3" };
+        var device = new Device { Id = 4, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice4" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var task = service.StartAsync(cts.Token);
@@ -204,13 +254,14 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task Test_ReturnsSnapshot_WhenDeviceExists()
     {
-        var device = new Device { Id = 4, IpAddress = "127.0.0.1", Name = "TestDevice4" };
+        var device = new Device { Id = 5, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice5" };
         var db = CreateDbContext(device);
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
 
         var result = await service.Test(device.Id);
 
@@ -226,7 +277,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
 
         var result = await service.Test(999);
 
@@ -236,13 +288,14 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task Subscribe_ReceivesUpdates()
     {
-        var device = new Device { Id = 5, IpAddress = "127.0.0.1", Name = "TestDevice5" };
+        var device = new Device { Id = 6, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice6" };
         var db = CreateDbContext(device);
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await using var enumerator = service.Subscribe(cts.Token).GetAsyncEnumerator(cts.Token);
@@ -258,13 +311,14 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task Subscribe_SendsExistingSnapshot()
     {
-        var device = new Device { Id = 6, IpAddress = "127.0.0.1", Name = "TestDevice6" };
+        var device = new Device { Id = 7, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice7" };
         var db = CreateDbContext(device);
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateAgentClient());
 
         await service.Test(device.Id);
 
@@ -276,5 +330,36 @@ public class DeviceMonitoringServiceTests
         Assert.That(update.DeviceId, Is.EqualTo(device.Id));
     }
 
+    [Test]
+    public async Task Test_HandlesAgentClientException()
+    {
+        var device = new Device { Id = 8, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice8" };
+        var db = CreateDbContext(device);
+        var logs = new List<string>();
 
+        var agentMock = new Mock<IMediaPiAgentClient>();
+        agentMock.Setup(c => c.CheckHealthAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
+                 .ThrowsAsync(new InvalidOperationException("Connection failed"));
+
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            CreateDeviceEventsService(),
+            agentMock.Object);
+
+        var result = await service.Test(device.Id);
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result?.IsOnline, Is.False);
+        
+        // Check if warning was logged
+        await Task.Delay(100);
+        bool hasWarningLog;
+        lock (logs)
+        {
+            hasWarningLog = logs.Any(l => l.Contains("Warning") && l.Contains("Health probe failed"));
+        }
+        Assert.That(hasWarningLog, Is.True);
+    }
 }

@@ -14,8 +14,8 @@ public static class DeviceExtensions
     {
         if (item.Name != null) device.Name = item.Name;
         
-        if (item.SshUser != null) device.SshUser = item.SshUser;
-        
+        if (item.Port.HasValue) device.Port = item.Port.Value;
+       
         if (item.AccountId.HasValue) 
         {
             int? newAccountId = item.AccountId.Value == 0 ? null : item.AccountId.Value;

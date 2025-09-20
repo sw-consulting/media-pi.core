@@ -5,8 +5,8 @@ namespace MediaPi.Core.RestModels;
 
 public sealed class DeviceRegisterRequest
 {
-    public string PublicKeyOpenSsh { get; set; } = "";
-    public string? SshUser { get; set; }
+    public string? ServerKey { get; set; }
     public string? Name { get; set; }
     public string? IpAddress { get; set; }
+    public ushort? Port { get; set; }
 }

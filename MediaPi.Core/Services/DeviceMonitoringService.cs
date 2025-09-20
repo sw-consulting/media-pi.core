@@ -12,7 +12,6 @@ using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading.Channels;
 
 namespace MediaPi.Core.Services;
@@ -24,18 +23,21 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly ConcurrentDictionary<int, DeviceStatusSnapshot> _snapshot = new();
     private readonly ILogger<DeviceMonitoringService> _logger;
     private readonly DeviceEventsService _deviceEventsService;
+    private readonly IMediaPiAgentClient _agentClient;
     private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
 
     public DeviceMonitoringService(
-        IServiceScopeFactory scopeFactory, 
-        IOptions<DeviceMonitorSettings> options, 
-        ILogger<DeviceMonitoringService> logger, 
-        DeviceEventsService deviceEventsService)
+        IServiceScopeFactory scopeFactory,
+        IOptions<DeviceMonitorSettings> options,
+        ILogger<DeviceMonitoringService> logger,
+        DeviceEventsService deviceEventsService,
+        IMediaPiAgentClient agentClient)
     {
         _scopeFactory = scopeFactory;
         _settings = options.Value;
         _logger = logger;
         _deviceEventsService = deviceEventsService;
+        _agentClient = agentClient;
         _deviceEventsService.DeviceDeleted += OnDeviceDeleted;
     }
 
@@ -53,7 +55,6 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         status = null;
         return false;
     }
-
 
     public IAsyncEnumerable<DeviceStatusEvent> Subscribe(CancellationToken token = default)
     {
@@ -122,7 +123,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
     private async Task<(DeviceStatusSnapshot Snapshot, DeviceProbe Probe)> ProbeDevice(Device device, CancellationToken token)
     {
-        var (IsOnline, ConnectMs, TotalMs) = await Probe(device.IpAddress, token);
+        var (IsOnline, ConnectMs, TotalMs) = await Probe(device, token);
         var snap = new DeviceStatusSnapshot
         {
             IpAddress = device.IpAddress,
@@ -234,58 +235,47 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         }
     }
 
-    private async Task<(bool IsOnline, long ConnectMs, long TotalMs)> Probe(string ip, CancellationToken token)
+    private async Task<(bool IsOnline, long ConnectMs, long TotalMs)> Probe(Device device, CancellationToken token)
     {
         var sw = Stopwatch.StartNew();
         try
         {
-            if (!IPAddress.TryParse(ip, out var ipAddress))
+            if (!IPAddress.TryParse(device.IpAddress, out var ipAddress))
             {
                 sw.Stop();
-                _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", ip);
+                _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", device.IpAddress);
                 return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
             }
-            using var client = new TcpClient();
-            var connectTask = client.ConnectAsync(ipAddress, 22);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(_settings.TimeoutSeconds), token);
-            var completed = await Task.WhenAny(connectTask, timeoutTask);
-            if (completed != connectTask || !client.Connected)
-            {
-                sw.Stop();
-                return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
-            }
-            var connectMs = sw.ElapsedMilliseconds;
-            using var stream = client.GetStream();
-            var buffer = new byte[256];
-            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            readCts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
-            int bytesRead;
-            try
-            {
-                bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), readCts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                sw.Stop();
-                _logger.LogWarning("Probe for IP {IpAddress} timed out during read.", ip);
-                return (false, connectMs, sw.ElapsedMilliseconds);
-            }
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
+
+            var connectWatch = Stopwatch.StartNew();
+            var healthResponse = await _agentClient.CheckHealthAsync(device, cts.Token).ConfigureAwait(false);
+            connectWatch.Stop();
             sw.Stop();
-            if (bytesRead == 0)
+
+            var connectMs = connectWatch.ElapsedMilliseconds;
+
+            if (!healthResponse.Ok)
             {
-                _logger.LogWarning("Probe for IP {IpAddress} succeeded in connecting, but no data was read from the stream.", ip);
+                _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
+                    device.Id, device.IpAddress, healthResponse.Error);
                 return (false, connectMs, sw.ElapsedMilliseconds);
             }
-            if (bytesRead < buffer.Length)
-            {
-                _logger.LogDebug("Probe for IP {IpAddress} read partial data: {BytesRead} bytes.", ip, bytesRead);
-            }
+
             return (true, connectMs, sw.ElapsedMilliseconds);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            sw.Stop();
+            _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) timed out.", device.Id, device.IpAddress);
+            return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             sw.Stop();
-            _logger.LogWarning(ex, "Probe failed for IP {IpAddress}", ip);
+            _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
             return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
         }
     }

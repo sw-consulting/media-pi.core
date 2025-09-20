@@ -46,7 +46,6 @@ public class DevicesControllerTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
-    private Mock<ISshClientKeyProvider> _sshKeyProviderMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
 #pragma warning restore CS8618
 
@@ -60,8 +59,6 @@ public class DevicesControllerTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
-        _sshKeyProviderMock = new Mock<ISshClientKeyProvider>();
-        _sshKeyProviderMock.Setup(p => p.GetPublicKey()).Returns("ssh-ed25519 AAAATESTSERVERPUBKEY test@server");
         _agentClientMock = new Mock<IMediaPiAgentClient>();
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
@@ -104,9 +101,9 @@ public class DevicesControllerTests
             UserRoles = [new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole }]
         };
 
-        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDev1K8yG9aS2b+1wVbHgGhJ8T+Z3VhKJqGGH0YMiL8yG9aS2b+1wVbHgGhJ8T+Z3VhKJ", SshUser = "pi", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
-        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", PublicKeyOpenSsh = string.Empty, SshUser = "pi" };
-        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDev3K8yG9aS2b+1wVbHgGhJ8T+Z3VhKJqGGH0YMiL8yG9aS", SshUser = "admin", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
+        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = 8080, ServerKey = "server-key-1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
+        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", Port = 8081, ServerKey = "server-key-2" };
+        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", Port = 8082, ServerKey = "server-key-3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
 
         _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.Devices.AddRange(d1, d2, d3);
@@ -130,7 +127,6 @@ public class DevicesControllerTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _sshKeyProviderMock.Object,
             _agentClientMock.Object
         )
         {
@@ -146,63 +142,61 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task Register_CreatesDeviceWithRemoteIp()
+    public async Task Register_CreatesDeviceWithProvidedValues()
     {
-        SetCurrentUser(null, "5.6.7.8");
-        var req = new DeviceRegisterRequest 
-        { 
-            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINewKeyComplete123456789", 
-            SshUser = "testuser" 
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "5.6.7.8",
+            Port = 5000,
+            ServerKey = " device-server-key ",
         };
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
-        Assert.That(response!.ServerPublicSshKey, Is.EqualTo("ssh-ed25519 AAAATESTSERVERPUBKEY test@server"));
-        
-        // Find device by IP address to verify it was created
+
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "5.6.7.8");
         Assert.That(dev, Is.Not.Null);
-        Assert.That(dev!.IpAddress, Is.EqualTo("5.6.7.8"));
-        Assert.That(dev.Name, Is.EqualTo($"Устройство №{dev.Id}"));
+        Assert.That(dev!.Name, Is.EqualTo($"Устройство №{dev.Id}"));
+        Assert.That(dev.Port, Is.EqualTo(5000));
+        Assert.That(dev.ServerKey, Is.EqualTo("device-server-key"));
         Assert.That(dev.AccountId, Is.Null);
         Assert.That(dev.DeviceGroupId, Is.Null);
-        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINewKeyComplete123456789"));
-        Assert.That(dev.SshUser, Is.EqualTo("testuser"));
     }
 
     [Test]
     public async Task Register_Ipv4Mapped_IpStoredAsIpv4()
     {
-        SetCurrentUser(null, "::ffff:9.8.7.6");
-        var req = new DeviceRegisterRequest 
-        { 
-            PublicKeyOpenSsh = string.Empty, 
-            SshUser = null 
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "::ffff:9.8.7.6",
+            Port = 6000,
+            ServerKey = "mapped-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         var response = ok!.Value as DeviceRegisterResponse;
         Assert.That(response, Is.Not.Null);
-        
-        // Find device by IP address to verify it was created
-        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "9.8.7.6");
+
+        var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.IpAddress, Is.EqualTo("9.8.7.6"));
-        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo(string.Empty));
-        Assert.That(dev.SshUser, Is.EqualTo("pi")); // Should default to "pi"
+        Assert.That(dev.Port, Is.EqualTo(6000));
     }
 
     [Test]
     public async Task Register_DuplicateIp_ReturnsConflict()
     {
-        SetCurrentUser(null, "1.1.1.1");
-        var req = new DeviceRegisterRequest 
-        { 
-            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample", 
-            SshUser = "user1" 
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "1.1.1.1",
+            Port = 7000,
+            ServerKey = "duplicate-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
@@ -211,13 +205,43 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task Register_NoIp_ReturnsBadRequest()
+    public async Task Register_MissingIp_ReturnsBadRequest()
     {
         SetCurrentUser(null);
-        var req = new DeviceRegisterRequest 
-        { 
-            PublicKeyOpenSsh = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7NoIpTestComplete123456789012345678901234567890123456789012345678", 
-            SshUser = "noipuser" 
+        var req = new DeviceRegisterRequest
+        {
+            Port = 8000,
+            ServerKey = "missing-ip-key",
+        };
+        var result = await _controller.Register(req, CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task Register_MissingPort_ReturnsBadRequest()
+    {
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "10.0.0.1",
+            ServerKey = "missing-port-key",
+        };
+        var result = await _controller.Register(req, CancellationToken.None);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task Register_MissingServerKey_ReturnsBadRequest()
+    {
+        SetCurrentUser(null);
+        var req = new DeviceRegisterRequest
+        {
+            IpAddress = "10.0.0.2",
+            Port = 8100,
         };
         var result = await _controller.Register(req, CancellationToken.None);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
@@ -228,13 +252,13 @@ public class DevicesControllerTests
     [Test]
     public async Task Register_UsesProvidedNameAndIpAddress()
     {
-        SetCurrentUser(null, "5.5.5.5");
+        SetCurrentUser(null);
         var req = new DeviceRegisterRequest
         {
-            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKeyProvided",
-            SshUser = "user",
-            Name = "Provided Name",
-            IpAddress = "8.7.6.5"
+            IpAddress = "8.7.6.5",
+            Port = 9000,
+            ServerKey = "named-device-key",
+            Name = "Provided Name"
         };
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
@@ -246,17 +270,19 @@ public class DevicesControllerTests
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.IpAddress, Is.EqualTo("8.7.6.5"));
         Assert.That(dev.Name, Is.EqualTo("Provided Name"));
+        Assert.That(dev.Port, Is.EqualTo(9000));
+        Assert.That(dev.ServerKey, Is.EqualTo("named-device-key"));
     }
 
     [Test]
     public async Task Register_IpProvidedWithoutName_AssignsDefaultName()
     {
-        SetCurrentUser(null, "4.4.4.4");
+        SetCurrentUser(null);
         var req = new DeviceRegisterRequest
         {
-            PublicKeyOpenSsh = string.Empty,
-            SshUser = "user",
-            IpAddress = "9.9.9.9"
+            IpAddress = "9.9.9.9",
+            Port = 9100,
+            ServerKey = "default-name-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
@@ -266,19 +292,18 @@ public class DevicesControllerTests
 
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
         Assert.That(dev, Is.Not.Null);
-        Assert.That(dev!.IpAddress, Is.EqualTo("9.9.9.9"));
-        Assert.That(dev.Name, Is.EqualTo($"Устройство №{dev.Id}"));
+        Assert.That(dev!.Name, Is.EqualTo($"Устройство №{dev.Id}"));
     }
 
     [Test]
     public async Task Register_MalformedIp_ReturnsBadRequest()
     {
-        SetCurrentUser(null, "3.3.3.3");
+        SetCurrentUser(null);
         var req = new DeviceRegisterRequest
         {
-            PublicKeyOpenSsh = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAABadIp",
-            SshUser = "user",
-            IpAddress = "not.an.ip"
+            IpAddress = "not.an.ip",
+            Port = 9200,
+            ServerKey = "bad-ip-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
@@ -336,7 +361,6 @@ public class DevicesControllerTests
         var item = result.Value!.First(d => d.Id == 1);
         Assert.That(item.DeviceStatus, Is.Not.Null);
         Assert.That(item.DeviceStatus!.IsOnline, Is.True);
-        Assert.That(item.SshUser, Is.EqualTo("pi")); // Test data value
     }
 
     [Test]
@@ -474,7 +498,7 @@ public class DevicesControllerTests
         var result = await _controller.GetDevice(3);
         Assert.That(result.Value, Is.Not.Null);
         Assert.That(result.Value!.Id, Is.EqualTo(3));
-        Assert.That(result.Value.SshUser, Is.EqualTo("admin")); // Test data value
+        Assert.That(result.Value.IpAddress, Is.EqualTo("3.3.3.3"));
     }
 
     [Test]
@@ -627,11 +651,10 @@ public class DevicesControllerTests
     public async Task Update_Admin_CombinedUpdate_UpdatesMultipleFields()
     {
         SetCurrentUser(1);
-        var dto = new DeviceUpdateItem 
-        { 
-            Name = "UpdatedDevice", 
+        var dto = new DeviceUpdateItem
+        {
+            Name = "UpdatedDevice",
             IpAddress = "192.168.1.100",
-            SshUser = "updateduser",
             AccountId = 0, // Unassign from account
             DeviceGroupId = 0 // Unassign from group
         };
@@ -640,12 +663,11 @@ public class DevicesControllerTests
         var dev = await _dbContext.Devices.FindAsync(1);
         Assert.That(dev!.Name, Is.EqualTo("UpdatedDevice"));
         Assert.That(dev.IpAddress, Is.EqualTo("192.168.1.100"));
-        // No change to PublicKeyOpenSsh
-        Assert.That(dev.PublicKeyOpenSsh, Is.EqualTo("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDev1K8yG9aS2b+1wVbHgGhJ8T+Z3VhKJqGGH0YMiL8yG9aS2b+1wVbHgGhJ8T+Z3VhKJ"));
-        Assert.That(dev.SshUser, Is.EqualTo("updateduser"));
+        Assert.That(dev.Port, Is.EqualTo(8080));
+        Assert.That(dev.ServerKey, Is.EqualTo("server-key-1"));
         Assert.That(dev.AccountId, Is.Null);
         Assert.That(dev.DeviceGroupId, Is.Null);
-            }
+    }
 
     [Test]
     public async Task AssignGroup_Admin_Succeeds()

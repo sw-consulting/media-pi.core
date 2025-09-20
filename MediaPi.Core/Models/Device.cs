@@ -19,11 +19,11 @@ namespace MediaPi.Core.Models
         [Column("ip_address")]
         public required string IpAddress { get; set; }
 
-        [Column("public_key_open_ssh")]
-        public string PublicKeyOpenSsh { get; set; } = string.Empty;
+        [Column("port")]
+        public required ushort Port { get; set; }
 
-        [Column("ssh_user")]
-        public string SshUser { get; set; } = "pi";
+        [Column("server_key")]
+        public string ServerKey { get; set; } = string.Empty;
 
         [Column("account_id")]
         public int? AccountId { get; set; }

@@ -19,6 +19,35 @@ services:
     volumes:
      - pgdata:/var/lib/postgresql/data
 
+  # Automated PostgreSQL backups
+  # Creates daily compressed dumps in ./backup/data (mounted as /backups) and
+  # cleans up files older than RETENTION_DAYS. Healthcheck reports unhealthy
+  # if no fresh backup (<25h) exists.
+  backup:
+    image: ghcr.io/sw-consulting/db-backup:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: mediapi
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      BACKUP_DIR: /backups
+      RETENTION_DAYS: 7
+    volumes:
+      - ./backup/data:/backups
+      - ./backup/logs:/var/log
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 1h
+      timeout: 30s
+      retries: 3
+      start_period: 5s
+    restart: always
+    init: true
+
   adminer:
     image: adminer
     restart: always

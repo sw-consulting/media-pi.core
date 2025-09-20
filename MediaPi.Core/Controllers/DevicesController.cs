@@ -28,7 +28,6 @@ public class DevicesController(
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
     IDeviceMonitoringService monitoringService,
-    ISshClientKeyProvider sshClientKeyProvider,
     IMediaPiAgentClient mediaPiAgentClient) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
@@ -39,34 +38,33 @@ public class DevicesController(
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
     public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
-        string ip;
-        if (!string.IsNullOrWhiteSpace(req.IpAddress))
-        {
-            if (!IPAddress.TryParse(req.IpAddress, out var addr)) return _400Ip(req.IpAddress);
-            if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
-            ip = addr.ToString();
-        }
-        else
-        {
-            var ipAddress = HttpContext.Connection.RemoteIpAddress;
-            if (ipAddress?.IsIPv4MappedToIPv6 ?? false)
-            {
-                ipAddress = ipAddress.MapToIPv4();
-            }
-            ip = ipAddress?.ToString() ?? string.Empty;
-        }
+        if (string.IsNullOrWhiteSpace(req.IpAddress)) return _400DeviceIpMissing();
+        if (!req.Port.HasValue || req.Port.Value <= 0) return _400DevicePortMissing();
+        if (string.IsNullOrWhiteSpace(req.ServerKey)) return _400DeviceServerKeyMissing();
 
-        if (string.IsNullOrWhiteSpace(ip)) return _400Ip(ip);
+        var ipInput = req.IpAddress.Trim();
+        if (!IPAddress.TryParse(ipInput, out var addr)) return _400Ip(req.IpAddress);
+        if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+        var ip = addr.ToString();
 
         if (await _db.Devices.AnyAsync(d => d.IpAddress == ip, ct)) return _409Ip(ip);
+
+        var port = req.Port.Value;
+        if (port <= 0) return _400DevicePortInvalid(port);
+
+        var serverKey = req.ServerKey.Trim();
+        if (serverKey.Length == 0) return _400DeviceServerKeyMissing();
+
+        var name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name.Trim();
+        if (string.IsNullOrEmpty(name)) name = "Устройство";
 
         // Create device with auto-generated ID
         var device = new Device
         {
-            Name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name!, // Placeholder name if not provided
+            Name = name,
             IpAddress = ip,
-            PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
-            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
+            Port = port,
+            ServerKey = serverKey,
         };
 
         _db.Devices.Add(device);
@@ -83,8 +81,7 @@ public class DevicesController(
 
         return Ok(new DeviceRegisterResponse
         {
-            Id = device.Id,
-            ServerPublicSshKey = sshClientKeyProvider.GetPublicKey()
+            Id = device.Id
         });
     }
 
