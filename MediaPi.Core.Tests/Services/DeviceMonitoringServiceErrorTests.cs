@@ -134,7 +134,7 @@ public class DeviceMonitoringServiceErrorTests
         // This test requires internals access, so we use a different approach
 
         // Arrange
-        var device = new Device { Id = 1, IpAddress = "256.256.256.256", Name = "InvalidIpDevice" }; // Invalid IP format
+        var device = new Device { Id = 1, IpAddress = "256.256.256.256", Port = "8080", Name = "InvalidIpDevice" }; // Invalid IP format
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
@@ -183,7 +183,7 @@ public class DeviceMonitoringServiceErrorTests
         // In a real test, this would be difficult to simulate perfectly
 
         // Arrange
-        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Name = "LocalDevice" }; // Local IP might connect but no SSH service
+        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = "8080", Name = "LocalDevice" }; // Local IP might connect but no SSH service
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(

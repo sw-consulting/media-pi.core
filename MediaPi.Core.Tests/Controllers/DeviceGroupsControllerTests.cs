@@ -64,7 +64,7 @@ public class DeviceGroupsControllerTests
         _group2 = new DeviceGroup { Id = 2, Name = "Grp2", AccountId = _account2.Id, Account = _account2 };
         _dbContext.DeviceGroups.AddRange(_group1, _group2);
 
-        _device1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
+        _device1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = "8080", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
         _dbContext.Devices.Add(_device1);
 
         string pass = BCrypt.Net.BCrypt.HashPassword("pwd");

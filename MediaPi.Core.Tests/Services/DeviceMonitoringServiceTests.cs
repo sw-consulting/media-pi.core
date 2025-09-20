@@ -102,7 +102,7 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task ExecuteAsync_UpdatesSnapshot_ForOnlineDevice()
     {
-        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Name = "TestDevice1" };
+        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = "8080", Name = "TestDevice1" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
@@ -132,7 +132,7 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task ExecuteAsync_RemovesDevice_WhenDeleted()
     {
-        var device = new Device { Id = 2, IpAddress = "127.0.0.1", Name = "TestDevice2" };
+        var device = new Device { Id = 2, IpAddress = "127.0.0.1", Port = "8080", Name = "TestDevice2" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var eventsService = CreateDeviceEventsService();
@@ -182,7 +182,7 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task ExecuteAsync_SavesDeviceProbes()
     {
-        var device = new Device { Id = 3, IpAddress = "127.0.0.1", Name = "TestDevice3" };
+        var device = new Device { Id = 3, IpAddress = "127.0.0.1", Port = "8080", Name = "TestDevice3" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
@@ -204,7 +204,7 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task Test_ReturnsSnapshot_WhenDeviceExists()
     {
-        var device = new Device { Id = 4, IpAddress = "127.0.0.1", Name = "TestDevice4" };
+        var device = new Device { Id = 4, IpAddress = "127.0.0.1", Port = "8080", Name = "TestDevice4" };
         var db = CreateDbContext(device);
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
@@ -236,7 +236,7 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task Subscribe_ReceivesUpdates()
     {
-        var device = new Device { Id = 5, IpAddress = "127.0.0.1", Name = "TestDevice5" };
+        var device = new Device { Id = 5, IpAddress = "127.0.0.1", Port = "8080", Name = "TestDevice5" };
         var db = CreateDbContext(device);
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
@@ -258,7 +258,7 @@ public class DeviceMonitoringServiceTests
     [Test]
     public async Task Subscribe_SendsExistingSnapshot()
     {
-        var device = new Device { Id = 6, IpAddress = "127.0.0.1", Name = "TestDevice6" };
+        var device = new Device { Id = 6, IpAddress = "127.0.0.1", Port = "8080", Name = "TestDevice6" };
         var db = CreateDbContext(device);
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
