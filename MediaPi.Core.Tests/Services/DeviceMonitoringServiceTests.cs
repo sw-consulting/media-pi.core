@@ -4,6 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Data;
@@ -16,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Moq.Protected;
 using NUnit.Framework;
 
 namespace MediaPi.Core.Tests.Services;
@@ -84,6 +87,29 @@ public class DeviceMonitoringServiceTests
         return new DeviceEventsService();
     }
 
+    private static IHttpClientFactory CreateHttpClientFactory(Func<HttpRequestMessage, HttpResponseMessage>? responder = null)
+    {
+        responder ??= _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"ok\":true}")
+        };
+
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken _) =>
+            {
+                var response = responder(request);
+                response.RequestMessage = request;
+                return response;
+            });
+
+        var client = new HttpClient(handler.Object);
+        var factory = new Mock<IHttpClientFactory>();
+        factory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(client);
+        return factory.Object;
+    }
+
     [Test]
     public void TryGetStatus_ReturnsFalse_WhenNotPresent()
     {
@@ -93,7 +119,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
         // With
         Assert.That(service.Snapshot, Is.Not.Null);
         Assert.That(service.TryGetStatus(123, out var _), Is.False);
@@ -109,7 +136,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var task = service.StartAsync(cts.Token);
@@ -140,7 +168,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            eventsService);
+            eventsService,
+            CreateHttpClientFactory());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var task = service.StartAsync(cts.Token);
@@ -170,10 +199,11 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
         var method = typeof(DeviceMonitoringService).GetMethod("Probe", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.That(method, Is.Not.Null); // Ensure method is found to avoid null dereference
-        var task = method?.Invoke(service, new object[] { "invalid_ip", CancellationToken.None }) as Task<(bool, long, long)>;
+        var task = method?.Invoke(service, new object[] { new Device { Id = 99, IpAddress = "invalid_ip", Port = "8080", Name = "Invalid" }, CancellationToken.None }) as Task<(bool, long, long)>;
         Assert.That(task, Is.Not.Null); // Ensure task is not null to avoid null dereference
         var result = await task!;
         Assert.That(result.Item1, Is.False);
@@ -189,7 +219,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var task = service.StartAsync(cts.Token);
@@ -210,7 +241,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         var result = await service.Test(device.Id);
 
@@ -226,7 +258,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         var result = await service.Test(999);
 
@@ -242,7 +275,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await using var enumerator = service.Subscribe(cts.Token).GetAsyncEnumerator(cts.Token);
@@ -264,7 +298,8 @@ public class DeviceMonitoringServiceTests
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
             CreateLogger(new List<string>()),
-            CreateDeviceEventsService());
+            CreateDeviceEventsService(),
+            CreateHttpClientFactory());
 
         await service.Test(device.Id);
 

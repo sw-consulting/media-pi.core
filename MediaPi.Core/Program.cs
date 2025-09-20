@@ -36,14 +36,15 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
-    .Configure<SshClientKeySettings>(config.GetSection("SshClientKey"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
-    .AddSingleton<ISshClientKeyProvider, FileSystemSshClientKeyProvider>()
-    .AddScoped<ISshSessionFactory, SshNetSessionFactory>()
-    .AddScoped<IMediaPiAgentClient, MediaPiAgentClient>()
     .AddHttpContextAccessor()
     .AddControllers();
+
+builder.Services.AddHttpClient<IMediaPiAgentClient, DeviceAgentRestClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 
 builder.Services.AddCors(options =>
 {
