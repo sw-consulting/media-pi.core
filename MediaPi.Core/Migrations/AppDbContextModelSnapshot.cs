@@ -87,11 +87,6 @@ namespace MediaPi.Core.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<string>("PiDeviceId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("pi_device_id");
-
                     b.Property<string>("PublicKeyOpenSsh")
                         .IsRequired()
                         .HasColumnType("text")

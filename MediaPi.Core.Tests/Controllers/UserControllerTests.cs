@@ -1,5 +1,5 @@
-// Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
-// This file is a part of Media Pi backend application
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +17,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Services;
+using MediaPi.Core.Services.Interfaces;
 
 namespace MediaPi.Core.Tests.Controllers;
 

@@ -1,0 +1,10 @@
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
+
+namespace MediaPi.Core.RestModels;
+
+public sealed class DeviceRegisterResponse
+{
+    public int Id { get; set; }
+    public string ServerPublicSshKey { get; set; } = string.Empty; // Public key backend asks device to trust
+}

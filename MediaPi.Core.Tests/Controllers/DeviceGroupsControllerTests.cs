@@ -1,5 +1,5 @@
-// Developed by Maxim [maxirmx] Samsonov (www.sw.consulting)
-// This file is a part of Media Pi backend application
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -367,4 +367,3 @@ public class DeviceGroupsControllerTests
         Assert.That(grp.Name, Is.EqualTo("Renamed"));
     }
 }
-

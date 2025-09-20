@@ -1,24 +1,5 @@
-// Copyright (c) 2025 Maxim [maxirmx] Samsonov (www.sw.consulting)
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-// This file is a part of Media Pi backend application
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
@@ -26,9 +7,11 @@ using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
-using MediaPi.Core.Utils;
+using MediaPi.Core.Services.Interfaces;
+using MediaPi.Core.Services.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Net;
 
 namespace MediaPi.Core.Controllers;
@@ -44,15 +27,17 @@ public class DevicesController(
     AppDbContext db,
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
-    IDeviceMonitoringService monitoringService) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    IDeviceMonitoringService monitoringService,
+    ISshClientKeyProvider sshClientKeyProvider,
+    IMediaPiAgentClient mediaPiAgentClient) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
-    [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Reference))]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
+    public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
         string ip;
         if (!string.IsNullOrWhiteSpace(req.IpAddress))
@@ -75,25 +60,6 @@ public class DevicesController(
 
         if (await _db.Devices.AnyAsync(d => d.IpAddress == ip, ct)) return _409Ip(ip);
 
-        // Calculate PiDeviceId from SSH key
-        string piDeviceId;
-        try
-        {
-            piDeviceId = string.IsNullOrWhiteSpace(req.PublicKeyOpenSsh) 
-                ? KeyFingerprint.GenerateRandomDeviceId()
-                : KeyFingerprint.ComputeDeviceIdFromOpenSshKey(req.PublicKeyOpenSsh);
-        }
-        catch (ArgumentException)
-        {
-            // If SSH key format is invalid, generate a random device ID
-            piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
-        }
-        catch (FormatException)
-        {
-            // If SSH key base64 content is malformed, generate a random device ID
-            piDeviceId = KeyFingerprint.GenerateRandomDeviceId();
-        }
-
         // Create device with auto-generated ID
         var device = new Device
         {
@@ -115,7 +81,11 @@ public class DevicesController(
 
         deviceEventsService.OnDeviceCreated(device);
 
-        return Ok(new Reference { Id = device.Id });
+        return Ok(new DeviceRegisterResponse
+        {
+            Id = device.Id,
+            ServerPublicSshKey = sshClientKeyProvider.GetPublicKey()
+        });
     }
 
     // GET: api/devices
@@ -264,8 +234,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device) ||
-            (user.IsEngineer() && device.AccountId == null))
+        if (userInformationService.UserCanViewDevice(user, device))
         {
             monitoringService.TryGetStatusItem(device.Id, out var status);
             return device.ToViewItem(status);
@@ -326,6 +295,116 @@ public class DevicesController(
         return NoContent();
     }
 
+    // GET: api/devices/{id}/services
+    [HttpGet("{id}/services")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentListResponse))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentListResponse>> ListServices(int id, CancellationToken ct = default)
+    {
+        return await ExecuteAgentOperation(
+            id,
+            "list services",
+            (device, token) => mediaPiAgentClient.ListUnitsAsync(device, token),
+            ct);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/start
+    [HttpPost("{id}/services/{unit}/start")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentUnitResultResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StartService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "start service",
+            (device, token) => mediaPiAgentClient.StartUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/stop
+    [HttpPost("{id}/services/{unit}/stop")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentUnitResultResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StopService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "stop service",
+            (device, token) => mediaPiAgentClient.StopUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/restart
+    [HttpPost("{id}/services/{unit}/restart")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentUnitResultResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentUnitResultResponse>> RestartService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "restart service",
+            (device, token) => mediaPiAgentClient.RestartUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/enable
+    [HttpPost("{id}/services/{unit}/enable")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentEnableResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentEnableResponse>> EnableService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "enable service",
+            (device, token) => mediaPiAgentClient.EnableUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
+    // POST: api/devices/{id}/services/{unit}/disable
+    [HttpPost("{id}/services/{unit}/disable")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiAgentEnableResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<MediaPiAgentEnableResponse>> DisableService(int id, string unit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
+        var service = unit.Trim();
+        return await ExecuteAgentOperation(
+            id,
+            "disable service",
+            (device, token) => mediaPiAgentClient.DisableUnitAsync(device, service, token),
+            ct,
+            service);
+    }
+
     // PATCH: api/devices/assign-group/{id}
     [HttpPatch("assign-group/{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -340,7 +419,7 @@ public class DevicesController(
         var device = await _db.Devices.FindAsync([id], ct);
         if (device == null) return _404Device(id);
 
-        if (user.IsAdministrator() || userInformationService.ManagerOwnsDevice(user, device))
+        if (userInformationService.UserCanAssignGroup(user, device))
         {
             // Validate device group assignment if not setting to null
             if (item.Id != 0)
@@ -392,5 +471,63 @@ public class DevicesController(
 
         return _403();
     }
-}
 
+    private async Task<(Device? Device, ActionResult? Error)> GetDeviceForServiceAsync(int id, CancellationToken ct)
+    {
+        var user = await CurrentUser();
+        if (user == null) return (null, _403());
+
+        var device = await _db.Devices.FindAsync([id], ct);
+        if (device == null) return (null, _404Device(id));
+
+        if (!userInformationService.UserCanManageDeviceServices(user, device)) return (null, _403());
+
+        return (device, null);
+    }
+    
+    private async Task<ActionResult<TResponse>> ExecuteAgentOperation<TResponse>(
+        int id,
+        string operationName,
+        Func<Device, CancellationToken, Task<TResponse>> operation,
+        CancellationToken ct,
+        string? unit = null)
+        where TResponse : MediaPiAgentResponse
+    {
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await operation(targetDevice, ct);
+            if (!response.Ok)
+            {
+                if (string.IsNullOrWhiteSpace(unit))
+                {
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, id, response.Error ?? "неизвестная ошибка");
+                }
+                else
+                {
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.Error ?? "неизвестная ошибка");
+                }
+                return _502Agent(response.Error);
+            }
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            if (string.IsNullOrWhiteSpace(unit))
+            {
+                logger.LogError(ex, "Ошибка при операции {Operation} для устройства {DeviceId}", operationName, id);
+            }
+            else
+            {
+                logger.LogError(ex, "Ошибка при операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
+            }
+
+            return _502Agent();
+        }
+    }
+}
