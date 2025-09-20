@@ -14,6 +14,7 @@ public static class DeviceExtensions
     {
         if (item.Name != null) device.Name = item.Name;
         
+        if (item.Port.HasValue) device.Port = item.Port.Value;
        
         if (item.AccountId.HasValue) 
         {

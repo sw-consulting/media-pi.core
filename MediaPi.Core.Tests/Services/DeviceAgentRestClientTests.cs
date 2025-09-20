@@ -68,7 +68,7 @@ public class DeviceAgentRestClientTests
 
         var logger = new TestLogger<DeviceAgentRestClient>();
         var client = CreateClient(handler, logger);
-        var device = CreateDevice(ip: "10.1.1.2", port: "8085", serverKey: " secret ");
+        var device = CreateDevice(ip: "10.1.1.2", port: 8085, serverKey: " secret ");
 
         var result = await client.ListUnitsAsync(device, CancellationToken.None);
 
@@ -119,7 +119,7 @@ public class DeviceAgentRestClientTests
 
         var logger = new TestLogger<DeviceAgentRestClient>();
         var client = CreateClient(handler, logger);
-        var device = CreateDevice(ip: "192.168.0.10", port: "invalid", serverKey: string.Empty);
+        var device = CreateDevice(ip: "192.168.0.10", port: 9999, serverKey: string.Empty);
 
         var result = await client.GetStatusAsync(device, " status ", CancellationToken.None);
 
@@ -140,6 +140,76 @@ public class DeviceAgentRestClientTests
         var device = CreateDevice();
 
         Assert.ThrowsAsync<ArgumentException>(() => client.GetStatusAsync(device, "   ", CancellationToken.None));
+    }
+
+    [Test]
+    public async Task CheckHealthAsync_ReturnsHealthResponse()
+    {
+        Uri? observedUri = null;
+        var handler = new StubHttpMessageHandler((request, _) =>
+        {
+            observedUri = request.RequestUri;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"ok":true,"data":{"status":"healthy","uptime":12345.67,"version":"1.0.0"}}""", Encoding.UTF8, "application/json")
+            });
+        });
+
+        var client = CreateClient(handler);
+        var device = CreateDevice();
+
+        var result = await client.CheckHealthAsync(device, CancellationToken.None);
+
+        Assert.That(result.Ok, Is.True);
+        Assert.That(result.Error, Is.Null);
+        Assert.That(result.Status, Is.EqualTo("healthy"));
+        Assert.That(result.Uptime, Is.EqualTo(12345.67));
+        Assert.That(result.Version, Is.EqualTo("1.0.0"));
+        Assert.That(observedUri, Is.Not.Null);
+        Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/health"));
+    }
+
+    [Test]
+    public async Task CheckHealthAsync_WhenApiReturnsError_ReturnsError()
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"ok":false,"error":"service unavailable"}""", Encoding.UTF8, "application/json")
+        }));
+
+        var client = CreateClient(handler);
+        var device = CreateDevice();
+
+        var result = await client.CheckHealthAsync(device, CancellationToken.None);
+
+        Assert.That(result.Ok, Is.False);
+        Assert.That(result.Error, Is.EqualTo("service unavailable"));
+        Assert.That(result.Status, Is.Null);
+    }
+
+    [Test]
+    public async Task CheckHealthAsync_WhenResponseEmpty_ReturnsUnsuccessful()
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"ok":false}""", Encoding.UTF8, "application/json")
+        }));
+
+        var client = CreateClient(handler);
+        var device = CreateDevice();
+
+        var result = await client.CheckHealthAsync(device, CancellationToken.None);
+
+        Assert.That(result.Ok, Is.False);
+        Assert.That(result.Error, Is.EqualTo("Device API returned an unsuccessful response without an error message."));
+    }
+
+    [Test]
+    public void CheckHealthAsync_WhenDeviceIsNull_Throws()
+    {
+        var client = CreateClient(new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+
+        Assert.ThrowsAsync<ArgumentNullException>(() => client.CheckHealthAsync(null!, CancellationToken.None));
     }
 
     [Test]
@@ -331,12 +401,12 @@ public class DeviceAgentRestClientTests
         return new DeviceAgentRestClient(httpClient, logger ?? new TestLogger<DeviceAgentRestClient>());
     }
 
-    private static Device CreateDevice(string? ip = "127.0.0.1", string? port = "8080", string? serverKey = "token") => new Device
+    private static Device CreateDevice(string? ip = "127.0.0.1", short port = 8080, string? serverKey = "token") => new Device
     {
         Id = 42,
         Name = "Device",
         IpAddress = ip!,
-        Port = port!,
+        Port = port,
         ServerKey = serverKey ?? string.Empty
     };
 

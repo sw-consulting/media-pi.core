@@ -48,4 +48,11 @@ namespace MediaPi.Core.Services.Models
         [JsonPropertyName("enabled")] public bool? Enabled { get; init; }
         [JsonPropertyName("result")] public string? Result { get; init; }
     }
+
+    public record class MediaPiAgentHealthResponse : MediaPiAgentResponse
+    {
+        [JsonPropertyName("status")] public string? Status { get; init; }
+        [JsonPropertyName("uptime")] public double? Uptime { get; init; }
+        [JsonPropertyName("version")] public string? Version { get; init; }
+    }
 }

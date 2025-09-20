@@ -71,6 +71,22 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         };
     }
 
+    public async Task<MediaPiAgentHealthResponse> CheckHealthAsync(Device device, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(device, HttpMethod.Get, "/health");
+        var result = await SendAsync<HealthInfo>(request, cancellationToken).ConfigureAwait(false);
+        var data = result.Response.Data;
+
+        return new MediaPiAgentHealthResponse
+        {
+            Ok = result.Response.Ok,
+            Error = NormalizeError(result),
+            Status = data?.Status,
+            Uptime = data?.Uptime,
+            Version = data?.Version
+        };
+    }
+
     public Task<MediaPiAgentUnitResultResponse> StartUnitAsync(Device device, string unit, CancellationToken cancellationToken = default) =>
         ExecuteUnitCommandAsync(device, unit, "/api/units/start", cancellationToken);
 
@@ -224,13 +240,14 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
 
     private int ResolvePort(Device device)
     {
-        if (!string.IsNullOrWhiteSpace(device.Port) && int.TryParse(device.Port, out var port) && port is > 0 and <= 65535)
+        var port = device.Port;
+        if (port > 0)
         {
             return port;
         }
 
-        _logger.LogWarning("Device {DeviceId} has invalid port '{PortValue}'. Falling back to default 8080.", device.Id, device.Port);
-        return 8080;
+        _logger.LogWarning("Device {DeviceId} has invalid port '{PortValue}'. Falling back to default 8081.", device.Id, device.Port);
+        return 8081;
     }
 
     private static string? NormalizeError<T>(DeviceApiResult<T> result)
@@ -268,6 +285,13 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         public JsonElement Active { get; init; }
         public JsonElement Sub { get; init; }
         public string? Error { get; init; }
+    }
+
+    private sealed class HealthInfo
+    {
+        public string? Status { get; init; }
+        public double? Uptime { get; init; }
+        public string? Version { get; init; }
     }
 
     private sealed class UnitActionRequest

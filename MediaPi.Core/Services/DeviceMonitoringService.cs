@@ -12,8 +12,6 @@ using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http;
-using System.Text.Json;
 using System.Threading.Channels;
 
 namespace MediaPi.Core.Services;
@@ -25,7 +23,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly ConcurrentDictionary<int, DeviceStatusSnapshot> _snapshot = new();
     private readonly ILogger<DeviceMonitoringService> _logger;
     private readonly DeviceEventsService _deviceEventsService;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMediaPiAgentClient _agentClient;
     private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
 
     public DeviceMonitoringService(
@@ -33,13 +31,13 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         IOptions<DeviceMonitorSettings> options,
         ILogger<DeviceMonitoringService> logger,
         DeviceEventsService deviceEventsService,
-        IHttpClientFactory httpClientFactory)
+        IMediaPiAgentClient agentClient)
     {
         _scopeFactory = scopeFactory;
         _settings = options.Value;
         _logger = logger;
         _deviceEventsService = deviceEventsService;
-        _httpClientFactory = httpClientFactory;
+        _agentClient = agentClient;
         _deviceEventsService.DeviceDeleted += OnDeviceDeleted;
     }
 
@@ -57,7 +55,6 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         status = null;
         return false;
     }
-
 
     public IAsyncEnumerable<DeviceStatusEvent> Subscribe(CancellationToken token = default)
     {
@@ -250,55 +247,24 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
             }
 
-            var port = ResolvePort(device);
-            var uriBuilder = new UriBuilder
-            {
-                Scheme = "http",
-                Host = ipAddress.ToString(),
-                Port = port,
-                Path = "/health"
-            };
-
-            using var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
 
-            var client = _httpClientFactory.CreateClient(nameof(DeviceMonitoringService));
             var connectWatch = Stopwatch.StartNew();
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+            var healthResponse = await _agentClient.CheckHealthAsync(device, cts.Token).ConfigureAwait(false);
             connectWatch.Stop();
-            var connectMs = connectWatch.ElapsedMilliseconds;
-            var raw = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
             sw.Stop();
 
-            if (!response.IsSuccessStatusCode)
+            var connectMs = connectWatch.ElapsedMilliseconds;
+
+            if (!healthResponse.Ok)
             {
-                _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned status {StatusCode}.", device.Id, device.IpAddress, (int)response.StatusCode);
+                _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
+                    device.Id, device.IpAddress, healthResponse.Error);
                 return (false, connectMs, sw.ElapsedMilliseconds);
             }
 
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) returned empty response.", device.Id, device.IpAddress);
-                return (false, connectMs, sw.ElapsedMilliseconds);
-            }
-
-            try
-            {
-                using var doc = JsonDocument.Parse(raw);
-                if (doc.RootElement.TryGetProperty("ok", out var okProperty) && okProperty.ValueKind == JsonValueKind.True)
-                {
-                    return (true, connectMs, sw.ElapsedMilliseconds);
-                }
-
-                _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) returned non-OK payload.", device.Id, device.IpAddress);
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse health response for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
-            }
-
-            return (false, connectMs, sw.ElapsedMilliseconds);
+            return (true, connectMs, sw.ElapsedMilliseconds);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
@@ -312,16 +278,5 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
             return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
         }
-    }
-
-    private int ResolvePort(Device device)
-    {
-        if (!string.IsNullOrWhiteSpace(device.Port) && int.TryParse(device.Port, out var port) && port is > 0 and <= 65535)
-        {
-            return port;
-        }
-
-        _logger.LogWarning("Device {DeviceId} has invalid port '{PortValue}'. Falling back to default 8080 for monitoring.", device.Id, device.Port);
-        return 8080;
     }
 }

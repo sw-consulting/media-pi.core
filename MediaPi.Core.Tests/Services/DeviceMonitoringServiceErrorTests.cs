@@ -13,6 +13,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.Services;
 using MediaPi.Core.Settings;
 using MediaPi.Core.Services.Models;
+using MediaPi.Core.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -99,30 +100,30 @@ public class DeviceMonitoringServiceErrorTests
         return new DeviceEventsService();
     }
 
-    private static IHttpClientFactory CreateHttpClientFactory(Func<HttpRequestMessage, HttpResponseMessage>? responder = null)
+    private static IMediaPiAgentClient CreateAgentClient(bool isHealthy = true, string? error = null, bool throwException = false, Exception? exception = null)
     {
-        responder ??= _ => new HttpResponseMessage(HttpStatusCode.OK)
+        var mock = new Mock<IMediaPiAgentClient>();
+        
+        if (throwException && exception != null)
         {
-            Content = new StringContent("{\"ok\":true}")
-        };
+            mock.Setup(c => c.CheckHealthAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(exception);
+        }
+        else
+        {
+            mock.Setup(c => c.CheckHealthAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new MediaPiAgentHealthResponse
+                {
+                    Ok = isHealthy,
+                    Error = error,
+                    Status = isHealthy ? "healthy" : "unhealthy",
+                    Uptime = 12345.67,
+                    Version = "1.0.0"
+                });
+        }
 
-        var handler = new Mock<HttpMessageHandler>();
-        handler.Protected()
-            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync((HttpRequestMessage request, CancellationToken _) =>
-            {
-                var response = responder(request);
-                response.RequestMessage = request;
-                return response;
-            });
-
-        var client = new HttpClient(handler.Object);
-        var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(client);
-        return factory.Object;
+        return mock.Object;
     }
-
-
 
     [Test]
     public void OnDeviceDeleted_HandlesException_WhenBroadcasting()
@@ -136,7 +137,7 @@ public class DeviceMonitoringServiceErrorTests
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
             eventsService,
-            CreateHttpClientFactory());
+            CreateAgentClient());
         
         // Add a device to the snapshot
         service.TryGetStatus(1, out _); // This will create an empty entry if it doesn't exist
@@ -157,10 +158,8 @@ public class DeviceMonitoringServiceErrorTests
     [Test]
     public async Task ProbeDevice_HandlesInvalidIp()
     {
-        // This test requires internals access, so we use a different approach
-
         // Arrange
-        var device = new Device { Id = 1, IpAddress = "256.256.256.256", Port = "8080", Name = "InvalidIpDevice" }; // Invalid IP format
+        var device = new Device { Id = 1, IpAddress = "256.256.256.256", Port = 8080, Name = "InvalidIpDevice" }; // Invalid IP format
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
@@ -168,7 +167,7 @@ public class DeviceMonitoringServiceErrorTests
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
             CreateDeviceEventsService(),
-            CreateHttpClientFactory());
+            CreateAgentClient());
 
         // Act
         var result = await service.Test(device.Id);
@@ -178,7 +177,6 @@ public class DeviceMonitoringServiceErrorTests
         Assert.That(result?.IsOnline, Is.False);
         Assert.That(logs, Has.Some.Contains("Warning"));
     }
-
 
     [Test]
     public async Task ExecuteAsync_HandlesScopeFactoryException()
@@ -190,7 +188,7 @@ public class DeviceMonitoringServiceErrorTests
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
             CreateDeviceEventsService(),
-            CreateHttpClientFactory());
+            CreateAgentClient());
 
         // Act
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -205,12 +203,10 @@ public class DeviceMonitoringServiceErrorTests
     }
 
     [Test]
-    public async Task ProbeDevice_HandlesErrorResponse()
+    public async Task ProbeDevice_HandlesAgentClientException()
     {
-        // Simulate a device health endpoint returning a server error response.
-
         // Arrange
-        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = "8080", Name = "LocalDevice" }; // Local IP might connect but no SSH service
+        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = 8080, Name = "LocalDevice" };
         var db = CreateDbContext(device);
         var logs = new List<string>();
         var service = new DeviceMonitoringService(
@@ -218,17 +214,62 @@ public class DeviceMonitoringServiceErrorTests
             Options.Create(GetDefaultSettings()),
             CreateLogger(logs),
             CreateDeviceEventsService(),
-            CreateHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
-            {
-                Content = new StringContent("{\"ok\":false,\"error\":\"failure\"}")
-            }));
+            CreateAgentClient(throwException: true, exception: new HttpRequestException("Connection refused")));
 
         // Act
         var result = await service.Test(device.Id);
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        // We can't guarantee the result of IsOnline since it depends on the local machine
-        // But we can check that the service handled the test without exceptions
+        Assert.That(result?.IsOnline, Is.False);
+        Assert.That(logs, Has.Some.Contains("Warning"));
+        Assert.That(logs, Has.Some.Contains("Health probe failed"));
+    }
+
+    [Test]
+    public async Task ProbeDevice_HandlesErrorResponse()
+    {
+        // Arrange
+        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = 8080, Name = "LocalDevice" };
+        var db = CreateDbContext(device);
+        var logs = new List<string>();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            CreateDeviceEventsService(),
+            CreateAgentClient(isHealthy: false, error: "Service unavailable"));
+
+        // Act
+        var result = await service.Test(device.Id);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result?.IsOnline, Is.False);
+        Assert.That(logs, Has.Some.Contains("Debug"));
+        Assert.That(logs, Has.Some.Contains("returned error: Service unavailable"));
+    }
+
+    [Test]
+    public async Task ProbeDevice_HandlesTimeout()
+    {
+        // Arrange
+        var device = new Device { Id = 1, IpAddress = "127.0.0.1", Port = 8080, Name = "LocalDevice" };
+        var db = CreateDbContext(device);
+        var logs = new List<string>();
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(logs),
+            CreateDeviceEventsService(),
+            CreateAgentClient(throwException: true, exception: new TaskCanceledException("Operation was cancelled")));
+
+        // Act
+        var result = await service.Test(device.Id);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result?.IsOnline, Is.False);
+        Assert.That(logs, Has.Some.Contains("Warning"));
     }
 }

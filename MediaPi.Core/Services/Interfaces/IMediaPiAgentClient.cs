@@ -15,4 +15,5 @@ public interface IMediaPiAgentClient
     Task<MediaPiAgentUnitResultResponse> RestartUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
     Task<MediaPiAgentEnableResponse> EnableUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
     Task<MediaPiAgentEnableResponse> DisableUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
+    Task<MediaPiAgentHealthResponse> CheckHealthAsync(Device device, CancellationToken cancellationToken = default);
 }

@@ -101,9 +101,9 @@ public class DevicesControllerTests
             UserRoles = [new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole }]
         };
 
-        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = "8080", ServerKey = "server-key-1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
-        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", Port = "8081", ServerKey = "server-key-2" };
-        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", Port = "8082", ServerKey = "server-key-3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
+        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = 8080, ServerKey = "server-key-1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
+        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", Port = 8081, ServerKey = "server-key-2" };
+        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", Port = 8082, ServerKey = "server-key-3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
 
         _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.Devices.AddRange(d1, d2, d3);
@@ -148,7 +148,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "5.6.7.8",
-            Port = " 5000 ",
+            Port = 5000,
             ServerKey = " device-server-key ",
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -160,7 +160,7 @@ public class DevicesControllerTests
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.IpAddress == "5.6.7.8");
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.Name, Is.EqualTo($"Устройство №{dev.Id}"));
-        Assert.That(dev.Port, Is.EqualTo("5000"));
+        Assert.That(dev.Port, Is.EqualTo(5000));
         Assert.That(dev.ServerKey, Is.EqualTo("device-server-key"));
         Assert.That(dev.AccountId, Is.Null);
         Assert.That(dev.DeviceGroupId, Is.Null);
@@ -173,7 +173,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "::ffff:9.8.7.6",
-            Port = "6000",
+            Port = 6000,
             ServerKey = "mapped-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -185,7 +185,7 @@ public class DevicesControllerTests
         var dev = await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == response!.Id);
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.IpAddress, Is.EqualTo("9.8.7.6"));
-        Assert.That(dev.Port, Is.EqualTo("6000"));
+        Assert.That(dev.Port, Is.EqualTo(6000));
     }
 
     [Test]
@@ -195,7 +195,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "1.1.1.1",
-            Port = "7000",
+            Port = 7000,
             ServerKey = "duplicate-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -210,7 +210,7 @@ public class DevicesControllerTests
         SetCurrentUser(null);
         var req = new DeviceRegisterRequest
         {
-            Port = "8000",
+            Port = 8000,
             ServerKey = "missing-ip-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -241,7 +241,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "10.0.0.2",
-            Port = "8100",
+            Port = 8100,
         };
         var result = await _controller.Register(req, CancellationToken.None);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
@@ -256,7 +256,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "8.7.6.5",
-            Port = "9000",
+            Port = 9000,
             ServerKey = "named-device-key",
             Name = "Provided Name"
         };
@@ -270,7 +270,7 @@ public class DevicesControllerTests
         Assert.That(dev, Is.Not.Null);
         Assert.That(dev!.IpAddress, Is.EqualTo("8.7.6.5"));
         Assert.That(dev.Name, Is.EqualTo("Provided Name"));
-        Assert.That(dev.Port, Is.EqualTo("9000"));
+        Assert.That(dev.Port, Is.EqualTo(9000));
         Assert.That(dev.ServerKey, Is.EqualTo("named-device-key"));
     }
 
@@ -281,7 +281,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "9.9.9.9",
-            Port = "9100",
+            Port = 9100,
             ServerKey = "default-name-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -302,7 +302,7 @@ public class DevicesControllerTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "not.an.ip",
-            Port = "9200",
+            Port = 9200,
             ServerKey = "bad-ip-key",
         };
         var result = await _controller.Register(req, CancellationToken.None);

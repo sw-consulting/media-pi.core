@@ -511,9 +511,9 @@ public class UserInformationServiceTests
         var acc2 = new Account { Id = 102, Name = "A102" };
         ctx.Accounts.AddRange(acc1, acc2);
 
-        var d1 = new Device { Id = 201, Name = "D201", IpAddress = "10.0.0.1", Port = "8080", AccountId = acc1.Id };
-        var d2 = new Device { Id = 202, Name = "D202", IpAddress = "10.0.0.2", Port = "8080", AccountId = acc2.Id };
-        var d3 = new Device { Id = 203, Name = "D203", IpAddress = "10.0.0.3", Port = "8080" };
+        var d1 = new Device { Id = 201, Name = "D201", IpAddress = "10.0.0.1", Port = 8080, AccountId = acc1.Id };
+        var d2 = new Device { Id = 202, Name = "D202", IpAddress = "10.0.0.2", Port = 8080, AccountId = acc2.Id };
+        var d3 = new Device { Id = 203, Name = "D203", IpAddress = "10.0.0.3", Port = 8080 };
         ctx.Devices.AddRange(d1, d2, d3);
 
         var admin = CreateUser(900, "admin@x", "pwd", "A", "B", null, [GetAdminRole(ctx)]);
@@ -537,9 +537,9 @@ public class UserInformationServiceTests
         var acc2 = new Account { Id = 112, Name = "A112" };
         ctx.Accounts.AddRange(acc1, acc2);
 
-        var d1 = new Device { Id = 301, Name = "D301", IpAddress = "10.1.0.1", Port = "8080", AccountId = acc1.Id };
-        var d2 = new Device { Id = 302, Name = "D302", IpAddress = "10.1.0.2", Port = "8080", AccountId = acc2.Id };
-        var d3 = new Device { Id = 303, Name = "D303", IpAddress = "10.1.0.3", Port = "8080" };
+        var d1 = new Device { Id = 301, Name = "D301", IpAddress = "10.1.0.1", Port = 8080, AccountId = acc1.Id };
+        var d2 = new Device { Id = 302, Name = "D302", IpAddress = "10.1.0.2", Port = 8080, AccountId = acc2.Id };
+        var d3 = new Device { Id = 303, Name = "D303", IpAddress = "10.1.0.3", Port = 8080 };
         ctx.Devices.AddRange(d1, d2, d3);
 
         var mgr = CreateUser(901, "mgr@x", "pwd", "M", "G", null, [GetOperatorRole(ctx)]);
@@ -563,8 +563,8 @@ public class UserInformationServiceTests
         var acc1 = new Account { Id = 121, Name = "A121" };
         ctx.Accounts.Add(acc1);
 
-        var d1 = new Device { Id = 401, Name = "D401", IpAddress = "10.2.0.1", Port = "8080", AccountId = acc1.Id };
-        var d3 = new Device { Id = 403, Name = "D403", IpAddress = "10.2.0.3", Port = "8080" };
+        var d1 = new Device { Id = 401, Name = "D401", IpAddress = "10.2.0.1", Port = 8080, AccountId = acc1.Id };
+        var d3 = new Device { Id = 403, Name = "D403", IpAddress = "10.2.0.3", Port = 8080 };
         ctx.Devices.AddRange(d1, d3);
 
         var eng = CreateUser(902, "eng@x", "pwd", "E", "N", null, [ctx.Roles.Single(r => r.RoleId == UserRoleConstants.InstallationEngineer)]);
@@ -587,8 +587,8 @@ public class UserInformationServiceTests
         var acc2 = new Account { Id = 132, Name = "A132" };
         ctx.Accounts.AddRange(acc1, acc2);
 
-        var d1 = new Device { Id = 501, Name = "D501", IpAddress = "10.3.0.1", Port = "8080", AccountId = acc1.Id };
-        var d2 = new Device { Id = 502, Name = "D502", IpAddress = "10.3.0.2", Port = "8080", AccountId = acc2.Id };
+        var d1 = new Device { Id = 501, Name = "D501", IpAddress = "10.3.0.1", Port = 8080, AccountId = acc1.Id };
+        var d2 = new Device { Id = 502, Name = "D502", IpAddress = "10.3.0.2", Port = 8080, AccountId = acc2.Id };
         ctx.Devices.AddRange(d1, d2);
 
         var admin = CreateUser(910, "admin2@x", "pwd", "A2", "B2", null, [GetAdminRole(ctx)]);
@@ -622,8 +622,8 @@ public class UserInformationServiceTests
         var acc1 = new Account { Id = 141, Name = "A141" };
         ctx.Accounts.Add(acc1);
 
-        var dAssigned = new Device { Id = 601, Name = "D601", IpAddress = "10.4.0.1", Port = "8080", AccountId = acc1.Id };
-        var dUnassigned = new Device { Id = 602, Name = "D602", IpAddress = "10.4.0.2", Port = "8080" };
+        var dAssigned = new Device { Id = 601, Name = "D601", IpAddress = "10.4.0.1", Port = 8080, AccountId = acc1.Id };
+        var dUnassigned = new Device { Id = 602, Name = "D602", IpAddress = "10.4.0.2", Port = 8080 };
         ctx.Devices.AddRange(dAssigned, dUnassigned);
 
         var admin = CreateUser(920, "admin3@x", "pwd", "A3", "B3", null, [GetAdminRole(ctx)]);

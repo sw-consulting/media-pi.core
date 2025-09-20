@@ -11,7 +11,7 @@ public class DeviceUpdateItem
 {
     public string? Name { get; set; }
     public string? IpAddress { get; set; }
-    public string? SshUser { get; set; }
+    public short? Port { get; set; }
     public int? AccountId { get; set; }
     public int? DeviceGroupId { get; set; }
 

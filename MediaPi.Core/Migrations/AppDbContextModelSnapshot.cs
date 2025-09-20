@@ -87,9 +87,8 @@ namespace MediaPi.Core.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<string>("Port")
-                        .IsRequired()
-                        .HasColumnType("text")
+                    b.Property<short>("Port")
+                        .HasColumnType("smallint")
                         .HasColumnName("port");
 
                     b.Property<string>("ServerKey")

@@ -10,12 +10,12 @@ namespace MediaPi.Core.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
+            migrationBuilder.AddColumn<short>(
                 name: "port",
                 table: "devices",
-                type: "text",
+                type: "smallint",
                 nullable: false,
-                defaultValue: "8080");
+                defaultValue: (short)8081);
 
             migrationBuilder.AddColumn<string>(
                 name: "server_key",

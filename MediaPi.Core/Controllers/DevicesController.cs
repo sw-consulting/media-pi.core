@@ -39,7 +39,7 @@ public class DevicesController(
     public async Task<ActionResult<DeviceRegisterResponse>> Register([FromBody] DeviceRegisterRequest req, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.IpAddress)) return _400DeviceIpMissing();
-        if (string.IsNullOrWhiteSpace(req.Port)) return _400DevicePortMissing();
+        if (!req.Port.HasValue || req.Port.Value <= 0) return _400DevicePortMissing();
         if (string.IsNullOrWhiteSpace(req.ServerKey)) return _400DeviceServerKeyMissing();
 
         var ipInput = req.IpAddress.Trim();
@@ -49,8 +49,8 @@ public class DevicesController(
 
         if (await _db.Devices.AnyAsync(d => d.IpAddress == ip, ct)) return _409Ip(ip);
 
-        var port = req.Port.Trim();
-        if (port.Length == 0) return _400DevicePortMissing();
+        var port = req.Port.Value;
+        if (port <= 0) return _400DevicePortInvalid(port);
 
         var serverKey = req.ServerKey.Trim();
         if (serverKey.Length == 0) return _400DeviceServerKeyMissing();

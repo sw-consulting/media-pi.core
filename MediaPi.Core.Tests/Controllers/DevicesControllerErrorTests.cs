@@ -101,13 +101,13 @@ public class DevicesControllerErrorTests
             UserRoles = [new UserRole { UserId = 3, RoleId = _engineerRole.Id, Role = _engineerRole }]
         };
 
-        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = "8080", ServerKey = "error-key-1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
-        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", Port = "8081", ServerKey = "error-key-2" };
-        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", Port = "8082", ServerKey = "error-key-3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
+        var d1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = 8080, ServerKey = "error-key-1", AccountId = _account1.Id, DeviceGroupId = _group1.Id };
+        var d2 = new Device { Id = 2, Name = "Dev2", IpAddress = "2.2.2.2", Port = 8081, ServerKey = "error-key-2" };
+        var d3 = new Device { Id = 3, Name = "Dev3", IpAddress = "3.3.3.3", Port = 8082, ServerKey = "error-key-3", AccountId = _account2.Id, DeviceGroupId = _group2.Id };
         // Device with IPv6 address
-        var d4 = new Device { Id = 4, Name = "Dev4", IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7334", Port = "8083", ServerKey = "error-key-4" };
+        var d4 = new Device { Id = 4, Name = "Dev4", IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7334", Port = 8083, ServerKey = "error-key-4" };
         // Device with mapped IPv4 address
-        var d5 = new Device { Id = 5, Name = "Dev5", IpAddress = "::ffff:192.168.1.1", Port = "8084", ServerKey = "error-key-5" };
+        var d5 = new Device { Id = 5, Name = "Dev5", IpAddress = "::ffff:192.168.1.1", Port = 8084, ServerKey = "error-key-5" };
 
         _dbContext.Users.AddRange(_admin, _manager, _engineer);
         _dbContext.Devices.AddRange(d1, d2, d3, d4, d5);
@@ -363,7 +363,7 @@ public class DevicesControllerErrorTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "2001:0db8:85a3:0000:0000:8a2e:0370:7335",
-            Port = "8200",
+            Port = 8200,
             ServerKey = "ipv6-device-key"
         };
         var result = await _controller.Register(req, CancellationToken.None);
@@ -398,7 +398,7 @@ public class DevicesControllerErrorTests
     public async Task GetAllByDeviceGroup_Manager_NullButAssigned_Works()
     {
         // Create a new device with account but no group
-        var newDevice = new Device { Id = 6, Name = "DevNoGroup", IpAddress = "6.6.6.6", Port = "8300", ServerKey = "error-key-6", AccountId = _account1.Id };
+        var newDevice = new Device { Id = 6, Name = "DevNoGroup", IpAddress = "6.6.6.6", Port = 8300, ServerKey = "error-key-6", AccountId = _account1.Id };
         _dbContext.Devices.Add(newDevice);
         await _dbContext.SaveChangesAsync();
 
@@ -418,7 +418,7 @@ public class DevicesControllerErrorTests
         var req = new DeviceRegisterRequest
         {
             IpAddress = "10.0.0.101",
-            Port = "9300",
+            Port = 9300,
             ServerKey = "  "
         };
         var result = await _controller.Register(req, CancellationToken.None);

@@ -20,11 +20,10 @@ namespace MediaPi.Core.Models
         public required string IpAddress { get; set; }
 
         [Column("port")]
-        public required string Port { get; set; }
+        public required short Port { get; set; }
 
         [Column("server_key")]
         public string ServerKey { get; set; } = string.Empty;
-
 
         [Column("account_id")]
         public int? AccountId { get; set; }
