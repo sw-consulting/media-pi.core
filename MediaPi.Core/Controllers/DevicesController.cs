@@ -32,8 +32,8 @@ public class DevicesController(
     IMediaPiAgentClient mediaPiAgentClient) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
-    [AllowAnonymous]
     [HttpPost("register")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceRegisterResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]

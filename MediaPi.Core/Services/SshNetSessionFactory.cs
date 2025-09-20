@@ -6,6 +6,8 @@ using MediaPi.Core.Services.Interfaces;
 using Renci.SshNet;
 
 using SshConnectionInfo = Renci.SshNet.ConnectionInfo;
+//  expects a PEM/PKCS#1 (or compatible) private key for RSA
+// ssh-keygen -t rsa -b 4096 -m PEM -f id_rsa -N ""
 
 namespace MediaPi.Core.Services
 {
