@@ -5,20 +5,20 @@
 namespace MediaPi.Core.Migrations
 {
     /// <inheritdoc />
-    public partial class _0_1_5_Device_Ssh : Migration
+    public partial class _0_3_0_RestAgent : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "public_key_open_ssh",
+                name: "port",
                 table: "devices",
                 type: "text",
                 nullable: false,
                 defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
-                name: "ssh_user",
+                name: "server_key",
                 table: "devices",
                 type: "text",
                 nullable: false,
@@ -29,11 +29,11 @@ namespace MediaPi.Core.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "public_key_open_ssh",
+                name: "port",
                 table: "devices");
 
             migrationBuilder.DropColumn(
-                name: "ssh_user",
+                name: "server_key",
                 table: "devices");
         }
     }

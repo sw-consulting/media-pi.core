@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250919143843_0_1_5_Device_Ssh")]
-    partial class _0_1_5_Device_Ssh
+    [Migration("20250920074628_0_3_0_RestAgent")]
+    partial class _0_3_0_RestAgent
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -90,15 +90,15 @@ namespace MediaPi.Core.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<string>("PublicKeyOpenSsh")
+                    b.Property<string>("Port")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("public_key_open_ssh");
+                        .HasColumnName("port");
 
-                    b.Property<string>("SshUser")
+                    b.Property<string>("ServerKey")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("ssh_user");
+                        .HasColumnName("server_key");
 
                     b.HasKey("Id");
 

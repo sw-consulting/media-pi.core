@@ -14,7 +14,6 @@ public class DeviceViewItem(Device device, DeviceStatusItem? status)
     public int Id { get; set; } = device.Id;
     public string Name { get; set; } = device.Name;
     public string IpAddress { get; set; } = device.IpAddress;
-    public string SshUser { get; set; } = device.SshUser;
     public int? AccountId { get; set; } = device.AccountId;
     public int? DeviceGroupId { get; set; } = device.DeviceGroupId;
     public DeviceStatusItem? DeviceStatus { get; set; } = status;

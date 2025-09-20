@@ -87,15 +87,15 @@ namespace MediaPi.Core.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<string>("PublicKeyOpenSsh")
+                    b.Property<string>("Port")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("public_key_open_ssh");
+                        .HasColumnName("port");
 
-                    b.Property<string>("SshUser")
+                    b.Property<string>("ServerKey")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("ssh_user");
+                        .HasColumnName("server_key");
 
                     b.HasKey("Id");
 

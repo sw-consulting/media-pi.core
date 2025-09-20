@@ -28,7 +28,7 @@ namespace MediaPi.Core.Services
             if (string.IsNullOrWhiteSpace(device.IpAddress))
                 throw new ArgumentException("Device IP address must be provided.", nameof(device));
 
-            var user = string.IsNullOrWhiteSpace(device.SshUser) ? "pi" : device.SshUser.Trim();
+            var user = "pi";
             if (string.IsNullOrWhiteSpace(user))
                 throw new InvalidOperationException("SSH user name is missing.");
 
@@ -52,9 +52,9 @@ namespace MediaPi.Core.Services
             var client = new SshClient(connectionInfo);
 
             // Optional host key pinning using device.PublicKeyOpenSsh (treat it as host public key line if present)
-            if (!string.IsNullOrWhiteSpace(device.PublicKeyOpenSsh))
+            if (!string.IsNullOrWhiteSpace(device.ServerKey))
             {
-                var parts = device.PublicKeyOpenSsh.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var parts = device.ServerKey.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
                     var expectedAlgo = parts[0];

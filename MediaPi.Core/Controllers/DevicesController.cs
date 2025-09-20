@@ -65,8 +65,8 @@ public class DevicesController(
         {
             Name = string.IsNullOrWhiteSpace(req.Name) ? "Устройство" : req.Name!, // Placeholder name if not provided
             IpAddress = ip,
-            PublicKeyOpenSsh = req.PublicKeyOpenSsh ?? string.Empty,
-            SshUser = string.IsNullOrWhiteSpace(req.SshUser) ? "pi" : req.SshUser!
+            Port = req.Port ?? "8080",
+            ServerKey = req.ServerKey ?? string.Empty,
         };
 
         _db.Devices.Add(device);
