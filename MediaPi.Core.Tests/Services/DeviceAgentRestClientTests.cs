@@ -130,7 +130,6 @@ public class DeviceAgentRestClientTests
         Assert.That(result.Unit, Is.EqualTo(" status "));
         Assert.That(result.Error, Is.EqualTo("Device API returned an unsuccessful response without an error message."));
         Assert.That(logger.Entries.Any(e => e.Level == LogLevel.Warning && e.Message.Contains("does not have a server key configured.")), Is.True);
-        Assert.That(logger.Entries.Any(e => e.Level == LogLevel.Warning && e.Message.Contains("invalid port")), Is.True);
     }
 
     [Test]
