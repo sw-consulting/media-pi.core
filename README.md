@@ -11,7 +11,7 @@ Media Pi System Core
 
 1) Скопировать на сервер в произвольный каталог файлы сертификаты сайта (нужны файлы crt, key, pfx, а также файл pwd, в котором лежит пароль для pfx).
 
-Все файлы должны иметь имя s, то есть ожидаются файлы s.crt (сертификат), s.key (приватный ключ сертификата), s.pfx (PKCS #12), s.pwd (пароль к PKCS #12)
+Все файлы должны иметь имя `s`, то есть ожидаются файлы `s.crt` (сертификат), `s.key` (приватный ключ сертификата), `s.pfx` (PKCS #12), `s.pwd` (пароль к PKCS #12)
 
 3) Скачать и установить на сервер Docker Desktop [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
 
