@@ -15,7 +15,7 @@ services:
       retries: 3
       start_period: 5s
     volumes:
-      - ./pgdata:/var/lib/mediapi/data  #полный путь к корневому каталогу базы данных. Каталог создавать не надо, система создаст его при запуске.
+      - /var/pgdata:/var/lib/mediapi/data  #полный путь к корневому каталогу базы данных. Каталог создавать не надо, система создаст его при запуске.
 
   api:
     image: ghcr.io/sw-consulting/media-pi.core:latest
@@ -37,7 +37,7 @@ services:
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/certificate/s.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "<password>"       #Пароль к PKCS #12
     volumes:
-      - ./certificate:/certificate:ro               #Путь к каталогу c сертификатами
+      - /var/certificate:/certificate:ro               #Путь к каталогу c сертификатами
 
   ui:
     image: ghcr.io/sw-consulting/media-pi.ui:latest
@@ -48,7 +48,7 @@ services:
       api:
         condition: service_healthy
     volumes:
-      - ./certificate:/etc/nginx/certificate:ro      #Путь к каталогу c сертификатами
+      - /var/certificate:/etc/nginx/certificate:ro      #Путь к каталогу c сертификатами
     environment:
       API_URL: https://localhost:8085/api                      #URL API из Host network (а не Docker network)   -- с (A) и (B)
 
@@ -66,8 +66,8 @@ services:
       BACKUP_DIR: /backups
       RETENTION_DAYS: 7
     volumes:
-      - ./backup/data:/backups      #Полный путь к каталогу для резервных копий на хосте. Каталог создастся при первом запуске.
-      - ./backup/logs:/var/log      #полный путь к каталогу журналов резервного копирования. Каталог создавать не надо, система создаст его при запуске. 
+      - /var/backup/data:/backups      #Полный путь к каталогу для резервных копий на хосте. Каталог создастся при первом запуске.
+      - /var/backup/logs:/var/log      #полный путь к каталогу журналов резервного копирования. Каталог создавать не надо, система создаст его при запуске. 
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
       interval: 1h
