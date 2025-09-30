@@ -18,7 +18,7 @@ services:
       - ./pgdata:/var/lib/mediapi/data
 
   api:
-    image: ghcr.io/maxirmx/mediapi.core:latest
+    image: ghcr.io/sw-consulting/mediapi.core:latest
     ports:
       - "8085:8081"
     healthcheck:
@@ -39,7 +39,7 @@ services:
       - ./certificate:/certificate:ro
 
   ui:
-    image: ghcr.io/maxirmx/mediapi.ui:latest
+    image: ghcr.io/sw-consulting/mediapi.ui:latest
     ports:
       - "8082:8082"
       - "8083:8083"
