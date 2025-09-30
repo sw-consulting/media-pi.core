@@ -15,11 +15,12 @@ services:
       retries: 3
       start_period: 5s
     volumes:
-      - ./pgdata:/var/lib/mediapi/data
+      - ./pgdata:/var/lib/mediapi/data  #полный путь к корневому каталогу базы данных", на полный путь к корневому каталогу базы данных. Каталог создавать не надо, система создаст его при запуске.
 
   api:
-    image: ghcr.io/sw-consulting/mediapi.core:latest
+    image: ghcr.io/sw-consulting/media-pi.core:latest
     ports:
+      - "8084:8080"
       - "8085:8081"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/status/status"]
@@ -34,12 +35,12 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "https://+:8081;http://+:8080"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/certificate/s.pfx"
-      ASPNETCORE_Kestrel__Certificates__Default__Password_File: "/certificate/s.pwd"
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "<password>"       #пароль к PKCS #12
     volumes:
-      - ./certificate:/certificate:ro
+      - R:/Projects/certificate:/certificate:ro               #полный путь к каталогу с сертификатами сайта", на полный путь к каталогу с сертификатами сайта 
 
   ui:
-    image: ghcr.io/sw-consulting/mediapi.ui:latest
+    image: ghcr.io/sw-consulting/media-pi.ui:latest
     ports:
       - "8082:8082"
       - "8083:8083"
@@ -47,9 +48,9 @@ services:
       api:
         condition: service_healthy
     volumes:
-      - ./certificate:/etc/nginx/certificate:ro
+      - R:/Projects/certificate:/etc/nginx/certificate:ro      #полный путь к каталогу с сертификатами сайта", на полный путь к каталогу с сертификатами сайта
     environment:
-      API_URL: https://mediapi.sw.consulting:8085/api
+      API_URL: https://localhost:8085/api
 
   backup:
     image: ghcr.io/sw-consulting/db-backup:latest
@@ -65,8 +66,8 @@ services:
       BACKUP_DIR: /backups
       RETENTION_DAYS: 7
     volumes:
-      - ./backup/data:/backups
-      - ./backup/logs:/var/log
+      - ./backup/data:/backups      #полный путь к каталогу резервной копии базы данных", на полный путь к каталогу резервной копии базы данных. Каталог создавать не надо, система создаст его при запуске.
+      - ./backup/logs:/var/log      #полный путь к каталогу журналов резервного копирования", на полный путь к каталогу журналов резервного копирования. Каталог создавать не надо, система создаст его при запуске. 
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
       interval: 1h

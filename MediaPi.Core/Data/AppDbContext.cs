@@ -108,7 +108,7 @@ namespace MediaPi.Core.Data
             );
 
             modelBuilder.Entity<UserRole>().HasData(
-                new UserRole { UserId = 1, RoleId = 1 } // Admininstrator
+                new UserRole { UserId = 1, RoleId = 1 }
             );
         }
     }

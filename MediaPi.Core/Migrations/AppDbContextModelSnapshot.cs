@@ -38,7 +38,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("accounts");
+                    b.ToTable("accounts", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Category", b =>
@@ -57,7 +57,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("categories");
+                    b.ToTable("categories", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Device", b =>
@@ -105,7 +105,7 @@ namespace MediaPi.Core.Migrations
                     b.HasIndex("IpAddress")
                         .IsUnique();
 
-                    b.ToTable("devices");
+                    b.ToTable("devices", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.DeviceGroup", b =>
@@ -130,7 +130,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("AccountId");
 
-                    b.ToTable("device_groups");
+                    b.ToTable("device_groups", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.DeviceProbe", b =>
@@ -166,7 +166,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("DeviceId");
 
-                    b.ToTable("device_probes");
+                    b.ToTable("device_probes", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Playlist", b =>
@@ -196,7 +196,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("AccountId");
 
-                    b.ToTable("playlists");
+                    b.ToTable("playlists", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Role", b =>
@@ -219,7 +219,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("roles");
+                    b.ToTable("roles", (string)null);
 
                     b.HasData(
                         new
@@ -263,7 +263,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("DeviceId");
 
-                    b.ToTable("screenshots");
+                    b.ToTable("screenshots", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.Subscription", b =>
@@ -302,7 +302,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("subscriptions");
+                    b.ToTable("subscriptions", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.User", b =>
@@ -341,7 +341,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("users");
+                    b.ToTable("users", (string)null);
 
                     b.HasData(
                         new
@@ -369,7 +369,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("AccountId");
 
-                    b.ToTable("user_accounts");
+                    b.ToTable("user_accounts", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.UserRole", b =>
@@ -386,7 +386,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("user_roles");
+                    b.ToTable("user_roles", (string)null);
 
                     b.HasData(
                         new
@@ -429,7 +429,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("videos");
+                    b.ToTable("videos", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.VideoPlaylist", b =>
@@ -446,7 +446,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasIndex("PlaylistId");
 
-                    b.ToTable("video_playlists");
+                    b.ToTable("video_playlists", (string)null);
                 });
 
             modelBuilder.Entity("MediaPi.Core.Models.VideoStatus", b =>
@@ -462,7 +462,7 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("video_statuses");
+                    b.ToTable("video_statuses", (string)null);
 
                     b.HasData(
                         new
