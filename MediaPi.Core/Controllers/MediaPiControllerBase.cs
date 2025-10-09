@@ -125,6 +125,18 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = $"Неверное имя сервиса [{displayValue}]" });
     }
 
+    protected ObjectResult _400VideoFileMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует файл" });
+    }
+
+    protected ObjectResult _400VideoTitleMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует название" });
+    }
+
     protected ObjectResult _502Agent(string? message = null)
     {
         const string baseMessage = "Ошибка при обращении к агенту устройства";
