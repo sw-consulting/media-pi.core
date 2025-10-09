@@ -15,5 +15,5 @@ public class VideoUploadItem
     public int AccountId { get; set; }
 
     [Required]
-    public IFormFile? File { get; set; }
+    public IFormFile File { get; set; }
 }
