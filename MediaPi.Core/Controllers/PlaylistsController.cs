@@ -75,15 +75,9 @@ public class PlaylistsController(
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (playlist == null) return _404Playlist(id);
 
-        if (user.IsAdministrator()) return playlist.ToViewItem();
+        if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
-        if (user.IsManager())
-        {
-            var accountIds = _userInformationService.GetUserAccountIds(user);
-            if (accountIds.Contains(playlist.AccountId)) return playlist.ToViewItem();
-        }
-
-        return _403();
+        return playlist.ToViewItem();
     }
 
     // POST: api/playlists
@@ -100,7 +94,7 @@ public class PlaylistsController(
         var account = await _db.Accounts.FindAsync([item.AccountId], ct);
         if (account == null) return _404Account(item.AccountId);
 
-        if (!(user.IsAdministrator() || _userInformationService.ManagerOwnsAccount(user, account))) return _403();
+        if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
         var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, account.Id, ct);
         if (validationError != null) return validationError;
@@ -139,11 +133,7 @@ public class PlaylistsController(
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (playlist == null) return _404Playlist(id);
 
-        if (!(user.IsAdministrator() ||
-              (user.IsManager() && _userInformationService.GetUserAccountIds(user).Contains(playlist.AccountId))))
-        {
-            return _403();
-        }
+        if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
         var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, playlist.AccountId, ct);
         if (validationError != null) return validationError;
@@ -186,11 +176,7 @@ public class PlaylistsController(
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (playlist == null) return _404Playlist(id);
 
-        if (!(user.IsAdministrator() ||
-              (user.IsManager() && _userInformationService.GetUserAccountIds(user).Contains(playlist.AccountId))))
-        {
-            return _403();
-        }
+        if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
         if (playlist.VideoPlaylists.Count != 0)
         {

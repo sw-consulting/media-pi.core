@@ -2,7 +2,6 @@
 // This file is a part of Media Pi backend
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
@@ -98,12 +97,14 @@ namespace MediaPi.Core.Services
             return [.. user.UserAccounts.Select(ua => ua.AccountId)];
         }
 
-        public bool ManagerOwnsAccount(User user, Account account)
+        public bool ManagerOwnsAccount(User user, Account account) => ManagerOwnsAccount(user, account.Id);
+        public bool ManagerOwnsAccount(User user, int accountId)
         {
             if (!user.IsManager()) return false;
             var accountIds = GetUserAccountIds(user);
-            return accountIds.Contains(account.Id);
+            return accountIds.Contains(accountId);
         }
+
         public bool ManagerOwnsGroup(User user, DeviceGroup group)
         {
             if (!user.IsManager()) return false;
@@ -139,6 +140,14 @@ namespace MediaPi.Core.Services
             if (user == null) return false;
             if (user.IsAdministrator()) return true;
             return ManagerOwnsDevice(user, device);
+        }
+
+        public bool UserCanManageAccount(User user, Account account) => UserCanManageAccount(user, account.Id);
+
+        public bool UserCanManageAccount(User user, int accountId)
+        {
+            if (user.IsAdministrator()) return true;
+            return ManagerOwnsAccount(user, accountId);
         }
 
     }

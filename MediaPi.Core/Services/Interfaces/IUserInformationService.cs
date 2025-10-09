@@ -18,12 +18,15 @@ namespace MediaPi.Core.Services.Interfaces
         Task<UserViewItem?> UserViewItem(int id);
         Task<List<UserViewItem>> UserViewItems();
         public List<int> GetUserAccountIds(User user);
+        public bool ManagerOwnsAccount(User userId, int accountId);
         public bool ManagerOwnsAccount(User user, Account account);
         public bool ManagerOwnsGroup(User user, DeviceGroup group);
         public bool ManagerOwnsDevice(User user, Device device);
         public bool UserCanManageDeviceServices(User user, Device device);
         public bool UserCanViewDevice(User user, Device device);
         public bool UserCanAssignGroup(User user, Device device);
+        public bool UserCanManageAccount(User user, int accountId);
+        public bool UserCanManageAccount(User user, Account account);
 
     }
 }
