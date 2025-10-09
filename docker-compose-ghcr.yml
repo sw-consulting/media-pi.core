@@ -33,24 +33,25 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: "https://+:8081;http://+:8080"                          #(A) Проброс API из Docker network в Host network
+      ASPNETCORE_URLS: "https://+:8081;http://+:8080"                          # (A) Проброс API из Docker network в Host network
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/certificate/s.pfx"
-      ASPNETCORE_Kestrel__Certificates__Default__Password: "<password>"       #Пароль к PKCS #12
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "<password>"        # Пароль к PKCS #12
+                                                                               # Можно так же использовать ASPNETCORE_Kestrel__Certificates__Default__Password__File 
     volumes:
-      - /var/certificate:/certificate:ro               #Путь к каталогу c сертификатами
+      - /var/certificate:/certificate:ro                                       # Путь к каталогу c сертификатами
 
   ui:
     image: ghcr.io/sw-consulting/media-pi.ui:latest
     ports:
-      - "8082:8082"   #Проброс порта UI из Docker network в Host network      HTTP  (redirect на HTTPS)
+      - "8082:8082"   # Проброс порта UI из Docker network в Host network      HTTP  (redirect на HTTPS)
       - "8083:8083"   #                                                        HTTPS   -- для доступа к интерфейсу необходимо использовать https://localhost:8083  (а не http://localhost:8082)   
     depends_on:
       api:
         condition: service_healthy
     volumes:
-      - /var/certificate:/etc/nginx/certificate:ro      #Путь к каталогу c сертификатами
+      - /var/certificate:/etc/nginx/certificate:ro      # Путь к каталогу c сертификатами
     environment:
-      API_URL: https://localhost:8085/api                      #URL API из Host network (а не Docker network)   -- с (A) и (B)
+      API_URL: https://localhost:8085/api               # URL API из Host network (а не Docker network)   <-- (B) <-- (A)
 
   backup:
     image: ghcr.io/sw-consulting/db-backup:latest
@@ -66,8 +67,8 @@ services:
       BACKUP_DIR: /backups
       RETENTION_DAYS: 7
     volumes:
-      - /var/backup/data:/backups      #Полный путь к каталогу для резервных копий на хосте. Каталог создастся при первом запуске.
-      - /var/backup/logs:/var/log      #полный путь к каталогу журналов резервного копирования. Каталог создавать не надо, система создаст его при запуске. 
+      - /var/backup/data:/backups      # Полный путь к каталогу для резервных копий на хосте. Каталог создастся при первом запуске.
+      - /var/backup/logs:/var/log      # Полный путь к каталогу журналов резервного копирования. Каталог создавать не надо, система создаст его при запуске. 
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
       interval: 1h
