@@ -35,6 +35,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
+    .Configure<VideoStorageSettings>(config.GetSection("VideoStorage"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
@@ -67,6 +68,7 @@ builder.Services.AddSingleton<DeviceEventsService>();
 builder.Services.AddSingleton<DeviceMonitoringService>();
 builder.Services.AddSingleton<IDeviceMonitoringService>(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringService>());
+builder.Services.AddSingleton<IVideoStorageService, VideoStorageService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
