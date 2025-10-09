@@ -3,8 +3,6 @@
 
 using System.Collections.Generic;
 
-namespace MediaPi.Core.RestModels;
-
 public class PlaylistCreateItem
 {
     public required string Title { get; set; }

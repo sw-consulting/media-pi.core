@@ -199,7 +199,7 @@ public class VideosControllerTests
         {
             Title = "Sample",
             AccountId = _account1.Id,
-            File = null
+            File = default! // Use default! to suppress CS8625 for non-nullable reference type in test
         };
 
         var result = await _controller.UploadVideo(item);
