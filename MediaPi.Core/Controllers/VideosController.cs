@@ -43,6 +43,7 @@ public class VideosController(
 
         if (user.IsAdministrator())
         {
+            // Administrators can see all videos; no filtering is applied.
         }
         else if (user.IsManager())
         {
