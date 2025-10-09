@@ -38,6 +38,7 @@ services:
       ASPNETCORE_Kestrel__Certificates__Default__Password: "<password>"       #Пароль к PKCS #12
     volumes:
       - R:/Projects/certificate:/certificate:ro               #Путь к сертификату на хосте", не забудьте указать полный путь к сертификату на хосте
+      - ./storage:/var/lib/storage
 
   ui:
     image: ghcr.io/sw-consulting/media-pi.ui:latest
