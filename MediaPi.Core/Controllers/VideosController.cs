@@ -181,8 +181,6 @@ public class VideosController(
             {
                 video.VideoPlaylists.Remove(remove);
             }
-
-            _db.VideoPlaylists.RemoveRange(toRemove);
         }
 
         var existing = video.VideoPlaylists.Select(vp => vp.PlaylistId).ToHashSet();
