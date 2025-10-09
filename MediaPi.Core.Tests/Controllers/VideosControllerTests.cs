@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -41,6 +42,9 @@ public class VideosControllerTests
     private Role _managerRole;
     private Account _account1;
     private Account _account2;
+    private Playlist _playlistAccount1;
+    private Playlist _playlistAccount1Second;
+    private Playlist _playlistAccount2;
     private Video _videoAccount1;
     private Video _videoAccount2;
 #pragma warning restore CS8618
@@ -61,6 +65,11 @@ public class VideosControllerTests
         _account1 = new Account { Id = 1, Name = "Account 1" };
         _account2 = new Account { Id = 2, Name = "Account 2" };
         _dbContext.Accounts.AddRange(_account1, _account2);
+
+        _playlistAccount1 = new Playlist { Id = 1, Title = "Playlist 1", Filename = "playlist1.json", AccountId = _account1.Id, Account = _account1 };
+        _playlistAccount1Second = new Playlist { Id = 2, Title = "Playlist 2", Filename = "playlist2.json", AccountId = _account1.Id, Account = _account1 };
+        _playlistAccount2 = new Playlist { Id = 3, Title = "Playlist 3", Filename = "playlist3.json", AccountId = _account2.Id, Account = _account2 };
+        _dbContext.Playlists.AddRange(_playlistAccount1, _playlistAccount1Second, _playlistAccount2);
 
         _videoAccount1 = new Video { Id = 1, Title = "Video 1", Filename = "0001/video1.mp4", AccountId = _account1.Id, Account = _account1 };
         _videoAccount2 = new Video { Id = 2, Title = "Video 2", Filename = "0001/video2.mp4", AccountId = _account2.Id, Account = _account2 };
@@ -96,7 +105,7 @@ public class VideosControllerTests
         };
 
         _dbContext.Users.AddRange(_admin, _managerAccount1, _managerAccount2);
-        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = _videoAccount1.Id, PlaylistId = 1 });
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = _videoAccount1.Id, PlaylistId = _playlistAccount1.Id, Playlist = _playlistAccount1, Video = _videoAccount1 });
         _dbContext.SaveChanges();
 
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
@@ -219,6 +228,76 @@ public class VideosControllerTests
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.Filename, Is.EqualTo("0001/video1.mp4"));
         Assert.That(video.Title, Is.EqualTo("Updated"));
+    }
+
+    [Test]
+    public async Task UpdateVideo_PlaylistIdsNull_DoesNotChangeAssociations()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoUpdateItem { Title = "Updated", PlaylistIds = (List<int>?)null };
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, item);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var playlists = await _dbContext.VideoPlaylists
+            .Where(vp => vp.VideoId == _videoAccount1.Id)
+            .Select(vp => vp.PlaylistId)
+            .ToListAsync();
+        Assert.That(playlists, Is.EquivalentTo(new[] { _playlistAccount1.Id }));
+    }
+
+    [Test]
+    public async Task UpdateVideo_PlaylistIdsEmpty_RemovesAssociations()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoUpdateItem { Title = "Updated", PlaylistIds = [] };
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, item);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.VideoId == _videoAccount1.Id), Is.False);
+    }
+
+    [Test]
+    public async Task UpdateVideo_PlaylistIdsApplied_AddsAndRemovesCorrectly()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoUpdateItem { Title = "Updated", PlaylistIds = new List<int> { _playlistAccount1.Id, _playlistAccount1Second.Id } };
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, item);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var playlists = await _dbContext.VideoPlaylists
+            .Where(vp => vp.VideoId == _videoAccount1.Id)
+            .Select(vp => vp.PlaylistId)
+            .ToListAsync();
+        Assert.That(playlists, Is.EquivalentTo(new[] { _playlistAccount1.Id, _playlistAccount1Second.Id }));
+    }
+
+    [Test]
+    public async Task UpdateVideo_PlaylistIdsMissingPlaylist_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoUpdateItem { Title = "Updated", PlaylistIds = new List<int> { 999 } };
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, item);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpdateVideo_PlaylistIdsAccountMismatch_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoUpdateItem { Title = "Updated", PlaylistIds = new List<int> { _playlistAccount2.Id } };
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, item);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
