@@ -122,15 +122,72 @@ public class VideosController(
 
         if (string.IsNullOrWhiteSpace(item.Title)) return _400VideoTitleMissing();
 
-        var video = await _db.Videos.FirstOrDefaultAsync(v => v.Id == id, ct);
+        var video = await _db.Videos
+            .Include(v => v.VideoPlaylists)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
         if (video == null) return _404Video(id);
 
         if (!_userInformationService.UserCanManageAccount(user, video.AccountId)) return _403();
 
         video.Title = item.Title;
 
+        if (item.PlaylistIds != null)
+        {
+            var (playlistIds, validationError) = await ValidateVideoPlaylists(item.PlaylistIds, video.AccountId, ct);
+            if (validationError != null) return validationError;
+
+            ApplyVideoPlaylists(video, playlistIds);
+        }
+
         await _db.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    private async Task<(List<int> PlaylistIds, ObjectResult? Error)> ValidateVideoPlaylists(IEnumerable<int> playlistIds, int accountId, CancellationToken ct)
+    {
+        var normalized = (playlistIds ?? Enumerable.Empty<int>()).Distinct().ToList();
+        if (normalized.Count == 0) return (normalized, null);
+
+        var playlists = await _db.Playlists
+            .AsNoTracking()
+            .Where(p => normalized.Contains(p.Id))
+            .Select(p => new { p.Id, p.AccountId })
+            .ToListAsync(ct);
+
+        var foundIds = playlists.Select(p => p.Id).ToHashSet();
+        if (foundIds.Count != normalized.Count)
+        {
+            var missingId = normalized.Except(foundIds).First();
+            return (normalized, _404Playlist(missingId));
+        }
+
+        var mismatch = playlists.FirstOrDefault(p => p.AccountId != accountId);
+        if (mismatch != null)
+        {
+            return (normalized, _400VideoPlaylistAccountMismatch(mismatch.Id, accountId));
+        }
+
+        return (normalized, null);
+    }
+
+    private void ApplyVideoPlaylists(Video video, IReadOnlyCollection<int> playlistIds)
+    {
+        var desired = playlistIds.ToHashSet();
+
+        var toRemove = video.VideoPlaylists.Where(vp => !desired.Contains(vp.PlaylistId)).ToList();
+        if (toRemove.Count != 0)
+        {
+            foreach (var remove in toRemove)
+            {
+                video.VideoPlaylists.Remove(remove);
+            }
+        }
+
+        var existing = video.VideoPlaylists.Select(vp => vp.PlaylistId).ToHashSet();
+        foreach (var playlistId in desired.Except(existing))
+        {
+            video.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, PlaylistId = playlistId });
+        }
     }
 
     [HttpDelete("{id}")]
