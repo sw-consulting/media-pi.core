@@ -86,7 +86,7 @@ public class VideoStorageService : IVideoStorageService
 
         foreach (var directory in directories)
         {
-            var fileCount = Directory.EnumerateFiles(directory).Take(_settings.MaxFilesPerDirectory).Count();
+            var fileCount = Directory.GetFiles(directory).Length;
             if (fileCount < _settings.MaxFilesPerDirectory)
             {
                 return directory;
