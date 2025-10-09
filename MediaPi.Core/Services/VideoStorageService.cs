@@ -16,6 +16,7 @@ public class VideoStorageService : IVideoStorageService
 {
     private readonly VideoStorageSettings _settings;
     private readonly string _rootFullPath;
+    private readonly string _rootFullPathWithSeparator;
 
     public VideoStorageService(IOptions<VideoStorageSettings> options)
     {
@@ -26,6 +27,9 @@ public class VideoStorageService : IVideoStorageService
         }
 
         _rootFullPath = Path.GetFullPath(_settings.RootPath);
+        _rootFullPathWithSeparator = _rootFullPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+            ? _rootFullPath
+            : _rootFullPath + Path.DirectorySeparatorChar;
         Directory.CreateDirectory(_rootFullPath);
     }
 
@@ -70,7 +74,9 @@ public class VideoStorageService : IVideoStorageService
 
         var combined = Path.Combine(_rootFullPath, storedFilename);
         var fullPath = Path.GetFullPath(combined);
-        if (!fullPath.StartsWith(_rootFullPath, StringComparison.Ordinal))
+        var isInsideRoot = string.Equals(fullPath, _rootFullPath, StringComparison.Ordinal)
+            || fullPath.StartsWith(_rootFullPathWithSeparator, StringComparison.Ordinal);
+        if (!isInsideRoot)
         {
             throw new InvalidOperationException("Attempted to access a file outside of the storage root");
         }
