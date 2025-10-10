@@ -313,4 +313,37 @@ public class VideosControllerTests
         Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Test]
+    public async Task GetVideosByAccount_Admin_SpecificAccount()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetVideosByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_videoAccount1.Id));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_Manager_OwnAccount()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.GetVideosByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_videoAccount1.Id));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_Manager_OtherAccount_Forbidden()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.GetVideosByAccount(_account2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
 }

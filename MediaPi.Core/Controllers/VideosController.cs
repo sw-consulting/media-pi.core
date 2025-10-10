@@ -59,6 +59,20 @@ public class VideosController(
         return videos.Select(v => v.ToViewItem()).ToList();
     }
 
+    // GET: api/videos/by-account/{accountId}
+    [HttpGet("by-account/{accountId}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<VideoViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<VideoViewItem>>> GetVideosByAccount(int accountId, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
+
+        return await _db.Videos.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync();
+    }
+
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoViewItem))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
