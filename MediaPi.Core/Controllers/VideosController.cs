@@ -70,7 +70,7 @@ public class VideosController(
 
         if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
 
-        return await _db.Videos.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync();
+        return await _db.Videos.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync(ct);
     }
 
     [HttpGet("{id}")]
@@ -184,7 +184,7 @@ public class VideosController(
         return (normalized, null);
     }
 
-    private void ApplyVideoPlaylists(Video video, IReadOnlyCollection<int> playlistIds)
+    private static void ApplyVideoPlaylists(Video video, IReadOnlyCollection<int> playlistIds)
     {
         var desired = playlistIds.ToHashSet();
 

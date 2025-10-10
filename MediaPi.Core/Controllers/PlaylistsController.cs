@@ -59,6 +59,20 @@ public class PlaylistsController(
         return playlists.Select(p => p.ToViewItem()).ToList();
     }
 
+    // GET: api/playlists/by-account/{accountId}
+    [HttpGet("by-account/{accountId}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PlaylistViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<PlaylistViewItem>>> GetPlaylistsByAccount(int accountId, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
+
+        return await _db.Playlists.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync(ct);
+    }
+
     // GET: api/playlists/{id}
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PlaylistViewItem))]

@@ -172,10 +172,32 @@ public class PlaylistsControllerTests
     }
 
     [Test]
-    public async Task GetPlaylist_ManagerOtherAccount_Returns403()
+    public async Task GetPlaylistsByAccount_Admin_SpecificAccount()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetPlaylistsByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_playlist1.Id));
+    }
+
+    [Test]
+    public async Task GetPlaylistsByAccount_Manager_OwnAccount()
     {
         SetCurrentUser(_managerAccount1.Id);
-        var result = await _controller.GetPlaylist(_playlist2.Id);
+        var result = await _controller.GetPlaylistsByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_playlist1.Id));
+    }
+
+    [Test]
+    public async Task GetPlaylistsByAccount_Manager_OtherAccount_Forbidden()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.GetPlaylistsByAccount(_account2.Id);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
