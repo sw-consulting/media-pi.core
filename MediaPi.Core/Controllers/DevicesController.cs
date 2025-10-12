@@ -517,11 +517,11 @@ public class DevicesController(
         {
             if (string.IsNullOrWhiteSpace(unit))
             {
-                logger.LogError(ex, "Ошибка при операции {Operation} для устройства {DeviceId}", operationName, id);
+                logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}", operationName, id);
             }
             else
             {
-                logger.LogError(ex, "Ошибка при операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
+                logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
             }
 
             return _502Agent();
