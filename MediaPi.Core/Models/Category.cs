@@ -13,7 +13,6 @@ namespace MediaPi.Core.Models
 
         [Column("title")]
         public required string Title { get; set; }
-
         public ICollection<Video> Videos { get; set; } = [];
         public ICollection<Subscription> Subscriptions { get; set; } = [];
     }

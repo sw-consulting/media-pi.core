@@ -5,6 +5,8 @@ services:
   api:
     volumes:
       - certificate:/certificate:ro
+      - storage:/var/lib/storage:rw
 
 volumes:
   certificate:
+  storage:

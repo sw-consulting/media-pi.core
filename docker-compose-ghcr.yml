@@ -38,6 +38,7 @@ services:
       ASPNETCORE_Kestrel__Certificates__Default__Password: "<password>"        # Пароль к PKCS #12
                                                                                # Можно так же использовать ASPNETCORE_Kestrel__Certificates__Default__Password__File 
     volumes:
+      - ./storage:/var/lib/storage
       - /var/certificate:/certificate:ro                                       # Путь к каталогу c сертификатами
 
   ui:
