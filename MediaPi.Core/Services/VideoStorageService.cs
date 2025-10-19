@@ -103,8 +103,9 @@ public class VideoStorageService : IVideoStorageService
             .Select(Path.GetFileName)
             .Select(name => int.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : (int?)null)
             .Where(value => value.HasValue)
+            .Select(value => value.GetValueOrDefault())
             .DefaultIfEmpty(0)
-            .Max().GetValueOrDefault() + 1;
+            .Max() + 1;
 
         var newDirectoryName = nextIndex.ToString("D4", CultureInfo.InvariantCulture);
         var newDirectoryPath = Path.Combine(_rootFullPath, newDirectoryName);

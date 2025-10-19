@@ -70,7 +70,13 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
 
-        return await _db.Playlists.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync(ct);
+        var playlists = await _db.Playlists
+            .AsNoTracking()
+            .Where(d => d.AccountId == accountId)
+            .Include(p => p.VideoPlaylists)
+            .ToListAsync(ct);
+
+        return playlists.Select(v => v.ToViewItem()).ToList();
     }
 
     // GET: api/playlists/{id}
