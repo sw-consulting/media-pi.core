@@ -5,7 +5,7 @@ namespace MediaPi.Core.RestModels;
 
 public class VideoUploadItem
 {
-    public required string Title { get; set; } = string.Empty;
+    public required string Title { get; set; }
 
     public required int AccountId { get; set; }
 
