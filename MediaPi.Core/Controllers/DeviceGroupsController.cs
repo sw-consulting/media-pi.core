@@ -51,6 +51,40 @@ public class DeviceGroupsController(
         return groups.Select(g => g.ToViewItem()).ToList();
     }
 
+    // GET: api/devicegroups/by-account/{accountId?}
+    [HttpGet("by-account/{accountId?}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceGroupViewItem>))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<DeviceGroupViewItem>>> GetAllByAccount(int? accountId, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        IQueryable<DeviceGroup> query = _db.DeviceGroups;
+        if (user.IsAdministrator())
+        {
+            if (accountId != null)
+            {
+                query = query.Where(g => g.AccountId == accountId.Value);
+            }
+            // else all groups
+        }
+        else if (user.IsManager())
+        {
+            if (accountId == null) return _403();
+            var accountIds = userInformationService.GetUserAccountIds(user);
+            if (!accountIds.Contains(accountId.Value)) return _403();
+            query = query.Where(g => g.AccountId == accountId.Value);
+        }
+        else
+        {
+            return _403();
+        }
+
+        var groups = await query.ToListAsync(ct);
+        return groups.Select(g => g.ToViewItem()).ToList();
+    }
+
     // GET: api/devicegroups/{id}
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeviceGroupViewItem))]

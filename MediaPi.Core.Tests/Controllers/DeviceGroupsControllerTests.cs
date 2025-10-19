@@ -366,4 +366,57 @@ public class DeviceGroupsControllerTests
         Assert.That(grp!.AccountId, Is.EqualTo(_account1.Id)); // AccountId should remain unchanged
         Assert.That(grp.Name, Is.EqualTo("Renamed"));
     }
+
+    [Test]
+    public async Task GetAllByAccount_Admin_SpecificAccount_ReturnsGroups()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetAllByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_group1.Id));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Admin_Null_ReturnsAll()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetAllByAccount(null);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(2));
+        Assert.That(list.Select(g => g.Id), Is.EquivalentTo(new[] { _group1.Id, _group2.Id }));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Manager_OwnAccount_ReturnsGroups()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByAccount(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_group1.Id));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Manager_OtherAccount_Forbidden()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByAccount(_account2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetAllByAccount_Manager_Null_Forbidden()
+    {
+        SetCurrentUser(2);
+        var result = await _controller.GetAllByAccount(null);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
 }
