@@ -3,10 +3,13 @@
 
 using System.Collections.Generic;
 
-public class PlaylistCreateItem
+namespace MediaPi.Core.RestModels
 {
-    public required string Title { get; set; }
-    public required string Filename { get; set; }
-    public int AccountId { get; set; }
-    public List<int> VideoIds { get; set; } = [];
+    public class PlaylistCreateItem
+    {
+        public required string Title { get; set; }
+        public required string Filename { get; set; }
+        public int AccountId { get; set; }
+        public List<int> VideoIds { get; set; } = [];
+    }
 }
