@@ -9,5 +9,5 @@ public class PlaylistUpdateItem
 {
     public required string Title { get; set; }
     public required string Filename { get; set; }
-    public List<int> VideoIds { get; set; } = [];
+    public List<int>? VideoIds { get; set; }
 }

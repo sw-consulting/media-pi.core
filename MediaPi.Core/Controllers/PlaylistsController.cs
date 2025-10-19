@@ -155,26 +155,29 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
-        var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, playlist.AccountId, ct);
-        if (validationError != null) return validationError;
-
         playlist.UpdateFrom(item);
 
-        var normalizedSet = videoIds.ToHashSet();
-        var toRemove = playlist.VideoPlaylists.Where(vp => !normalizedSet.Contains(vp.VideoId)).ToList();
-        foreach (var remove in toRemove)
+        if (item.VideoIds is not null)
         {
-            playlist.VideoPlaylists.Remove(remove);
-        }
-        if (toRemove.Count != 0)
-        {
-            _db.VideoPlaylists.RemoveRange(toRemove);
-        }
+            var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, playlist.AccountId, ct);
+            if (validationError != null) return validationError;
 
-        var existingIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
-        foreach (var videoId in normalizedSet.Except(existingIds))
-        {
-            playlist.VideoPlaylists.Add(new VideoPlaylist { PlaylistId = playlist.Id, VideoId = videoId });
+            var normalizedSet = videoIds.ToHashSet();
+            var toRemove = playlist.VideoPlaylists.Where(vp => !normalizedSet.Contains(vp.VideoId)).ToList();
+            foreach (var remove in toRemove)
+            {
+                playlist.VideoPlaylists.Remove(remove);
+            }
+            if (toRemove.Count != 0)
+            {
+                _db.VideoPlaylists.RemoveRange(toRemove);
+            }
+
+            var existingIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
+            foreach (var videoId in normalizedSet.Except(existingIds))
+            {
+                playlist.VideoPlaylists.Add(new VideoPlaylist { PlaylistId = playlist.Id, VideoId = videoId });
+            }
         }
 
         await _db.SaveChangesAsync(ct);
@@ -208,7 +211,7 @@ public class PlaylistsController(
         return NoContent();
     }
 
-    private async Task<(List<int> VideoIds, ObjectResult? Error)> ValidatePlaylistVideos(IEnumerable<int> videoIds, int accountId, CancellationToken ct)
+    private async Task<(List<int> VideoIds, ObjectResult? Error)> ValidatePlaylistVideos(IEnumerable<int>? videoIds, int accountId, CancellationToken ct)
     {
         var normalized = (videoIds ?? Enumerable.Empty<int>()).Distinct().ToList();
         if (normalized.Count == 0) return (normalized, null);
