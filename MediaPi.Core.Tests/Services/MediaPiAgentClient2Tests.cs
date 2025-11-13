@@ -33,7 +33,8 @@ public class MediaPiAgentClient2Tests
     [Test]
     public void Constructor_WhenLoggerIsNull_Throws()
     {
-        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(response));
         var httpClient = new HttpClient(handler);
 
         Assert.Throws<ArgumentNullException>(() => _ = new MediaPiAgentClient2(httpClient, null!));
