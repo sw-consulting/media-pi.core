@@ -11,7 +11,6 @@ using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
 using System.Net;
 
 namespace MediaPi.Core.Controllers;
