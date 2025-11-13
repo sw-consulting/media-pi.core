@@ -143,7 +143,8 @@ public class MediaPiAgentClient2Tests
     [Test]
     public void UpdateScheduleAsync_WhenPayloadIsNull_Throws()
     {
-        var client = CreateClient(new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using var responseMessage = new HttpResponseMessage(HttpStatusCode.OK);
+        var client = CreateClient(new StubHttpMessageHandler((_, _) => Task.FromResult(responseMessage)));
         var device = CreateDevice();
 
         Assert.ThrowsAsync<ArgumentNullException>(() => client.UpdateScheduleAsync<object?>(device, null!, CancellationToken.None));
