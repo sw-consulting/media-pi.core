@@ -93,7 +93,7 @@ public class MediaPiAgentClient2Tests
             });
         });
 
-        var client = CreateClient(handler);
+        using var client = CreateClient(handler);
         var device = CreateDevice();
 
         var response = await client.GetAudioSettingsAsync(device, CancellationToken.None);
