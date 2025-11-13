@@ -153,25 +153,33 @@ public class MediaPiAgentClient2Tests
     [Test]
     public async Task GetPlaylistSettingsAsync_WhenResponseEmpty_HasDataFalse()
     {
+        HttpResponseMessage? stubResponse = null;
         var handler = new StubHttpMessageHandler((_, _) =>
         {
             var json = JsonSerializer.Serialize(new { ok = true });
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            stubResponse = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
+            };
+            return Task.FromResult(stubResponse);
         });
 
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        var response = await client.GetPlaylistSettingsAsync(device, CancellationToken.None);
+        try
+        {
+            var response = await client.GetPlaylistSettingsAsync(device, CancellationToken.None);
 
-        Assert.That(response.Ok, Is.True);
-        Assert.That(response.HasData, Is.False);
-        JsonElement? empty = response.DeserializeData<JsonElement>();
-        Assert.That(empty.GetValueOrDefault().ValueKind, Is.EqualTo(JsonValueKind.Undefined));
-    }
+            Assert.That(response.Ok, Is.True);
+            Assert.That(response.HasData, Is.False);
+            JsonElement? empty = response.DeserializeData<JsonElement>();
+            Assert.That(empty.GetValueOrDefault().ValueKind, Is.EqualTo(JsonValueKind.Undefined));
+        }
+        finally
+        {
+            stubResponse?.Dispose();
+        }
 
     [Test]
     public async Task StopPlaybackAsync_WhenDeviceReturnsError_NormalizesMessage()
