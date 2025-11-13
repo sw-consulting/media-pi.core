@@ -205,7 +205,11 @@ public class MediaPiAgentClient2Tests
     [Test]
     public void StartPlaybackAsync_WhenDeviceIpInvalid_Throws()
     {
-        var client = CreateClient(new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        var client = CreateClient(new StubHttpMessageHandler((_, _) =>
+        {
+            using var response = new HttpResponseMessage(HttpStatusCode.OK);
+            return Task.FromResult(response);
+        }));
         var device = CreateDevice(ip: "invalid");
 
         Assert.ThrowsAsync<InvalidOperationException>(() => client.StartPlaybackAsync(device, CancellationToken.None));
