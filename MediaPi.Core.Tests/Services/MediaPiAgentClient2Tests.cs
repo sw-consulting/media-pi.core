@@ -94,7 +94,7 @@ public class MediaPiAgentClient2Tests
             });
         });
 
-        using var client = CreateClient(handler);
+        var client = CreateClient(handler);
         var device = CreateDevice();
 
         var response = await client.GetAudioSettingsAsync(device, CancellationToken.None);
@@ -180,6 +180,7 @@ public class MediaPiAgentClient2Tests
         {
             stubResponse?.Dispose();
         }
+    }
 
     [Test]
     public async Task StopPlaybackAsync_WhenDeviceReturnsError_NormalizesMessage()
