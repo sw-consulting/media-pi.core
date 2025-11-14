@@ -1,32 +1,32 @@
 Summary
-  Generated on: 11/14/2025 - 07:07:57
-  Coverage date: 11/14/2025 - 07:07:24
+  Generated on: 11/14/2025 - 07:11:49
+  Coverage date: 11/14/2025 - 07:11:37
   Parser: Cobertura
   Assemblies: 1
   Classes: 88
   Files: 84
-  Line coverage: 40.2%
-  Covered lines: 2290
-  Uncovered lines: 3399
+  Line coverage: 41.4%
+  Covered lines: 2358
+  Uncovered lines: 3331
   Coverable lines: 5689
   Total lines: 8556
-  Branch coverage: 78% (609 of 780)
-  Covered branches: 609
+  Branch coverage: 78.5% (613 of 780)
+  Covered branches: 613
   Total branches: 780
-  Method coverage: 84.7% (440 of 519)
-  Full method coverage: 79.9% (415 of 519)
-  Covered methods: 440
-  Fully covered methods: 415
+  Method coverage: 86.3% (448 of 519)
+  Full method coverage: 81.8% (425 of 519)
+  Covered methods: 448
+  Fully covered methods: 425
   Total methods: 519
 
-MediaPi.Core                                                    40.2%
+MediaPi.Core                                                    41.4%
   MediaPi.Core.Authorization.AuthorizeAttribute                  100%
   MediaPi.Core.Authorization.JwtMiddleware                       100%
   MediaPi.Core.Authorization.JwtUtils                            100%
   MediaPi.Core.Controllers.AccountsController                   98.6%
   MediaPi.Core.Controllers.AuthController                        100%
   MediaPi.Core.Controllers.DeviceGroupsController               91.1%
-  MediaPi.Core.Controllers.DevicesController                    81.3%
+  MediaPi.Core.Controllers.DevicesController                    97.8%
   MediaPi.Core.Controllers.DeviceStatusesController              100%
   MediaPi.Core.Controllers.FuelfluxControllerPreBase            82.4%
   MediaPi.Core.Controllers.MediaPiControllerBase                 100%
