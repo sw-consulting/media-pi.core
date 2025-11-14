@@ -12,6 +12,7 @@ using NUnit.Framework;
 using System;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -47,6 +48,7 @@ public class DevicesControllerTests
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
+    private Mock<IMediaPiAgentClient2> _agentClient2Mock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -60,6 +62,7 @@ public class DevicesControllerTests
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
         _agentClientMock = new Mock<IMediaPiAgentClient>();
+        _agentClient2Mock = new Mock<IMediaPiAgentClient2>();
 
         _adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -127,7 +130,8 @@ public class DevicesControllerTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _agentClientMock.Object
+            _agentClientMock.Object,
+            _agentClient2Mock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -1107,6 +1111,91 @@ public class DevicesControllerTests
             .ReturnsAsync(agentResponse);
 
         var result = await _controller.DisableService(1, "svc", CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task StopPlayback_Admin_ReturnsAgentResponse()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
+        _agentClient2Mock
+            .Setup(c => c.StopPlaybackAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.StopPlayback(1, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task CheckStorage_Admin_ReturnsAgentData()
+    {
+        SetCurrentUser(_admin.Id);
+        using var document = JsonDocument.Parse("{\"status\":\"ok\"}");
+        var agentResponse = new MediaPiMenuDataResponse { Ok = true, Data = document.RootElement.Clone() };
+        _agentClient2Mock
+            .Setup(c => c.CheckStorageAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.CheckStorage(1, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task UpdatePlaylistSettings_MissingPayload_ReturnsBadRequest()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdatePlaylistSettings(1, default, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        _agentClient2Mock.Verify(
+            c => c.UpdatePlaylistSettingsAsync(It.IsAny<Device>(), It.IsAny<JsonElement>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateAudioSettings_WithPayload_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        using var document = JsonDocument.Parse("{\"output\":\"hdmi\"}");
+        var payload = document.RootElement.Clone();
+        var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
+        _agentClient2Mock
+            .Setup(c => c.UpdateAudioSettingsAsync(
+                It.Is<Device>(d => d.Id == 1),
+                It.Is<JsonElement>(p => p.ValueKind == JsonValueKind.Object && p.GetProperty("output").GetString() == "hdmi"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.UpdateAudioSettings(1, payload, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task ReloadSystem_Admin_InvokesAgent()
+    {
+        SetCurrentUser(_admin.Id);
+        var agentResponse = new MediaPiMenuCommandResponse { Ok = true, Result = "reloaded" };
+        _agentClient2Mock
+            .Setup(c => c.ReloadSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.ReloadSystem(1, CancellationToken.None);
 
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
