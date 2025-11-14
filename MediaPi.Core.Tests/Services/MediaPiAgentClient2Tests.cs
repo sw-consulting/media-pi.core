@@ -304,6 +304,33 @@ public class MediaPiAgentClient2Tests
         Assert.That(logger.Entries.Any(e => e.Level == LogLevel.Warning && e.Message.Contains("does not have a server key")), Is.True);
     }
 
+    [Test]
+    public void GetAudioSettingsAsync_WhenResponseInvalidJson_Throws()
+    {
+        var responses = new List<HttpResponseMessage>();
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var malformedJson = "{\"ok\": true, \"data\": {invalid json here}";
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(malformedJson, Encoding.UTF8, "application/json")
+            }));
+        });
+
+        var client = CreateClient(handler);
+        var device = CreateDevice();
+
+        try
+        {
+            var ex = Assert.ThrowsAsync<InvalidOperationException>(() => client.GetAudioSettingsAsync(device, CancellationToken.None));
+            Assert.That(ex!.Message, Does.Contain("Failed to deserialize response from device API"));
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
+    }
+
     private static MediaPiAgentClient2 CreateClient(HttpMessageHandler handler, TestLogger<MediaPiAgentClient2>? logger = null)
     {
         var httpClient = new HttpClient(handler);

@@ -1306,6 +1306,23 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task GetAudioSettings_Admin_ReturnsAgentData()
+    {
+        SetCurrentUser(_admin.Id);
+        using var document = JsonDocument.Parse("{\"channel\":\"HDMI\",\"volume\":80}");
+        var agentResponse = new MediaPiMenuDataResponse { Ok = true, Data = document.RootElement.Clone() };
+        _agentClient2Mock
+            .Setup(c => c.GetAudioSettingsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+
+        var result = await _controller.GetAudioSettings(1, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
     public async Task UpdateSchedule_WithPayload_InvokesAgent()
     {
         SetCurrentUser(_admin.Id);
