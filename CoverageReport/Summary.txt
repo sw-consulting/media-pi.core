@@ -1,0 +1,110 @@
+Summary
+  Generated on: 11/14/2025 - 07:07:57
+  Coverage date: 11/14/2025 - 07:07:24
+  Parser: Cobertura
+  Assemblies: 1
+  Classes: 88
+  Files: 84
+  Line coverage: 40.2%
+  Covered lines: 2290
+  Uncovered lines: 3399
+  Coverable lines: 5689
+  Total lines: 8556
+  Branch coverage: 78% (609 of 780)
+  Covered branches: 609
+  Total branches: 780
+  Method coverage: 84.7% (440 of 519)
+  Full method coverage: 79.9% (415 of 519)
+  Covered methods: 440
+  Fully covered methods: 415
+  Total methods: 519
+
+MediaPi.Core                                                    40.2%
+  MediaPi.Core.Authorization.AuthorizeAttribute                  100%
+  MediaPi.Core.Authorization.JwtMiddleware                       100%
+  MediaPi.Core.Authorization.JwtUtils                            100%
+  MediaPi.Core.Controllers.AccountsController                   98.6%
+  MediaPi.Core.Controllers.AuthController                        100%
+  MediaPi.Core.Controllers.DeviceGroupsController               91.1%
+  MediaPi.Core.Controllers.DevicesController                    81.3%
+  MediaPi.Core.Controllers.DeviceStatusesController              100%
+  MediaPi.Core.Controllers.FuelfluxControllerPreBase            82.4%
+  MediaPi.Core.Controllers.MediaPiControllerBase                 100%
+  MediaPi.Core.Controllers.PlaylistsController                    78%
+  MediaPi.Core.Controllers.RolesController                       100%
+  MediaPi.Core.Controllers.StatusController                     76.9%
+  MediaPi.Core.Controllers.UsersController                       100%
+  MediaPi.Core.Controllers.VideosController                     97.5%
+  MediaPi.Core.Data.AppDbContext                                96.4%
+  MediaPi.Core.Extensions.AccountExtensions                      100%
+  MediaPi.Core.Extensions.DeviceExtensions                       100%
+  MediaPi.Core.Extensions.DeviceGroupExtensions                  100%
+  MediaPi.Core.Extensions.PlaylistExtensions                     100%
+  MediaPi.Core.Extensions.VideoExtensions                        100%
+  MediaPi.Core.Migrations._0_1_3_DeviceProbes                      0%
+  MediaPi.Core.Migrations._0_3_0_RestAgent                         0%
+  MediaPi.Core.Migrations.AppDbContextModelSnapshot                0%
+  MediaPi.Core.Migrations.InitialCreate                            0%
+  MediaPi.Core.Models.Account                                    100%
+  MediaPi.Core.Models.Category                                     0%
+  MediaPi.Core.Models.Device                                      80%
+  MediaPi.Core.Models.DeviceGroup                                100%
+  MediaPi.Core.Models.DeviceProbe                               71.4%
+  MediaPi.Core.Models.Playlist                                   100%
+  MediaPi.Core.Models.Role                                       100%
+  MediaPi.Core.Models.Screenshot                                   0%
+  MediaPi.Core.Models.Subscription                                 0%
+  MediaPi.Core.Models.User                                       100%
+  MediaPi.Core.Models.UserAccount                                100%
+  MediaPi.Core.Models.UserRole                                   100%
+  MediaPi.Core.Models.Video                                       75%
+  MediaPi.Core.Models.VideoPlaylist                              100%
+  MediaPi.Core.Models.VideoStatus                                100%
+  MediaPi.Core.RestModels.AccountCreateItem                       40%
+  MediaPi.Core.RestModels.AccountUpdateItem                       40%
+  MediaPi.Core.RestModels.AccountViewItem                       57.1%
+  MediaPi.Core.RestModels.Credentials                            100%
+  MediaPi.Core.RestModels.DeviceGroupCreateItem                   40%
+  MediaPi.Core.RestModels.DeviceGroupUpdateItem                   25%
+  MediaPi.Core.RestModels.DeviceGroupViewItem                   57.1%
+  MediaPi.Core.RestModels.DeviceRegisterRequest                  100%
+  MediaPi.Core.RestModels.DeviceRegisterResponse                 100%
+  MediaPi.Core.RestModels.DeviceStatusItem                      81.2%
+  MediaPi.Core.RestModels.DeviceUpdateItem                      62.5%
+  MediaPi.Core.RestModels.DeviceViewItem                        72.7%
+  MediaPi.Core.RestModels.ErrMessage                              25%
+  MediaPi.Core.RestModels.PlaylistCreateItem                     100%
+  MediaPi.Core.RestModels.PlaylistUpdateItem                     100%
+  MediaPi.Core.RestModels.PlaylistViewItem                      66.6%
+  MediaPi.Core.RestModels.Reference                              100%
+  MediaPi.Core.RestModels.RoleViewItem                           100%
+  MediaPi.Core.RestModels.Status                                 100%
+  MediaPi.Core.RestModels.UserCreateItem                         100%
+  MediaPi.Core.RestModels.UserUpdateItem                         100%
+  MediaPi.Core.RestModels.UserViewItem                           100%
+  MediaPi.Core.RestModels.UserViewItemWithJWT                    100%
+  MediaPi.Core.RestModels.VideoUpdateItem                        100%
+  MediaPi.Core.RestModels.VideoUploadItem                        100%
+  MediaPi.Core.RestModels.VideoViewItem                         62.5%
+  MediaPi.Core.Services.DeviceAgentRestClient                   98.9%
+  MediaPi.Core.Services.DeviceEventsService                      100%
+  MediaPi.Core.Services.DeviceMonitoringService                 86.8%
+  MediaPi.Core.Services.MediaPiAgentClient2                     91.5%
+  MediaPi.Core.Services.Models.DeviceStatusEvent                 100%
+  MediaPi.Core.Services.Models.DeviceStatusSnapshot              100%
+  MediaPi.Core.Services.Models.MediaPiAgentEnableResponse        100%
+  MediaPi.Core.Services.Models.MediaPiAgentHealthResponse        100%
+  MediaPi.Core.Services.Models.MediaPiAgentListResponse          100%
+  MediaPi.Core.Services.Models.MediaPiAgentListUnit             66.6%
+  MediaPi.Core.Services.Models.MediaPiAgentResponse              100%
+  MediaPi.Core.Services.Models.MediaPiAgentStatusResponse         60%
+  MediaPi.Core.Services.Models.MediaPiAgentUnitResultResponse    100%
+  MediaPi.Core.Services.Models.MediaPiMenuCommandResponse        100%
+  MediaPi.Core.Services.Models.MediaPiMenuDataResponse           100%
+  MediaPi.Core.Services.UserInformationService                    99%
+  MediaPi.Core.Services.VideoStorageService                        0%
+  MediaPi.Core.Settings.AppSettings                              100%
+  MediaPi.Core.Settings.DeviceMonitorSettings                    100%
+  MediaPi.Core.Settings.JOptions                                 100%
+  MediaPi.Core.Settings.VideoStorageSettings                       0%
+  Program                                                          0%
