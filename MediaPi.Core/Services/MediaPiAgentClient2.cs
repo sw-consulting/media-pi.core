@@ -70,13 +70,13 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     public Task<MediaPiMenuCommandResponse> ShutdownSystemAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/system/shutdown", cancellationToken);
 
-    private Task<MediaPiMenuCommandResponse> ExecuteCommandAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
+    private async Task<MediaPiMenuCommandResponse> ExecuteCommandAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(device, method, path);
-        return SendCommandAsync(request, cancellationToken);
+        return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private Task<MediaPiMenuCommandResponse> ExecuteCommandWithPayloadAsync<TPayload>(Device device, HttpMethod method, string path, TPayload payload, CancellationToken cancellationToken)
+    private async Task<MediaPiMenuCommandResponse> ExecuteCommandWithPayloadAsync<TPayload>(Device device, HttpMethod method, string path, TPayload payload, CancellationToken cancellationToken)
     {
         if (payload is null)
         {
@@ -84,13 +84,13 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
         }
 
         using var request = CreateRequest(device, method, path, content: CreateJsonContent(payload));
-        return SendCommandAsync(request, cancellationToken);
+        return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private Task<MediaPiMenuDataResponse> ExecuteDataRequestAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
+    private async Task<MediaPiMenuDataResponse> ExecuteDataRequestAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(device, method, path);
-        return SendDataAsync(request, cancellationToken);
+        return await SendDataAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private HttpRequestMessage CreateRequest(Device device, HttpMethod method, string path, HttpContent? content = null)
