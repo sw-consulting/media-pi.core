@@ -44,27 +44,35 @@ public class MediaPiAgentClient2Tests
     public async Task PostCommands_SendPostToExpectedPaths()
     {
         var observed = new List<(HttpMethod Method, Uri Uri)>();
+        var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             observed.Add((request.Method, request.RequestUri!));
             var body = JsonSerializer.Serialize(new { ok = true, data = new { result = "done" } });
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json")
-            });
+            }));
         });
 
         var logger = new TestLogger<MediaPiAgentClient2>();
         var client = CreateClient(handler, logger);
         var device = CreateDevice(port: 1200, serverKey: " key ");
 
-        await client.StopPlaybackAsync(device, CancellationToken.None);
-        await client.StartPlaybackAsync(device, CancellationToken.None);
-        await client.StartPlaylistUploadAsync(device, CancellationToken.None);
-        await client.StopPlaylistUploadAsync(device, CancellationToken.None);
-        await client.ReloadSystemAsync(device, CancellationToken.None);
-        await client.RebootSystemAsync(device, CancellationToken.None);
-        await client.ShutdownSystemAsync(device, CancellationToken.None);
+        try
+        {
+            await client.StopPlaybackAsync(device, CancellationToken.None);
+            await client.StartPlaybackAsync(device, CancellationToken.None);
+            await client.StartPlaylistUploadAsync(device, CancellationToken.None);
+            await client.StopPlaylistUploadAsync(device, CancellationToken.None);
+            await client.ReloadSystemAsync(device, CancellationToken.None);
+            await client.RebootSystemAsync(device, CancellationToken.None);
+            await client.ShutdownSystemAsync(device, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
 
         Assert.That(observed.Select(o => o.Method), Is.All.EqualTo(HttpMethod.Post));
         Assert.That(observed.Select(o => o.Uri.AbsolutePath), Is.EqualTo(new[]
@@ -84,20 +92,29 @@ public class MediaPiAgentClient2Tests
     [Test]
     public async Task DataEndpoints_ReturnDataAndAllowDeserialize()
     {
+        var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
             var json = JsonSerializer.Serialize(new { ok = true, data = new { channel = "HDMI", volume = 75 } });
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
+            }));
         });
 
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        var response = await client.GetAudioSettingsAsync(device, CancellationToken.None);
+        MediaPiMenuDataResponse response;
+        try
+        {
+            response = await client.GetAudioSettingsAsync(device, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
 
         Assert.That(response.Ok, Is.True);
         Assert.That(response.Error, Is.Null);
@@ -114,6 +131,7 @@ public class MediaPiAgentClient2Tests
     {
         string? observedContent = null;
         AuthenticationHeaderValue? observedAuth = null;
+        var responses = new List<HttpResponseMessage>();
 
         var handler = new StubHttpMessageHandler(async (request, cancellationToken) =>
         {
@@ -121,17 +139,25 @@ public class MediaPiAgentClient2Tests
             observedAuth = request.Headers.Authorization;
 
             var json = JsonSerializer.Serialize(new { ok = true, data = new { result = "updated" } });
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
-            };
+            });
         });
 
         var client = CreateClient(handler);
         var device = CreateDevice(serverKey: "secret");
         var payload = new { enabled = true, login = "user" };
 
-        var response = await client.UpdatePlaylistSettingsAsync(device, payload, CancellationToken.None);
+        MediaPiMenuCommandResponse response;
+        try
+        {
+            response = await client.UpdatePlaylistSettingsAsync(device, payload, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
         Assert.That(observedContent, Is.EqualTo("{\"enabled\":true,\"login\":\"user\"}"));
@@ -153,51 +179,60 @@ public class MediaPiAgentClient2Tests
     [Test]
     public async Task GetPlaylistSettingsAsync_WhenResponseEmpty_HasDataFalse()
     {
-        HttpResponseMessage? stubResponse = null;
+        var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((_, _) =>
         {
             var json = JsonSerializer.Serialize(new { ok = true });
-            stubResponse = new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
-            };
-            return Task.FromResult(stubResponse);
+            }));
         });
 
         var client = CreateClient(handler);
         var device = CreateDevice();
 
+        MediaPiMenuDataResponse response;
         try
         {
-            var response = await client.GetPlaylistSettingsAsync(device, CancellationToken.None);
-
-            Assert.That(response.Ok, Is.True);
-            Assert.That(response.HasData, Is.False);
-            JsonElement? empty = response.DeserializeData<JsonElement>();
-            Assert.That(empty.GetValueOrDefault().ValueKind, Is.EqualTo(JsonValueKind.Undefined));
+            response = await client.GetPlaylistSettingsAsync(device, CancellationToken.None);
         }
         finally
         {
-            stubResponse?.Dispose();
+            DisposeResponses(responses);
         }
+
+        Assert.That(response.Ok, Is.True);
+        Assert.That(response.HasData, Is.False);
+        JsonElement? empty = response.DeserializeData<JsonElement>();
+        Assert.That(empty.GetValueOrDefault().ValueKind, Is.EqualTo(JsonValueKind.Undefined));
     }
 
     [Test]
     public async Task StopPlaybackAsync_WhenDeviceReturnsError_NormalizesMessage()
     {
+        var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((_, _) =>
         {
             var json = JsonSerializer.Serialize(new { ok = false });
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.BadRequest)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
+            }));
         });
 
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        var response = await client.StopPlaybackAsync(device, CancellationToken.None);
+        MediaPiMenuCommandResponse response;
+        try
+        {
+            response = await client.StopPlaybackAsync(device, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
 
         Assert.That(response.Ok, Is.False);
         Assert.That(response.Error, Is.EqualTo("Device API responded with status 400 (BadRequest)."));
@@ -206,14 +241,21 @@ public class MediaPiAgentClient2Tests
     [Test]
     public void StartPlaybackAsync_WhenDeviceIpInvalid_Throws()
     {
+        var responses = new List<HttpResponseMessage>();
         var client = CreateClient(new StubHttpMessageHandler((_, _) =>
         {
-            using var response = new HttpResponseMessage(HttpStatusCode.OK);
-            return Task.FromResult(response);
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)));
         }));
         var device = CreateDevice(ip: "invalid");
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => client.StartPlaybackAsync(device, CancellationToken.None));
+        try
+        {
+            Assert.ThrowsAsync<InvalidOperationException>(() => client.StartPlaybackAsync(device, CancellationToken.None));
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
     }
 
     [Test]
@@ -230,21 +272,30 @@ public class MediaPiAgentClient2Tests
     public async Task GetScheduleAsync_WhenPortInvalid_LogsWarningAndUsesDefault()
     {
         Uri? observedUri = null;
+        var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             observedUri = request.RequestUri;
             var json = JsonSerializer.Serialize(new { ok = true, data = new { cron = "* * * * *" } });
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
+            }));
         });
 
         var logger = new TestLogger<MediaPiAgentClient2>();
         var client = CreateClient(handler, logger);
         var device = CreateDevice(port: 0, serverKey: string.Empty);
 
-        var response = await client.GetScheduleAsync(device, CancellationToken.None);
+        MediaPiMenuDataResponse response;
+        try
+        {
+            response = await client.GetScheduleAsync(device, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
 
         Assert.That(observedUri, Is.Not.Null);
         Assert.That(observedUri!.Port, Is.EqualTo(8081));
@@ -269,6 +320,20 @@ public class MediaPiAgentClient2Tests
             Port = port,
             ServerKey = serverKey
         };
+    }
+
+    private static HttpResponseMessage TrackResponse(ICollection<HttpResponseMessage> responses, HttpResponseMessage response)
+    {
+        responses.Add(response);
+        return response;
+    }
+
+    private static void DisposeResponses(IEnumerable<HttpResponseMessage> responses)
+    {
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
     }
 
     private sealed record AudioSettings

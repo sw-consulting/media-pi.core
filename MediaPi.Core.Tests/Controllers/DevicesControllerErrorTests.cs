@@ -522,11 +522,17 @@ public class DevicesControllerErrorTests
         var result = await _controller.StopPlayback(1, CancellationToken.None);
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = result.Result as ObjectResult;
-        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
-        var err = obj.Value as ErrMessage;
-        Assert.That(err, Is.Not.Null);
-        Assert.That(err!.Msg, Does.Contain("agent error"));
+        if (result.Result is ObjectResult obj)
+        {
+            Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+            var err = obj.Value as ErrMessage;
+            Assert.That(err, Is.Not.Null);
+            Assert.That(err!.Msg, Does.Contain("agent error"));
+        }
+        else
+        {
+            Assert.Fail("Expected ObjectResult");
+        }
     }
 
     [Test]

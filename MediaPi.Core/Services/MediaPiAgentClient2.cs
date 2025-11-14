@@ -72,8 +72,16 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
 
     private async Task<MediaPiMenuCommandResponse> ExecuteCommandAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(device, method, path);
-        return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
+        var request = CreateRequest(device, method, path);
+
+        try
+        {
+            return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            request.Dispose();
+        }
     }
 
     private async Task<MediaPiMenuCommandResponse> ExecuteCommandWithPayloadAsync<TPayload>(Device device, HttpMethod method, string path, TPayload payload, CancellationToken cancellationToken)
@@ -83,14 +91,30 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
             throw new ArgumentNullException(nameof(payload));
         }
 
-        using var request = CreateRequest(device, method, path, content: CreateJsonContent(payload));
-        return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
+        var request = CreateRequest(device, method, path, content: CreateJsonContent(payload));
+
+        try
+        {
+            return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            request.Dispose();
+        }
     }
 
     private async Task<MediaPiMenuDataResponse> ExecuteDataRequestAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(device, method, path);
-        return await SendDataAsync(request, cancellationToken).ConfigureAwait(false);
+        var request = CreateRequest(device, method, path);
+
+        try
+        {
+            return await SendDataAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            request.Dispose();
+        }
     }
 
     private HttpRequestMessage CreateRequest(Device device, HttpMethod method, string path, HttpContent? content = null)
