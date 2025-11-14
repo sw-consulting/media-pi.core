@@ -143,6 +143,12 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует название" });
     }
 
+    protected ObjectResult _400RequestPayloadMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не указано содержимое запроса" });
+    }
+
     protected ObjectResult _502Agent(string? message = null)
     {
         const string baseMessage = "Ошибка при обращении к агенту устройства";

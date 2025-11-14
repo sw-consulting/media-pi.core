@@ -12,6 +12,7 @@ using NUnit.Framework;
 using System;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -47,6 +48,7 @@ public class DevicesControllerErrorTests
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
+    private Mock<IMediaPiAgentClient2> _agentClient2Mock;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -60,6 +62,7 @@ public class DevicesControllerErrorTests
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
         _agentClientMock = new Mock<IMediaPiAgentClient>();
+        _agentClient2Mock = new Mock<IMediaPiAgentClient2>();
 
         _adminRole = new Role { Id = (int)UserRoleConstants.SystemAdministrator, RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
         _managerRole = new Role { Id = (int)UserRoleConstants.AccountManager, RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
@@ -131,7 +134,8 @@ public class DevicesControllerErrorTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
-            _agentClientMock.Object
+            _agentClientMock.Object,
+            _agentClient2Mock.Object
         )
         {
             ControllerContext = new ControllerContext { HttpContext = context }
@@ -505,6 +509,46 @@ public class DevicesControllerErrorTests
         var err = obj.Value as ErrMessage;
         Assert.That(err, Is.Not.Null);
         Assert.That(err!.Msg, Does.Contain("Ошибка при обращении к агенту устройства"));
+    }
+
+    [Test]
+    public async Task StopPlayback_AgentReportedError_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClient2Mock
+            .Setup(c => c.StopPlaybackAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = false, Error = "agent error" });
+
+        var result = await _controller.StopPlayback(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        if (result.Result is ObjectResult obj)
+        {
+            Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+            var err = obj.Value as ErrMessage;
+            Assert.That(err, Is.Not.Null);
+            Assert.That(err!.Msg, Does.Contain("agent error"));
+        }
+        else
+        {
+            Assert.Fail("Expected ObjectResult");
+        }
+    }
+
+    [Test]
+    public async Task GetAudioSettings_AgentReportedError_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        using var document = JsonDocument.Parse("{\"volume\":50}");
+        _agentClient2Mock
+            .Setup(c => c.GetAudioSettingsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuDataResponse { Ok = false, Data = document.RootElement.Clone() });
+
+        var result = await _controller.GetAudioSettings(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
     }
 
 }

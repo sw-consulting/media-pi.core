@@ -49,6 +49,11 @@ builder.Services.AddHttpClient<IMediaPiAgentClient, DeviceAgentRestClient>(clien
 })
 ;
 
+builder.Services.AddHttpClient<IMediaPiAgentClient2, MediaPiAgentClient2>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>

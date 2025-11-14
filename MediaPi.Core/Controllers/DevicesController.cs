@@ -11,7 +11,6 @@ using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
 using System.Net;
 
 namespace MediaPi.Core.Controllers;
@@ -21,14 +20,15 @@ namespace MediaPi.Core.Controllers;
 [Route("api/[controller]")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
-public class DevicesController(
+public partial class DevicesController(
     IHttpContextAccessor httpContextAccessor,
     IUserInformationService userInformationService,
     AppDbContext db,
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
     IDeviceMonitoringService monitoringService,
-    IMediaPiAgentClient mediaPiAgentClient) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    IMediaPiAgentClient mediaPiAgentClient,
+    IMediaPiAgentClient2 mediaPiAgentClient2) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     // POST: api/devices/register
     [HttpPost("register")]
