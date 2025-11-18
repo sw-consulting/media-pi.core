@@ -11,6 +11,7 @@ public record class MediaPiMenuDataResponse : MediaPiAgentResponse
     private static readonly JsonSerializerOptions DefaultSerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
     [JsonPropertyName("data")] public JsonElement Data { get; init; }
@@ -27,6 +28,22 @@ public record class MediaPiMenuDataResponse : MediaPiAgentResponse
 
         return Data.Deserialize<T>(options ?? DefaultSerializerOptions);
     }
+}
+
+public record class MediaPiMenuDataResponse<T> : MediaPiAgentResponse
+{
+    private static readonly JsonSerializerOptions DefaultSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    public T? Data { get; init; }
+
+    [JsonIgnore]
+    public bool HasData => Data != null;
+
+    public T? GetData() => Data;
 }
 
 public sealed record class MediaPiMenuCommandResponse : MediaPiMenuDataResponse

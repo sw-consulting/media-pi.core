@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Models;
+using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Models;
 using Microsoft.Extensions.Logging;
@@ -96,7 +97,7 @@ public class MediaPiAgentClient2Tests
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
-            var json = JsonSerializer.Serialize(new { ok = true, data = new { channel = "HDMI", volume = 75 } });
+            var json = JsonSerializer.Serialize(new { ok = true, data = new { output = "HDMI" } });
             return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -106,7 +107,7 @@ public class MediaPiAgentClient2Tests
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        MediaPiMenuDataResponse response;
+        MediaPiMenuDataResponse<AudioSettingsDto> response;
         try
         {
             response = await client.GetAudioSettingsAsync(device, CancellationToken.None);
@@ -117,13 +118,12 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Ok, Is.True);
-        Assert.That(response.Error, Is.Null);
+        Assert.That(response.ErrMsg, Is.Null);
         Assert.That(response.HasData, Is.True);
 
-        var model = response.DeserializeData<AudioSettings>();
+        var model = response.GetData();
         Assert.That(model, Is.Not.Null);
-        Assert.That(model!.Channel, Is.EqualTo("HDMI"));
-        Assert.That(model.Volume, Is.EqualTo(75));
+        Assert.That(model!.Output, Is.EqualTo("HDMI"));
     }
 
     [Test]
@@ -192,7 +192,7 @@ public class MediaPiAgentClient2Tests
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        MediaPiMenuDataResponse response;
+        MediaPiMenuDataResponse<PlaylistSettingsDto> response;
         try
         {
             response = await client.GetPlaylistSettingsAsync(device, CancellationToken.None);
@@ -204,8 +204,9 @@ public class MediaPiAgentClient2Tests
 
         Assert.That(response.Ok, Is.True);
         Assert.That(response.HasData, Is.False);
-        JsonElement? empty = response.DeserializeData<JsonElement>();
-        Assert.That(empty.GetValueOrDefault().ValueKind, Is.EqualTo(JsonValueKind.Undefined));
+
+        var model = response.GetData();
+        Assert.That(model, Is.Null);
     }
 
     [Test]
@@ -235,7 +236,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Ok, Is.False);
-        Assert.That(response.Error, Is.EqualTo("Device API responded with status 400 (BadRequest)."));
+        Assert.That(response.ErrMsg, Is.EqualTo("Device API responded with status 400 (BadRequest)."));
     }
 
     [Test]
@@ -287,7 +288,7 @@ public class MediaPiAgentClient2Tests
         var client = CreateClient(handler, logger);
         var device = CreateDevice(port: 0, serverKey: string.Empty);
 
-        MediaPiMenuDataResponse response;
+        MediaPiMenuDataResponse<ScheduleSettingsDto> response;
         try
         {
             response = await client.GetScheduleAsync(device, CancellationToken.None);
@@ -329,6 +330,89 @@ public class MediaPiAgentClient2Tests
         {
             DisposeResponses(responses);
         }
+    }
+
+    [Test]
+    public async Task UpdateAudioSettingsAsync_SendsTypedPayload()
+    {
+        string? observedContent = null;
+        var responses = new List<HttpResponseMessage>();
+
+        var handler = new StubHttpMessageHandler(async (request, cancellationToken) =>
+        {
+            observedContent = await request.Content!.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            var json = JsonSerializer.Serialize(new { ok = true, data = new { result = "updated" } });
+            return TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        });
+
+        var client = CreateClient(handler);
+        var device = CreateDevice();
+        var payload = new AudioSettingsDto { Output = "HDMI" };
+
+        MediaPiMenuCommandResponse response;
+        try
+        {
+            response = await client.UpdateAudioSettingsAsync(device, payload, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
+
+        Assert.That(response.Result, Is.EqualTo("updated"));
+        Assert.That(observedContent, Is.EqualTo("{\"output\":\"HDMI\"}"));
+    }
+
+    [Test]
+    public async Task GetServiceStatusAsync_ReturnsServiceStatus()
+    {
+        var responses = new List<HttpResponseMessage>();
+        var handler = new StubHttpMessageHandler((request, _) =>
+        {
+            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            var json = JsonSerializer.Serialize(new
+            {
+                ok = true,
+                data = new
+                {
+                    playbackServiceStatus = true,
+                    playlistUploadServiceStatus = false,
+                    yaDiskMountStatus = true
+                }
+            });
+
+            return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            }));
+        });
+
+        var client = CreateClient(handler);
+        var device = CreateDevice();
+
+        MediaPiMenuDataResponse<ServiceStatusDto> response;
+        try
+        {
+            response = await client.GetServiceStatusAsync(device, CancellationToken.None);
+        }
+        finally
+        {
+            DisposeResponses(responses);
+        }
+
+        Assert.That(response.Ok, Is.True);
+        Assert.That(response.ErrMsg, Is.Null);
+        Assert.That(response.HasData, Is.True);
+
+        var model = response.GetData();
+        Assert.That(model, Is.Not.Null);
+        Assert.That(model!.PlaybackServiceStatus, Is.True);
+        Assert.That(model.PlaylistUploadServiceStatus, Is.False);
+        Assert.That(model.YaDiskMountStatus, Is.True);
     }
 
     private static MediaPiAgentClient2 CreateClient(HttpMessageHandler handler, TestLogger<MediaPiAgentClient2>? logger = null)

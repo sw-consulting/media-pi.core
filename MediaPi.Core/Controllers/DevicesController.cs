@@ -502,13 +502,13 @@ public partial class DevicesController(
             {
                 if (string.IsNullOrWhiteSpace(unit))
                 {
-                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, id, response.Error ?? "неизвестная ошибка");
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, id, response.ErrMsg ?? "неизвестная ошибка");
                 }
                 else
                 {
-                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.Error ?? "неизвестная ошибка");
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.ErrMsg ?? "неизвестная ошибка");
                 }
-                return _502Agent(response.Error);
+                return _502Agent(response.ErrMsg);
             }
 
             return Ok(response);

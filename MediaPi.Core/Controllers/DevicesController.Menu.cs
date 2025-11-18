@@ -1,8 +1,9 @@
-// Copyright (c) 2025 sw.consulting
+﻿// Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
 using System.Text.Json;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -38,32 +39,42 @@ public partial class DevicesController
             ct);
     }
 
-    [HttpGet("{id}/storage/check")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuDataResponse))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuDataResponse>> CheckStorage(int id, CancellationToken ct = default)
-    {
-        return ExecuteAgentOperation(
-            id,
-            "check storage",
-            (device, token) => mediaPiAgentClient2.CheckStorageAsync(device, token),
-            ct);
-    }
-
     [HttpGet("{id}/playlist/get")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuDataResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PlaylistSettingsDto))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuDataResponse>> GetPlaylistSettings(int id, CancellationToken ct = default)
+    public async Task<ActionResult<PlaylistSettingsDto>> GetPlaylistSettings(int id, CancellationToken ct = default)
     {
-        return ExecuteAgentOperation(
-            id,
-            "get playlist settings",
-            (device, token) => mediaPiAgentClient2.GetPlaylistSettingsAsync(device, token),
-            ct);
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await mediaPiAgentClient2.GetPlaylistSettingsAsync(targetDevice, ct);
+            if (!response.Ok)
+            {
+                logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", "get playlist settings", 
+                    id, 
+                    response.ErrMsg ?? "неизвестная ошибка");
+                return _502Agent(response.ErrMsg);
+            }
+
+            if (!response.HasData || response.Data == null)
+            {
+                logger.LogWarning("Агент вернул пустые данные для операции {Operation} устройства {DeviceId}", "get playlist settings", id);
+                return _502Agent("Устройство не вернуло данные настроек плейлиста");
+            }
+
+            return Ok(response.Data);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}", "get playlist settings", id);
+            return _502Agent();
+        }
     }
 
     [HttpPut("{id}/playlist/update")]
@@ -72,18 +83,12 @@ public partial class DevicesController
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdatePlaylistSettings(int id, [FromBody] JsonElement payload, CancellationToken ct = default)
+    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdatePlaylistSettings(int id, [FromBody] PlaylistSettingsDto payload, CancellationToken ct = default)
     {
-        if (IsPayloadMissing(payload))
-        {
-            return Task.FromResult<ActionResult<MediaPiMenuCommandResponse>>(_400RequestPayloadMissing());
-        }
-
-        var payloadClone = payload.Clone();
         return ExecuteAgentOperation(
             id,
             "update playlist settings",
-            (device, token) => mediaPiAgentClient2.UpdatePlaylistSettingsAsync(device, payloadClone, token),
+            (device, token) => mediaPiAgentClient2.UpdatePlaylistSettingsAsync(device, payload, token),
             ct);
     }
 
@@ -116,17 +121,41 @@ public partial class DevicesController
     }
 
     [HttpGet("{id}/schedule/get")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuDataResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ScheduleSettingsDto))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuDataResponse>> GetSchedule(int id, CancellationToken ct = default)
+    public async Task<ActionResult<ScheduleSettingsDto>> GetSchedule(int id, CancellationToken ct = default)
     {
-        return ExecuteAgentOperation(
-            id,
-            "get schedule",
-            (device, token) => mediaPiAgentClient2.GetScheduleAsync(device, token),
-            ct);
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await mediaPiAgentClient2.GetScheduleAsync(targetDevice, ct);
+            if (!response.Ok)
+            {
+                logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", "get schedule", 
+                    id, 
+                    response.ErrMsg ?? "неизвестная ошибка");
+                return _502Agent(response.ErrMsg);
+            }
+
+            if (!response.HasData || response.Data == null)
+            {
+                logger.LogWarning("Агент вернул пустые данные для операции {Operation} устройства {DeviceId}", "get schedule", id);
+                return _502Agent("Устройство не вернуло данные расписания");
+            }
+
+            return Ok(response.Data);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}", "get schedule", id);
+            return _502Agent();
+        }
     }
 
     [HttpPut("{id}/schedule/update")]
@@ -135,33 +164,51 @@ public partial class DevicesController
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateSchedule(int id, [FromBody] JsonElement payload, CancellationToken ct = default)
+    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateSchedule(int id, [FromBody] ScheduleSettingsDto payload, CancellationToken ct = default)
     {
-        if (IsPayloadMissing(payload))
-        {
-            return Task.FromResult<ActionResult<MediaPiMenuCommandResponse>>(_400RequestPayloadMissing());
-        }
-
-        var payloadClone = payload.Clone();
         return ExecuteAgentOperation(
             id,
             "update schedule",
-            (device, token) => mediaPiAgentClient2.UpdateScheduleAsync(device, payloadClone, token),
+            (device, token) => mediaPiAgentClient2.UpdateScheduleAsync(device, payload, token),
             ct);
     }
 
     [HttpGet("{id}/audio/get")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuDataResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AudioSettingsDto))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuDataResponse>> GetAudioSettings(int id, CancellationToken ct = default)
+    public async Task<ActionResult<AudioSettingsDto>> GetAudioSettings(int id, CancellationToken ct = default)
     {
-        return ExecuteAgentOperation(
-            id,
-            "get audio settings",
-            (device, token) => mediaPiAgentClient2.GetAudioSettingsAsync(device, token),
-            ct);
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await mediaPiAgentClient2.GetAudioSettingsAsync(targetDevice, ct);
+            if (!response.Ok)
+            {
+                logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", "get audio settings", 
+                    id, 
+                    response.ErrMsg ?? "неизвестная ошибка");
+                return _502Agent(response.ErrMsg);
+            }
+
+            if (!response.HasData || response.Data == null)
+            {
+                logger.LogWarning("Агент вернул пустые данные для операции {Operation} устройства {DeviceId}", "get audio settings", id);
+                return _502Agent("Устройство не вернуло данные настроек аудио");
+            }
+
+            return Ok(response.Data);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}", "get audio settings", id);
+            return _502Agent();
+        }
     }
 
     [HttpPut("{id}/audio/update")]
@@ -170,18 +217,12 @@ public partial class DevicesController
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateAudioSettings(int id, [FromBody] JsonElement payload, CancellationToken ct = default)
+    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateAudioSettings(int id, [FromBody] AudioSettingsDto payload, CancellationToken ct = default)
     {
-        if (IsPayloadMissing(payload))
-        {
-            return Task.FromResult<ActionResult<MediaPiMenuCommandResponse>>(_400RequestPayloadMissing());
-        }
-
-        var payloadClone = payload.Clone();
         return ExecuteAgentOperation(
             id,
             "update audio settings",
-            (device, token) => mediaPiAgentClient2.UpdateAudioSettingsAsync(device, payloadClone, token),
+            (device, token) => mediaPiAgentClient2.UpdateAudioSettingsAsync(device, payload, token),
             ct);
     }
 
@@ -225,6 +266,44 @@ public partial class DevicesController
             "shutdown system",
             (device, token) => mediaPiAgentClient2.ShutdownSystemAsync(device, token),
             ct);
+    }
+
+    [HttpGet("{id}/service/status")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ServiceStatusDto))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<ServiceStatusDto>> GetServiceStatus(int id, CancellationToken ct = default)
+    {
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await mediaPiAgentClient2.GetServiceStatusAsync(targetDevice, ct);
+            if (!response.Ok)
+            {
+                logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", "get service status", 
+                    id, 
+                    response.ErrMsg ?? "неизвестная ошибка");
+                return _502Agent(response.ErrMsg);
+            }
+
+            if (!response.HasData || response.Data == null)
+            {
+                logger.LogWarning("Агент вернул пустые данные для операции {Operation} устройства {DeviceId}", "get service status", id);
+                return _502Agent("Устройство не вернуло данные статуса сервисов");
+            }
+
+            return Ok(response.Data);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}", "get service status", id);
+            return _502Agent();
+        }
     }
 
     private static bool IsPayloadMissing(JsonElement payload) =>

@@ -8,6 +8,7 @@ using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,7 +41,12 @@ builder.Services
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
     .AddHttpContextAccessor()
-    .AddControllers();
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    });
 
 builder.Services.AddHttpClient<IMediaPiAgentClient, DeviceAgentRestClient>(client =>
 {
@@ -49,10 +55,13 @@ builder.Services.AddHttpClient<IMediaPiAgentClient, DeviceAgentRestClient>(clien
 })
 ;
 
+builder.Services.AddScoped<LoggingHandler>();
+
 builder.Services.AddHttpClient<IMediaPiAgentClient2, MediaPiAgentClient2>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+})
+.AddHttpMessageHandler<LoggingHandler>();
 
 builder.Services.AddCors(options =>
 {
