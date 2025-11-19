@@ -121,7 +121,7 @@ public class MediaPiAgentClient2Tests
         Assert.That(response.ErrMsg, Is.Null);
         Assert.That(response.HasData, Is.True);
 
-        var model = response.GetData();
+        var model = response.Data;
         Assert.That(model, Is.Not.Null);
         Assert.That(model!.Output, Is.EqualTo("HDMI"));
     }
@@ -205,7 +205,7 @@ public class MediaPiAgentClient2Tests
         Assert.That(response.Ok, Is.True);
         Assert.That(response.HasData, Is.False);
 
-        var model = response.GetData();
+        var model = response.Data;
         Assert.That(model, Is.Null);
     }
 
@@ -408,7 +408,7 @@ public class MediaPiAgentClient2Tests
         Assert.That(response.ErrMsg, Is.Null);
         Assert.That(response.HasData, Is.True);
 
-        var model = response.GetData();
+        var model = response.Data;
         Assert.That(model, Is.Not.Null);
         Assert.That(model!.PlaybackServiceStatus, Is.True);
         Assert.That(model.PlaylistUploadServiceStatus, Is.False);
