@@ -502,13 +502,13 @@ public partial class DevicesController(
             {
                 if (string.IsNullOrWhiteSpace(unit))
                 {
-                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, id, response.Error ?? "неизвестная ошибка");
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, id, response.ErrMsg ?? "неизвестная ошибка");
                 }
                 else
                 {
-                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.Error ?? "неизвестная ошибка");
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.ErrMsg ?? "неизвестная ошибка");
                 }
-                return _502Agent(response.Error);
+                return _502Agent(response.ErrMsg);
             }
 
             return Ok(response);
@@ -524,6 +524,44 @@ public partial class DevicesController(
                 logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
             }
 
+            return _502Agent();
+        }
+    }
+
+    private async Task<ActionResult<TData>> ExecuteAgentDataOperation<TData>(
+        int id,
+        string operationName,
+        Func<Device, CancellationToken, Task<MediaPiMenuDataResponse<TData>>> operation,
+        string noDataErrorMessage,
+        CancellationToken ct)
+    {
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var response = await operation(targetDevice, ct);
+            if (!response.Ok)
+            {
+                logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}: {Error}", operationName, 
+                    id, 
+                    response.ErrMsg ?? "неизвестная ошибка");
+                return _502Agent(response.ErrMsg);
+            }
+
+            if (!response.HasData || response.Data == null)
+            {
+                logger.LogWarning("Агент вернул пустые данные для операции {Operation} устройства {DeviceId}", operationName, id);
+                return _502Agent(noDataErrorMessage);
+            }
+
+            return Ok(response.Data);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}", operationName, id);
             return _502Agent();
         }
     }

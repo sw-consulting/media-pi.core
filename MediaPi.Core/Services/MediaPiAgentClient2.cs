@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using MediaPi.Core.Models;
+using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
     private readonly HttpClient _httpClient;
@@ -34,11 +36,11 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     public Task<MediaPiMenuCommandResponse> StartPlaybackAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playback/start", cancellationToken);
 
-    public Task<MediaPiMenuDataResponse> CheckStorageAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteDataRequestAsync(device, HttpMethod.Get, "/api/menu/storage/check", cancellationToken);
+    public Task<MediaPiMenuDataResponse<ServiceStatusDto>> GetServiceStatusAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteTypedDataRequestAsync<ServiceStatusDto>(device, HttpMethod.Get, "/api/menu/service/status", cancellationToken);
 
-    public Task<MediaPiMenuDataResponse> GetPlaylistSettingsAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteDataRequestAsync(device, HttpMethod.Get, "/api/menu/playlist/get", cancellationToken);
+    public Task<MediaPiMenuDataResponse<PlaylistSettingsDto>> GetPlaylistSettingsAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteTypedDataRequestAsync<PlaylistSettingsDto>(device, HttpMethod.Get, "/api/menu/playlist/get", cancellationToken);
 
     public Task<MediaPiMenuCommandResponse> UpdatePlaylistSettingsAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default) =>
         ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/playlist/update", payload, cancellationToken);
@@ -49,16 +51,16 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     public Task<MediaPiMenuCommandResponse> StopPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playlist/stop-upload", cancellationToken);
 
-    public Task<MediaPiMenuDataResponse> GetScheduleAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteDataRequestAsync(device, HttpMethod.Get, "/api/menu/schedule/get", cancellationToken);
+    public Task<MediaPiMenuDataResponse<ScheduleSettingsDto>> GetScheduleAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteTypedDataRequestAsync<ScheduleSettingsDto>(device, HttpMethod.Get, "/api/menu/schedule/get", cancellationToken);
 
     public Task<MediaPiMenuCommandResponse> UpdateScheduleAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default) =>
         ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/schedule/update", payload, cancellationToken);
 
-    public Task<MediaPiMenuDataResponse> GetAudioSettingsAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteDataRequestAsync(device, HttpMethod.Get, "/api/menu/audio/get", cancellationToken);
+    public Task<MediaPiMenuDataResponse<AudioSettingsDto>> GetAudioSettingsAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteTypedDataRequestAsync<AudioSettingsDto>(device, HttpMethod.Get, "/api/menu/audio/get", cancellationToken);
 
-    public Task<MediaPiMenuCommandResponse> UpdateAudioSettingsAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default) =>
+    public Task<MediaPiMenuCommandResponse> UpdateAudioSettingsAsync(Device device, AudioSettingsDto payload, CancellationToken cancellationToken = default) =>
         ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/audio/update", payload, cancellationToken);
 
     public Task<MediaPiMenuCommandResponse> ReloadSystemAsync(Device device, CancellationToken cancellationToken = default) =>
@@ -87,10 +89,10 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
         return await SendCommandAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<MediaPiMenuDataResponse> ExecuteDataRequestAsync(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
+    private async Task<MediaPiMenuDataResponse<T>> ExecuteTypedDataRequestAsync<T>(Device device, HttpMethod method, string path, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(device, method, path);
-        return await SendDataAsync(request, cancellationToken).ConfigureAwait(false);
+        return await SendTypedDataAsync<T>(request, cancellationToken).ConfigureAwait(false);
     }
 
     private HttpRequestMessage CreateRequest(Device device, HttpMethod method, string path, HttpContent? content = null)
@@ -133,21 +135,36 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
         return new MediaPiMenuCommandResponse
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
+            ErrMsg = NormalizeError(result),
             Data = data,
             Result = ExtractResult(data)
         };
     }
 
-    private async Task<MediaPiMenuDataResponse> SendDataAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+
+    private async Task<MediaPiMenuDataResponse<T>> SendTypedDataAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var result = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+        
+        T? typedData = default;
+        if (result.Response.Data.ValueKind != JsonValueKind.Undefined && result.Response.Data.ValueKind != JsonValueKind.Null)
+        {
+            try
+            {
+                typedData = result.Response.Data.Deserialize<T>(SerializerOptions);
+            }
+            catch (JsonException)
+            {
+                // If deserialization fails, leave typedData as default
+                typedData = default;
+            }
+        }
 
-        return new MediaPiMenuDataResponse
+        return new MediaPiMenuDataResponse<T>
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
-            Data = CloneElement(result.Response.Data)
+            ErrMsg = NormalizeError(result),
+            Data = typedData
         };
     }
 
@@ -239,9 +256,9 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(result.Response.Error))
+        if (!string.IsNullOrWhiteSpace(result.Response.ErrMsg))
         {
-            return result.Response.Error;
+            return result.Response.ErrMsg;
         }
 
         if (result.StatusCode != HttpStatusCode.OK)
@@ -255,7 +272,7 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     private sealed class DeviceMenuEnvelope
     {
         public bool Ok { get; init; }
-        public string? Error { get; init; }
+        public string? ErrMsg { get; init; }
         public JsonElement Data { get; init; }
     }
 

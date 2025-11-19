@@ -44,7 +44,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return new MediaPiAgentListResponse
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
+            ErrMsg = NormalizeError(result),
             Units = units
         };
     }
@@ -64,7 +64,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return new MediaPiAgentStatusResponse
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
+            ErrMsg = NormalizeError(result),
             Unit = data?.Unit ?? unit,
             Active = data?.Active ?? default,
             Sub = data?.Sub ?? default
@@ -80,7 +80,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return new MediaPiAgentHealthResponse
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
+            ErrMsg = NormalizeError(result),
             Status = data?.Status,
             Uptime = data?.Uptime,
             Version = data?.Version
@@ -120,7 +120,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return new MediaPiAgentUnitResultResponse
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
+            ErrMsg = NormalizeError(result),
             Unit = data?.Unit ?? unit,
             Result = data?.Result
         };
@@ -145,7 +145,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return new MediaPiAgentEnableResponse
         {
             Ok = result.Response.Ok,
-            Error = NormalizeError(result),
+            ErrMsg = NormalizeError(result),
             Unit = data?.Unit ?? unit,
             Enabled = enabled && result.Response.Ok,
             Result = data?.Result
@@ -257,9 +257,9 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(result.Response.Error))
+        if (!string.IsNullOrWhiteSpace(result.Response.ErrMsg))
         {
-            return result.Response.Error;
+            return result.Response.ErrMsg;
         }
 
         if (result.StatusCode != HttpStatusCode.OK)
@@ -273,7 +273,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
     private sealed class DeviceApiResponse<T>
     {
         public bool Ok { get; init; }
-        public string? Error { get; init; }
+        public string? ErrMsg { get; init; }
         public T? Data { get; init; }
     }
 

@@ -9,7 +9,7 @@ using MediaPi.Core.Services.Models;
 
 namespace MediaPi.Core.RestModels;
 
-public class DeviceViewItem(Device device, DeviceStatusItem? status)
+public class DeviceViewItem(Models.Device device, DeviceStatusItem? status)
 {
     public int Id { get; set; } = device.Id;
     public string Name { get; set; } = device.Name;

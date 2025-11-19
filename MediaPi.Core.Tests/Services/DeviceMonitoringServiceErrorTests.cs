@@ -115,7 +115,7 @@ public class DeviceMonitoringServiceErrorTests
                 .ReturnsAsync(new MediaPiAgentHealthResponse
                 {
                     Ok = isHealthy,
-                    Error = error,
+                    ErrMsg = error,
                     Status = isHealthy ? "healthy" : "unhealthy",
                     Uptime = 12345.67,
                     Version = "1.0.0"

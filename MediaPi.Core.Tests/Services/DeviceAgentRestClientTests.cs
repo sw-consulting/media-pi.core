@@ -73,7 +73,7 @@ public class DeviceAgentRestClientTests
         var result = await client.ListUnitsAsync(device, CancellationToken.None);
 
         Assert.That(result.Ok, Is.True);
-        Assert.That(result.Error, Is.Null);
+        Assert.That(result.ErrMsg, Is.Null);
         Assert.That(result.Units, Has.Length.EqualTo(2));
         Assert.That(result.Units[0].Unit, Is.EqualTo("alpha"));
         Assert.That(result.Units[1].Unit, Is.EqualTo("beta"));
@@ -101,7 +101,7 @@ public class DeviceAgentRestClientTests
 
         Assert.That(result.Ok, Is.True);
         Assert.That(result.Units, Is.Empty);
-        Assert.That(result.Error, Is.Null);
+        Assert.That(result.ErrMsg, Is.Null);
     }
 
     [Test]
@@ -128,7 +128,7 @@ public class DeviceAgentRestClientTests
         Assert.That(observedUri.Query, Is.EqualTo("?unit=status"));
         Assert.That(result.Ok, Is.False);
         Assert.That(result.Unit, Is.EqualTo(" status "));
-        Assert.That(result.Error, Is.EqualTo("Device API returned an unsuccessful response without an error message."));
+        Assert.That(result.ErrMsg, Is.EqualTo("Device API returned an unsuccessful response without an error message."));
         Assert.That(logger.Entries.Any(e => e.Level == LogLevel.Warning && e.Message.Contains("does not have a server key configured.")), Is.True);
     }
 
@@ -160,7 +160,7 @@ public class DeviceAgentRestClientTests
         var result = await client.CheckHealthAsync(device, CancellationToken.None);
 
         Assert.That(result.Ok, Is.True);
-        Assert.That(result.Error, Is.Null);
+        Assert.That(result.ErrMsg, Is.Null);
         Assert.That(result.Status, Is.EqualTo("healthy"));
         Assert.That(result.Uptime, Is.EqualTo(12345.67));
         Assert.That(result.Version, Is.EqualTo("1.0.0"));
@@ -173,7 +173,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{"ok":false,"error":"service unavailable"}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":false, "errMsg":"service unavailable"}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);
@@ -182,7 +182,7 @@ public class DeviceAgentRestClientTests
         var result = await client.CheckHealthAsync(device, CancellationToken.None);
 
         Assert.That(result.Ok, Is.False);
-        Assert.That(result.Error, Is.EqualTo("service unavailable"));
+        Assert.That(result.ErrMsg, Is.EqualTo("service unavailable"));
         Assert.That(result.Status, Is.Null);
     }
 
@@ -200,7 +200,7 @@ public class DeviceAgentRestClientTests
         var result = await client.CheckHealthAsync(device, CancellationToken.None);
 
         Assert.That(result.Ok, Is.False);
-        Assert.That(result.Error, Is.EqualTo("Device API returned an unsuccessful response without an error message."));
+        Assert.That(result.ErrMsg, Is.EqualTo("Device API returned an unsuccessful response without an error message."));
     }
 
     [Test]
@@ -240,7 +240,7 @@ public class DeviceAgentRestClientTests
         Assert.That(response.Ok, Is.True);
         Assert.That(response.Unit, Is.EqualTo("alpha"));
         Assert.That(response.Result, Is.EqualTo("started"));
-        Assert.That(response.Error, Is.Null);
+        Assert.That(response.ErrMsg, Is.Null);
     }
 
     [Test]
@@ -266,7 +266,7 @@ public class DeviceAgentRestClientTests
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{"ok":false,"error":"something wrong","data":{"unit":"alpha"}}""", Encoding.UTF8, "application/json")
+            Content = new StringContent("""{"ok":false, "errMsg":"something wrong", "data":{"unit":"alpha"}}""", Encoding.UTF8, "application/json")
         }));
 
         var client = CreateClient(handler);
@@ -276,7 +276,7 @@ public class DeviceAgentRestClientTests
 
         Assert.That(response.Ok, Is.False);
         Assert.That(response.Unit, Is.EqualTo("alpha"));
-        Assert.That(response.Error, Is.EqualTo("something wrong"));
+        Assert.That(response.ErrMsg, Is.EqualTo("something wrong"));
     }
 
     [Test]
@@ -305,7 +305,7 @@ public class DeviceAgentRestClientTests
         Assert.That(response.Unit, Is.EqualTo("alpha"));
         Assert.That(response.Enabled, Is.True);
         Assert.That(response.Result, Is.EqualTo("enabled"));
-        Assert.That(response.Error, Is.Null);
+        Assert.That(response.ErrMsg, Is.Null);
     }
 
     [Test]
@@ -323,7 +323,7 @@ public class DeviceAgentRestClientTests
 
         Assert.That(response.Ok, Is.False);
         Assert.That(response.Enabled, Is.False);
-        Assert.That(response.Error, Is.EqualTo("Device API responded with status 400 (BadRequest)."));
+        Assert.That(response.ErrMsg, Is.EqualTo("Device API responded with status 400 (BadRequest)."));
     }
 
     [Test]

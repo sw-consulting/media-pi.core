@@ -260,7 +260,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             if (!healthResponse.Ok)
             {
                 _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
-                    device.Id, device.IpAddress, healthResponse.Error);
+                    device.Id, device.IpAddress, healthResponse.ErrMsg);
                 return (false, connectMs, sw.ElapsedMilliseconds);
             }
 

@@ -9,7 +9,7 @@ namespace MediaPi.Core.Services.Models
     public record class MediaPiAgentResponse
     {
         [JsonPropertyName("ok")] public bool Ok { get; init; }
-        [JsonPropertyName("error")] public string? Error { get; init; }
+        [JsonPropertyName("errmsg")] public string? ErrMsg { get; init; }
     }
 
     public record class MediaPiAgentListResponse : MediaPiAgentResponse
