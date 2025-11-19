@@ -32,12 +32,6 @@ public record class MediaPiMenuDataResponse : MediaPiAgentResponse
 
 public record class MediaPiMenuDataResponse<T> : MediaPiAgentResponse
 {
-    private static readonly JsonSerializerOptions DefaultSerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     public T? Data { get; init; }
 
     [JsonIgnore]
