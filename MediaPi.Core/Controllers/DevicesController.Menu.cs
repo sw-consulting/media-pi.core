@@ -214,6 +214,4 @@ public partial class DevicesController
             ct);
     }
 
-    private static bool IsPayloadMissing(JsonElement payload) =>
-        payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null;
 }
