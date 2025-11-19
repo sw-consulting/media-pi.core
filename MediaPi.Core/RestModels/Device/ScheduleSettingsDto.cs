@@ -82,18 +82,6 @@ namespace MediaPi.Core.RestModels.Device
                 {
                     if (item is null)
                         throw new ArgumentException("Rest list contains a null item", nameof(Rest));
-
-                    if (string.IsNullOrWhiteSpace(item.Start) ||
-                        !DateTime.TryParseExact(item.Start, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-                    {
-                        throw new ArgumentException($"Rest.Start must be a valid time in HH:mm format: '{item?.Start}'", nameof(Rest));
-                    }
-
-                    if (string.IsNullOrWhiteSpace(item.Stop) ||
-                        !DateTime.TryParseExact(item.Stop, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-                    {
-                        throw new ArgumentException($"Rest.Stop must be a valid time in HH:mm format: '{item?.Stop}'", nameof(Rest));
-                    }
                 }
 
                 _rest = value;
