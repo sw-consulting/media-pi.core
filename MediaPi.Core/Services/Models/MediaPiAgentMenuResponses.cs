@@ -37,7 +37,6 @@ public record class MediaPiMenuDataResponse<T> : MediaPiAgentResponse
     [JsonIgnore]
     public bool HasData => Data != null;
 
-    public T? GetData() => Data;
 }
 
 public sealed record class MediaPiMenuCommandResponse : MediaPiMenuDataResponse
