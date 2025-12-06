@@ -15,12 +15,15 @@ namespace MediaPi.Core.Services;
 public class VideoStorageService : IVideoStorageService
 {
     private readonly VideoStorageSettings _settings;
+    private readonly IVideoMetadataService _metadataService;
     private readonly string _rootFullPath;
     private readonly string _rootFullPathWithSeparator;
 
-    public VideoStorageService(IOptions<VideoStorageSettings> options)
+    public VideoStorageService(IOptions<VideoStorageSettings> options, IVideoMetadataService metadataService)
     {
         _settings = options.Value ?? throw new ArgumentNullException(nameof(options));
+        _metadataService = metadataService ?? throw new ArgumentNullException(nameof(metadataService));
+        
         if (string.IsNullOrWhiteSpace(_settings.RootPath))
         {
             throw new ArgumentException("RootPath must be provided", nameof(options));
@@ -33,7 +36,7 @@ public class VideoStorageService : IVideoStorageService
         Directory.CreateDirectory(_rootFullPath);
     }
 
-    public async Task<string> SaveVideoAsync(IFormFile file, string title, CancellationToken ct = default)
+    public async Task<VideoSaveResult> SaveVideoAsync(IFormFile file, string title, CancellationToken ct = default)
     {
         if (file == null) throw new ArgumentNullException(nameof(file));
         if (file.Length == 0) throw new ArgumentException("File is empty", nameof(file));
@@ -52,9 +55,26 @@ public class VideoStorageService : IVideoStorageService
 
         await using var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await file.CopyToAsync(stream, ct);
+        await stream.FlushAsync(ct);
 
-        var relative = Path.GetRelativePath(_rootFullPath, filePath);
-        return NormalizeRelativePath(relative);
+        var relative = NormalizeRelativePath(Path.GetRelativePath(_rootFullPath, filePath));
+
+        // Extract metadata after the file is saved
+        var metadata = await _metadataService.ExtractMetadataAsync(filePath, ct);
+
+        // Convert file size to uint (files larger than 4GB will be capped)
+        var fileSizeBytes = file.Length > uint.MaxValue ? uint.MaxValue : (uint)file.Length;
+
+        return new VideoSaveResult
+        {
+            Filename = relative,
+            OriginalFilename = file.FileName,
+            FileSizeBytes = metadata?.FileSizeBytes ?? fileSizeBytes,
+            DurationSeconds = metadata?.DurationSeconds,
+            Format = metadata?.Format,
+            Width = metadata?.Width,
+            Height = metadata?.Height
+        };
     }
 
     public Task DeleteVideoAsync(string storedFilename, CancellationToken ct = default)

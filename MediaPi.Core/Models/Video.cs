@@ -17,6 +17,15 @@ namespace MediaPi.Core.Models
         [Column("filename")]
         public required string Filename { get; set; }
 
+        [Column("original_filename")]
+        public required string OriginalFilename { get; init; }
+
+        [Column("file_size_bytes")]
+        public required uint FileSizeBytes { get; init; }
+
+        [Column("duration_seconds")]
+        public uint? DurationSeconds { get; set; }
+
         [Column("category_id")]
         public int? CategoryId { get; set; }
         public Category? Category { get; set; }

@@ -109,12 +109,15 @@ public class VideosController(
 
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
-        var storedFilename = await _videoStorageService.SaveVideoAsync(item.File, item.Title, ct);
+        var saveResult = await _videoStorageService.SaveVideoAsync(item.File, item.Title, ct);
 
         var video = new Video
         {
             Title = item.Title,
-            Filename = storedFilename,
+            Filename = saveResult.Filename,
+            OriginalFilename = saveResult.OriginalFilename,
+            FileSizeBytes = saveResult.FileSizeBytes,
+            DurationSeconds = saveResult.DurationSeconds,
             AccountId = item.AccountId,
         };
 

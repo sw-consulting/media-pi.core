@@ -60,9 +60,9 @@ public class PlaylistsControllerTests
         _account2 = new Account { Id = 2, Name = "Account 2" };
         _dbContext.Accounts.AddRange(_account1, _account2);
 
-        _video1Acc1 = new Video { Id = 1, Title = "Video1", Filename = "v1.mp4", AccountId = _account1.Id, Account = _account1 };
-        _video2Acc1 = new Video { Id = 2, Title = "Video2", Filename = "v2.mp4", AccountId = _account1.Id, Account = _account1 };
-        _videoAcc2 = new Video { Id = 3, Title = "Video3", Filename = "v3.mp4", AccountId = _account2.Id, Account = _account2 };
+        _video1Acc1 = new Video { Id = 1, Title = "Video1", Filename = "v1.mp4", OriginalFilename = "video1.mp4", FileSizeBytes = 512000, AccountId = _account1.Id, Account = _account1 };
+        _video2Acc1 = new Video { Id = 2, Title = "Video2", Filename = "v2.mp4", OriginalFilename = "video2.mp4", FileSizeBytes = 1024000, AccountId = _account1.Id, Account = _account1 };
+        _videoAcc2 = new Video { Id = 3, Title = "Video3", Filename = "v3.mp4", OriginalFilename = "video3.mp4", FileSizeBytes = 2048000, AccountId = _account2.Id, Account = _account2 };
         _dbContext.Videos.AddRange(_video1Acc1, _video2Acc1, _videoAcc2);
 
         _playlist1 = new Playlist
