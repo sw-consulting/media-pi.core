@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251206110019_0_6_0_Extend_Video_Metadata")]
-    partial class _0_6_0_Extend_Video_Metadata
+    [Migration("20251206111618_0_6_0_Extend_Video_and_Playlist")]
+    partial class _0_6_0_Extend_Video_and_Playlist
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -450,17 +450,30 @@ namespace MediaPi.Core.Migrations
 
             modelBuilder.Entity("MediaPi.Core.Models.VideoPlaylist", b =>
                 {
-                    b.Property<int>("VideoId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasColumnName("video_id");
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("PlaylistId")
                         .HasColumnType("integer")
                         .HasColumnName("playlist_id");
 
-                    b.HasKey("VideoId", "PlaylistId");
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("VideoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("video_id");
+
+                    b.HasKey("Id");
 
                     b.HasIndex("PlaylistId");
+
+                    b.HasIndex("VideoId");
 
                     b.ToTable("video_playlists");
                 });

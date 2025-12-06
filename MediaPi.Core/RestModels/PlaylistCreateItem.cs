@@ -11,5 +11,8 @@ namespace MediaPi.Core.RestModels
         public required string Filename { get; set; }
         public int AccountId { get; set; }
         public List<int> VideoIds { get; set; } = [];
+        
+        // New property to support ordered items with positions
+        public List<PlaylistItemDto>? Items { get; set; }
     }
 }

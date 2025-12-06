@@ -57,8 +57,9 @@ namespace MediaPi.Core.Data
                 .WithMany(a => a.UserAccounts)
                 .HasForeignKey(ua => ua.AccountId);
 
+            // VideoPlaylist now uses Id as primary key instead of composite key
             modelBuilder.Entity<VideoPlaylist>()
-                .HasKey(vp => new { vp.VideoId, vp.PlaylistId });
+                .HasKey(vp => vp.Id);
 
             modelBuilder.Entity<VideoPlaylist>()
                 .HasOne(vp => vp.Video)

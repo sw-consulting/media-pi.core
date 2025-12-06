@@ -447,17 +447,30 @@ namespace MediaPi.Core.Migrations
 
             modelBuilder.Entity("MediaPi.Core.Models.VideoPlaylist", b =>
                 {
-                    b.Property<int>("VideoId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasColumnName("video_id");
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("PlaylistId")
                         .HasColumnType("integer")
                         .HasColumnName("playlist_id");
 
-                    b.HasKey("VideoId", "PlaylistId");
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("VideoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("video_id");
+
+                    b.HasKey("Id");
 
                     b.HasIndex("PlaylistId");
+
+                    b.HasIndex("VideoId");
 
                     b.ToTable("video_playlists");
                 });

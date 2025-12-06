@@ -60,9 +60,9 @@ public class PlaylistsControllerTests
         _account2 = new Account { Id = 2, Name = "Account 2" };
         _dbContext.Accounts.AddRange(_account1, _account2);
 
-        _video1Acc1 = new Video { Id = 1, Title = "Video1", Filename = "v1.mp4", OriginalFilename = "video1.mp4", FileSizeBytes = 512000, AccountId = _account1.Id, Account = _account1 };
-        _video2Acc1 = new Video { Id = 2, Title = "Video2", Filename = "v2.mp4", OriginalFilename = "video2.mp4", FileSizeBytes = 1024000, AccountId = _account1.Id, Account = _account1 };
-        _videoAcc2 = new Video { Id = 3, Title = "Video3", Filename = "v3.mp4", OriginalFilename = "video3.mp4", FileSizeBytes = 2048000, AccountId = _account2.Id, Account = _account2 };
+        _video1Acc1 = new Video { Id = 1, Title = "Video1", Filename = "v1.mp4", OriginalFilename = "video1.mp4", FileSizeBytes = 512000, DurationSeconds = 30, AccountId = _account1.Id, Account = _account1 };
+        _video2Acc1 = new Video { Id = 2, Title = "Video2", Filename = "v2.mp4", OriginalFilename = "video2.mp4", FileSizeBytes = 1024000, DurationSeconds = 60, AccountId = _account1.Id, Account = _account1 };
+        _videoAcc2 = new Video { Id = 3, Title = "Video3", Filename = "v3.mp4", OriginalFilename = "video3.mp4", FileSizeBytes = 2048000, DurationSeconds = 90, AccountId = _account2.Id, Account = _account2 };
         _dbContext.Videos.AddRange(_video1Acc1, _video2Acc1, _videoAcc2);
 
         _playlist1 = new Playlist
@@ -74,8 +74,8 @@ public class PlaylistsControllerTests
             Account = _account1,
             VideoPlaylists =
             [
-                new VideoPlaylist { VideoId = _video1Acc1.Id, PlaylistId = 1 },
-                new VideoPlaylist { VideoId = _video2Acc1.Id, PlaylistId = 1 }
+                new VideoPlaylist { VideoId = _video1Acc1.Id, PlaylistId = 1, Position = 0 },
+                new VideoPlaylist { VideoId = _video2Acc1.Id, PlaylistId = 1, Position = 1 }
             ]
         };
 
@@ -88,7 +88,7 @@ public class PlaylistsControllerTests
             Account = _account2,
             VideoPlaylists =
             [
-                new VideoPlaylist { VideoId = _videoAcc2.Id, PlaylistId = 2 }
+                new VideoPlaylist { VideoId = _videoAcc2.Id, PlaylistId = 2, Position = 0 }
             ]
         };
 
@@ -285,5 +285,92 @@ public class PlaylistsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
         Assert.That(playlist, Is.Null);
+    }
+
+    [Test]
+    public async Task CreatePlaylist_WithItems_CreatesOrderedPlaylist()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Ordered Playlist",
+            Filename = "ordered.json",
+            AccountId = _account1.Id,
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 0 },
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 1 },
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 2 } // Same video, different position
+            ]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        
+        var created = (CreatedAtActionResult)result.Result!;
+        var reference = (Reference)created.Value!;
+        
+        var playlist = await _dbContext.Playlists
+            .Include(p => p.VideoPlaylists.OrderBy(vp => vp.Position))
+            .ThenInclude(vp => vp.Video)
+            .FirstAsync(p => p.Id == reference.Id);
+            
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(3));
+        Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video2Acc1.Id, _video1Acc1.Id, _video2Acc1.Id }));
+        Assert.That(playlist.VideoPlaylists.Select(vp => vp.Position), Is.EqualTo(new[] { 0, 1, 2 }));
+    }
+
+    [Test]
+    public async Task GetPlaylist_ReturnsPlaylistWithStatsAndItems()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetPlaylist(_playlist1.Id);
+        
+        Assert.That(result.Value, Is.Not.Null);
+        var playlistView = result.Value!;
+        
+        // Check basic properties
+        Assert.That(playlistView.Id, Is.EqualTo(_playlist1.Id));
+        Assert.That(playlistView.Title, Is.EqualTo(_playlist1.Title));
+        
+        // Check stats
+        Assert.That(playlistView.Stats, Is.Not.Null);
+        Assert.That(playlistView.Stats.VideoCount, Is.EqualTo(2));
+        Assert.That(playlistView.Stats.TotalFileSizeBytes, Is.EqualTo(1536000)); // 512000 + 1024000
+        
+        // Check items are ordered
+        Assert.That(playlistView.Items, Is.Not.Null);
+        var items = playlistView.Items.ToList();
+        Assert.That(items.Count, Is.EqualTo(2));
+        Assert.That(items[0].Position, Is.EqualTo(0));
+        Assert.That(items[1].Position, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_WithItems_UpdatesOrderCorrectly()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated Playlist",
+            Filename = "updated.json",
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 5 }, // Non-sequential positions should work
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 10 } // Same video twice
+            ]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        var playlist = await _dbContext.Playlists
+            .Include(p => p.VideoPlaylists.OrderBy(vp => vp.Position))
+            .FirstAsync(p => p.Id == _playlist1.Id);
+            
+        Assert.That(playlist.Title, Is.EqualTo("Updated Playlist"));
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(2));
+        Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video1Acc1.Id, _video1Acc1.Id }));
+        Assert.That(playlist.VideoPlaylists.Select(vp => vp.Position), Is.EqualTo(new[] { 5, 10 }));
     }
 }

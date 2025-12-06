@@ -203,7 +203,7 @@ public class VideosController(
         var existing = video.VideoPlaylists.Select(vp => vp.PlaylistId).ToHashSet();
         foreach (var playlistId in desired.Except(existing))
         {
-            video.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, PlaylistId = playlistId });
+            video.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, PlaylistId = playlistId, Position = 0 });
         }
     }
 
