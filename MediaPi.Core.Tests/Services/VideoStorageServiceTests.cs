@@ -135,7 +135,7 @@ public class VideoStorageServiceTests
             var mockOptions = new Mock<IOptions<VideoStorageSettings>>();
             mockOptions.Setup(x => x.Value).Returns(settings);
 
-            var service = new VideoStorageService(mockOptions.Object, _mockMetadataService.Object);
+            new VideoStorageService(mockOptions.Object, _mockMetadataService.Object);
 
             Assert.That(Directory.Exists(newRootPath), Is.True);
         }
