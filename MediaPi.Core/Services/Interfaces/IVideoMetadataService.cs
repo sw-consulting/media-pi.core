@@ -6,7 +6,7 @@ namespace MediaPi.Core.Services.Interfaces;
 public interface IVideoMetadataService
 {
     /// <summary>
-    /// Extracts metadata from a video file including duration and file size
+    /// Extracts metadata from a video file including file size, duration, format, dimensions, and codecs
     /// </summary>
     /// <param name="filePath">Full path to the video file</param>
     /// <param name="cancellationToken">Cancellation token</param>
