@@ -345,11 +345,11 @@ public class PlaylistsController(
         var positions = items.Select(i => i.Position).ToList();
         if (positions.Any(p => p < 0))
         {
-            return (videoIds, BadRequest(new ErrMessage { Msg = "Playlist item positions must be non-negative" }));
+            return (videoIds, _400PlaylistItemPositionsNegative());
         }
         if (positions.Count != positions.Distinct().Count())
         {
-            return (videoIds, BadRequest(new ErrMessage { Msg = "Playlist item positions must be unique" }));
+            return (videoIds, _400PlaylistItemPositionsDuplicate());
         }
 
         var videos = await _db.Videos

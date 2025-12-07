@@ -508,7 +508,9 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.CreatePlaylist(item);
-        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
@@ -528,7 +530,9 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.CreatePlaylist(item);
-        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
@@ -599,7 +603,9 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
-        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
