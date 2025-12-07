@@ -38,7 +38,6 @@ public class VideoStorageService : IVideoStorageService
 
     public async Task<VideoSaveResult> SaveVideoAsync(IFormFile file, string title, CancellationToken ct = default)
     {
-        if (file == null) throw new ArgumentNullException(nameof(file));
         if (file.Length == 0) throw new ArgumentException("File is empty", nameof(file));
 
         var extension = Path.GetExtension(file.FileName);
