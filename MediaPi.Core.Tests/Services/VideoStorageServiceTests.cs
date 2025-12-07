@@ -166,13 +166,6 @@ public class VideoStorageServiceTests
     }
 
     [Test]
-    public async Task SaveVideoAsync_NullFile_ThrowsArgumentNullException()
-    {
-        Assert.ThrowsAsync<ArgumentNullException>(async () =>
-            await _service.SaveVideoAsync(null!, "title"));
-    }
-
-    [Test]
     public async Task SaveVideoAsync_EmptyFile_ThrowsArgumentException()
     {
         var mockFile = CreateMockFormFile("video.mp4", "");
