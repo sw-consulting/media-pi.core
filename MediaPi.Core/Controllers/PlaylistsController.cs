@@ -343,6 +343,10 @@ public class PlaylistsController(
 
         // Validate positions are sequential and start from 0
         var positions = items.Select(i => i.Position).ToList();
+        if (positions.Any(p => p < 0))
+        {
+            return (videoIds, BadRequest(new ErrMessage { Msg = "Playlist item positions must be non-negative" }));
+        }
         if (positions.Count != positions.Distinct().Count())
         {
             return (videoIds, BadRequest(new ErrMessage { Msg = "Playlist item positions must be unique" }));
