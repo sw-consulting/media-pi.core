@@ -14,7 +14,7 @@ public interface IVideoStorageService
 
 public class VideoSaveResult
 {
-    public required string Filename { get; set; }
+    public required string Filename { get; init; }
     public required string OriginalFilename { get; init; }
     public required uint FileSizeBytes { get; init; }
     public uint? DurationSeconds { get; init; }
