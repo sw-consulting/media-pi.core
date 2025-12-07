@@ -177,19 +177,15 @@ public class VideoMetadataService : IVideoMetadataService
                 if ((result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase))) ||
                     (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase))))
                 {
-                    if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)))
+                    if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)) &&
+                        directory.TryGetInt32(tag.Type, out var width) && width > 0)
                     {
-                        if (directory.TryGetInt32(tag.Type, out var width) && width > 0)
-                        {
-                            result.Width = width;
-                        }
+                        result.Width = width;
                     }
-                    if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)))
+                    if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)) &&
+                        directory.TryGetInt32(tag.Type, out var height) && height > 0)
                     {
-                        if (directory.TryGetInt32(tag.Type, out var height) && height > 0)
-                        {
-                            result.Height = height;
-                        }
+                        result.Height = height;
                     }
                 }
             }
