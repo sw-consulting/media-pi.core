@@ -173,20 +173,15 @@ public class VideoMetadataService : IVideoMetadataService
             var tagName = tag.Name;
             if (tagName != null)
             {
-                // Check for width and height tags in a single block
-                if ((result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase))) ||
-                    (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase))))
+                if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)) &&
+                    directory.TryGetInt32(tag.Type, out var width) && width > 0)
                 {
-                    if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)) &&
-                        directory.TryGetInt32(tag.Type, out var width) && width > 0)
-                    {
-                        result.Width = width;
-                    }
-                    if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)) &&
-                        directory.TryGetInt32(tag.Type, out var height) && height > 0)
-                    {
-                        result.Height = height;
-                    }
+                    result.Width = width;
+                }
+                if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)) &&
+                    directory.TryGetInt32(tag.Type, out var height) && height > 0)
+                {
+                    result.Height = height;
                 }
             }
         }
