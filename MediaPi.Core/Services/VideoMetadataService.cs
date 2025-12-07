@@ -197,7 +197,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
                 $"File size {fileSizeBytes} bytes exceeds maximum supported size of {uint.MaxValue} bytes (4GB)");
         }
  
-         return (uint)fileSizeBytes;
+        return (uint)fileSizeBytes;
     }
 
     private class InternalVideoMetadata
