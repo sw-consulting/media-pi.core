@@ -193,7 +193,7 @@ public class PlaylistsController(
         {
             // Use new Items structure
             var playlistItems = GetPlaylistItems(item);
-            var (playlistVideoIds, validationError) = await ValidatePlaylistItems(playlistItems, playlist.AccountId, ct);
+            var (_, validationError) = await ValidatePlaylistItems(playlistItems, playlist.AccountId, ct);
             if (validationError != null) return validationError;
 
             // Remove all existing items and replace with new ones
