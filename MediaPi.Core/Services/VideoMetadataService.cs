@@ -250,15 +250,12 @@ public class VideoMetadataService : IVideoMetadataService
 
             // Format: "X seconds" or "X sec" or "X s"
             var secondsPatterns = new[] { " seconds", " sec", " s" };
-            foreach (var pattern in secondsPatterns)
+            foreach (var pattern in secondsPatterns.Where(p => description.EndsWith(p, StringComparison.OrdinalIgnoreCase)))
             {
-                if (description.EndsWith(pattern, StringComparison.OrdinalIgnoreCase))
+                var numberPart = description.Substring(0, description.Length - pattern.Length).Trim();
+                if (double.TryParse(numberPart, out var seconds))
                 {
-                    var numberPart = description.Substring(0, description.Length - pattern.Length).Trim();
-                    if (double.TryParse(numberPart, out var seconds))
-                    {
-                        return seconds;
-                    }
+                    return seconds;
                 }
             }
 
