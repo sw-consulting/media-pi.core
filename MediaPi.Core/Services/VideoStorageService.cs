@@ -63,7 +63,13 @@ public class VideoStorageService : IVideoStorageService
         var metadata = await _metadataService.ExtractMetadataAsync(filePath, ct);
 
         // Convert file size to uint (files larger than 4GB will be capped)
-        var fileSizeBytes = file.Length > uint.MaxValue ? uint.MaxValue : (uint)file.Length;
+        if (file.Length > uint.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(file), 
+                $"File size {file.Length} bytes exceeds maximum supported size of {uint.MaxValue} bytes (4GB)");
+        }
+        
+        var fileSizeBytes = (uint)file.Length;
 
         return new VideoSaveResult
         {

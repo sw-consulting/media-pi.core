@@ -17,6 +17,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Extensions;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -318,6 +319,12 @@ public class PlaylistsControllerTests
         Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(3));
         Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video2Acc1.Id, _video1Acc1.Id, _video2Acc1.Id }));
         Assert.That(playlist.VideoPlaylists.Select(vp => vp.Position), Is.EqualTo(new[] { 0, 1, 2 }));
+        
+        // Test the PlaylistViewItem with duplicates - should count duplicates in duration but not size
+        var playlistView = playlist.ToViewItem();
+        Assert.That(playlistView.VideoCount, Is.EqualTo(3)); // 3 items total including duplicates
+        Assert.That(playlistView.TotalFileSizeBytes, Is.EqualTo(1536000)); // Unique videos only: 512000 + 1024000
+        Assert.That(playlistView.TotalDurationSeconds, Is.EqualTo(150)); // All instances: 60 + 30 + 60 = 150
     }
 
     [Test]
@@ -333,10 +340,10 @@ public class PlaylistsControllerTests
         Assert.That(playlistView.Id, Is.EqualTo(_playlist1.Id));
         Assert.That(playlistView.Title, Is.EqualTo(_playlist1.Title));
         
-        // Check stats
-        Assert.That(playlistView.Stats, Is.Not.Null);
-        Assert.That(playlistView.Stats.VideoCount, Is.EqualTo(2));
-        Assert.That(playlistView.Stats.TotalFileSizeBytes, Is.EqualTo(1536000)); // 512000 + 1024000
+        // Check stats (now direct properties)
+        Assert.That(playlistView.VideoCount, Is.EqualTo(2));
+        Assert.That(playlistView.TotalFileSizeBytes, Is.EqualTo(1536000)); // 512000 + 1024000
+        Assert.That(playlistView.TotalDurationSeconds, Is.EqualTo(90)); // 30 + 60 (all instances, but no duplicates in this playlist)
         
         // Check items are ordered
         Assert.That(playlistView.Items, Is.Not.Null);

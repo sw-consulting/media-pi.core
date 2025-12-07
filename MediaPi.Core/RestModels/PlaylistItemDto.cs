@@ -11,13 +11,3 @@ public class PlaylistItemDto
     public int VideoId { get; set; }
     public int Position { get; set; }
 }
-
-/// <summary>
-/// Represents playlist statistics
-/// </summary>
-public class PlaylistStatsDto
-{
-    public uint TotalFileSizeBytes { get; set; }
-    public uint? TotalDurationSeconds { get; set; }
-    public int VideoCount { get; set; }
-}

@@ -297,7 +297,10 @@ public class VideoMetadataService : IVideoMetadataService
         
         // Ensure it fits in uint range
         if (roundedDuration > uint.MaxValue)
-            return uint.MaxValue;
+        {
+            throw new ArgumentOutOfRangeException(nameof(durationSeconds), 
+                $"Duration {roundedDuration} seconds exceeds maximum supported duration of {uint.MaxValue} seconds (~136 years)");
+        }
 
         return (uint)roundedDuration;
     }
@@ -306,13 +309,21 @@ public class VideoMetadataService : IVideoMetadataService
     {
         // Handle negative sizes (shouldn't happen, but just in case)
         if (fileSizeBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fileSizeBytes), "File size cannot be negative");
+        }
+
+        if (fileSizeBytes == 0)
             return 0;
 
         // Cap at uint.MaxValue for files larger than ~4GB
         if (fileSizeBytes > uint.MaxValue)
-            return uint.MaxValue;
-
-        return (uint)fileSizeBytes;
+        {
+            throw new ArgumentOutOfRangeException(nameof(fileSizeBytes), 
+                $"File size {fileSizeBytes} bytes exceeds maximum supported size of {uint.MaxValue} bytes (4GB)");
+        }
+ 
+         return (uint)fileSizeBytes;
     }
 
     private class InternalVideoMetadata

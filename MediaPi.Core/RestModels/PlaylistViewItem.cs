@@ -8,29 +8,49 @@ using MediaPi.Core.Settings;
 
 namespace MediaPi.Core.RestModels;
 
-public class PlaylistViewItem(Playlist playlist)
+public class PlaylistViewItem
 {
-    public int Id { get; set; } = playlist.Id;
-    public string Title { get; set; } = playlist.Title;
-    public string Filename { get; set; } = playlist.Filename;
-    public int AccountId { get; set; } = playlist.AccountId;
-    public IEnumerable<int> VideoIds { get; set; } = [.. playlist.VideoPlaylists.Select(vp => vp.VideoId)];
+    public int Id { get; set; }
+    public string Title { get; set; }
+    public string Filename { get; set; }
+    public int AccountId { get; set; }
+    public IEnumerable<int> VideoIds { get; set; }
     
-    // New properties for enhanced playlist support
-    public IEnumerable<PlaylistItemDto> Items { get; set; } = playlist.VideoPlaylists
-        .OrderBy(vp => vp.Position)
-        .Select(vp => new PlaylistItemDto { VideoId = vp.VideoId, Position = vp.Position });
+    public IEnumerable<PlaylistItemDto> Items { get; set; }
     
-    public PlaylistStatsDto Stats { get; set; } = CalculateStats(playlist);
+    // Playlist statistics calculated once in constructor
+    public uint TotalFileSizeBytes { get; set; }
+    public uint? TotalDurationSeconds { get; set; }
+    public int VideoCount { get; set; }
+
+    public PlaylistViewItem(Playlist playlist)
+    {
+        Id = playlist.Id;
+        Title = playlist.Title;
+        Filename = playlist.Filename;
+        AccountId = playlist.AccountId;
+        VideoIds = [.. playlist.VideoPlaylists.Select(vp => vp.VideoId)];
+        Items = playlist.VideoPlaylists
+            .OrderBy(vp => vp.Position)
+            .Select(vp => new PlaylistItemDto { VideoId = vp.VideoId, Position = vp.Position });
+
+        // Calculate stats once
+        var stats = CalculateStats(playlist);
+        TotalFileSizeBytes = stats.TotalFileSizeBytes;
+        TotalDurationSeconds = stats.TotalDurationSeconds;
+        VideoCount = stats.VideoCount;
+    }
     
-    private static PlaylistStatsDto CalculateStats(Playlist playlist)
+    private static (uint TotalFileSizeBytes, uint? TotalDurationSeconds, int VideoCount) CalculateStats(Playlist playlist)
     {
         if (playlist.VideoPlaylists == null || !playlist.VideoPlaylists.Any())
         {
-            return new PlaylistStatsDto { TotalFileSizeBytes = 0, TotalDurationSeconds = 0, VideoCount = 0 };
+            return (0, 0, 0);
         }
 
-        // Get unique videos to avoid counting duplicates in size/duration calculations
+        var videoCount = playlist.VideoPlaylists.Count; // Include duplicates in count
+
+        // For file size: Get unique videos to avoid counting duplicates
         var uniqueVideos = playlist.VideoPlaylists
             .Where(vp => vp.Video != null)
             .GroupBy(vp => vp.VideoId)
@@ -38,16 +58,23 @@ public class PlaylistViewItem(Playlist playlist)
             .ToList();
 
         var totalSize = uniqueVideos.Sum(v => (long)v.FileSizeBytes);
-        var totalDuration = uniqueVideos.All(v => v.DurationSeconds.HasValue) 
-            ? (uint?)uniqueVideos.Sum(v => (long)v.DurationSeconds!.Value)
-            : null;
+        var fileSizeBytes = totalSize > uint.MaxValue ? uint.MaxValue : (uint)totalSize;
 
-        return new PlaylistStatsDto
+        // For duration: Count all instances including duplicates
+        var videosWithDuration = playlist.VideoPlaylists
+            .Where(vp => vp.Video != null && vp.Video.DurationSeconds.HasValue)
+            .Select(vp => vp.Video)
+            .ToList();
+
+        uint? totalDuration = null;
+        if (videosWithDuration.Count == playlist.VideoPlaylists.Count)
         {
-            TotalFileSizeBytes = totalSize > uint.MaxValue ? uint.MaxValue : (uint)totalSize,
-            TotalDurationSeconds = totalDuration,
-            VideoCount = playlist.VideoPlaylists.Count // Include duplicates in count
-        };
+            // All videos have duration data
+            var durationSum = videosWithDuration.Sum(v => (long)v.DurationSeconds!.Value);
+            totalDuration = durationSum > uint.MaxValue ? uint.MaxValue : (uint)durationSum;
+        }
+
+        return (fileSizeBytes, totalDuration, videoCount);
     }
 
     public override string ToString()
