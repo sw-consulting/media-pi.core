@@ -72,9 +72,11 @@ public class VideoStorageServiceTests
     {
         var mockFile = new Mock<IFormFile>();
         var ms = new MemoryStream();
-        var writer = new StreamWriter(ms);
-        writer.Write(content);
-        writer.Flush();
+        using (var writer = new StreamWriter(ms))
+        {
+            writer.Write(content);
+            writer.Flush();
+        }
         ms.Position = 0;
 
         mockFile.Setup(f => f.FileName).Returns(fileName);
