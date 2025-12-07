@@ -108,14 +108,12 @@ public class VideoMetadataService : IVideoMetadataService
         try
         {
             // Try QuickTime movie header for MP4/MOV files
-            if (directory is QuickTimeMovieHeaderDirectory movieHeader)
+            if (directory is QuickTimeMovieHeaderDirectory movieHeader &&
+                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var qtDuration) &&
+                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var qtTimeScale) &&
+                qtTimeScale > 0)
             {
-                if (movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var qtDuration) &&
-                    movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var qtTimeScale) &&
-                    qtTimeScale > 0)
-                {
-                    return (double)qtDuration / qtTimeScale;
-                }
+                return (double)qtDuration / qtTimeScale;
             }
 
             // Generic approach - look for duration-related tags
@@ -175,20 +173,15 @@ public class VideoMetadataService : IVideoMetadataService
             var tagName = tag.Name;
             if (tagName != null)
             {
-                if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)))
+                if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)) &&
+                    directory.TryGetInt32(tag.Type, out var width) && width > 0)
                 {
-                    if (directory.TryGetInt32(tag.Type, out var width) && width > 0)
-                    {
-                        result.Width = width;
-                    }
+                    result.Width = width;
                 }
-
-                if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)))
+                if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)) &&
+                    directory.TryGetInt32(tag.Type, out var height) && height > 0)
                 {
-                    if (directory.TryGetInt32(tag.Type, out var height) && height > 0)
-                    {
-                        result.Height = height;
-                    }
+                    result.Height = height;
                 }
             }
         }
@@ -270,13 +263,10 @@ public class VideoMetadataService : IVideoMetadataService
             }
 
             // Format: numbers only (assume seconds)
-            if (double.TryParse(description.Trim(), out var numericValue))
+            // Only consider it duration if it's a reasonable value (between 0.1 and 86400 seconds = 24 hours)
+            if (double.TryParse(description.Trim(), out var numericValue) && numericValue >= 0.1 && numericValue <= 86400)
             {
-                // Only consider it duration if it's a reasonable value (between 0.1 and 86400 seconds = 24 hours)
-                if (numericValue >= 0.1 && numericValue <= 86400)
-                {
-                    return numericValue;
-                }
+                return numericValue;
             }
         }
         catch (Exception)

@@ -119,9 +119,6 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
-        var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, account.Id, ct);
-        if (validationError != null) return validationError;
-
         // Handle both legacy VideoIds and new Items structure
         var playlistItems = GetPlaylistItems(item);
         var (playlistVideoIds, itemValidationError) = await ValidatePlaylistItems(playlistItems, account.Id, ct);
@@ -150,11 +147,11 @@ public class PlaylistsController(
         else
         {
             // Legacy support: assign sequential positions
-            for (int i = 0; i < videoIds.Count; i++)
+            for (int i = 0; i < playlistVideoIds.Count; i++)
             {
                 playlist.VideoPlaylists.Add(new VideoPlaylist 
                 { 
-                    VideoId = videoIds[i], 
+                    VideoId = playlistVideoIds[i], 
                     Position = i,
                     Playlist = playlist 
                 });
@@ -193,7 +190,7 @@ public class PlaylistsController(
         {
             // Use new Items structure
             var playlistItems = GetPlaylistItems(item);
-            var (playlistVideoIds, validationError) = await ValidatePlaylistItems(playlistItems, playlist.AccountId, ct);
+            var (_, validationError) = await ValidatePlaylistItems(playlistItems, playlist.AccountId, ct);
             if (validationError != null) return validationError;
 
             // Remove all existing items and replace with new ones
@@ -343,9 +340,13 @@ public class PlaylistsController(
 
         // Validate positions are sequential and start from 0
         var positions = items.Select(i => i.Position).ToList();
+        if (positions.Any(p => p < 0))
+        {
+            return (videoIds, _400PlaylistItemPositionsNegative());
+        }
         if (positions.Count != positions.Distinct().Count())
         {
-            return (videoIds, BadRequest(new ErrMessage { Msg = "Playlist item positions must be unique" }));
+            return (videoIds, _400PlaylistItemPositionsDuplicate());
         }
 
         var videos = await _db.Videos

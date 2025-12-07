@@ -380,4 +380,356 @@ public class PlaylistsControllerTests
         Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video1Acc1.Id, _video1Acc1.Id }));
         Assert.That(playlist.VideoPlaylists.Select(vp => vp.Position), Is.EqualTo(new[] { 5, 10 }));
     }
+
+    [Test]
+    public async Task GetPlaylists_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.GetPlaylists();
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetPlaylist_NotFound_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetPlaylist(999);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task GetPlaylist_ManagerAccessingOtherAccount_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.GetPlaylist(_playlist2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_AccountNotFound_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "New",
+            Filename = "new.json",
+            AccountId = 999,
+            VideoIds = []
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_NoVideos_CreatesEmptyPlaylist()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Empty Playlist",
+            Filename = "empty.json",
+            AccountId = _account1.Id,
+            VideoIds = []
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        
+        var created = (CreatedAtActionResult)result.Result!;
+        var reference = (Reference)created.Value!;
+        
+        var playlist = await _dbContext.Playlists
+            .Include(p => p.VideoPlaylists)
+            .FirstAsync(p => p.Id == reference.Id);
+            
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_WithDuplicateVideos_CreatesPlaylistWithBothInstances()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Duplicate Videos",
+            Filename = "duplicate.json",
+            AccountId = _account1.Id,
+            VideoIds = [_video1Acc1.Id, _video1Acc1.Id]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        
+        var created = (CreatedAtActionResult)result.Result!;
+        var reference = (Reference)created.Value!;
+        
+        var playlist = await _dbContext.Playlists
+            .Include(p => p.VideoPlaylists)
+            .FirstAsync(p => p.Id == reference.Id);
+            
+        // With legacy VideoIds, duplicates are removed
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_InvalidVideoId_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Invalid Video",
+            Filename = "invalid.json",
+            AccountId = _account1.Id,
+            VideoIds = [999]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_WithItems_DuplicatePositions_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Duplicate Positions",
+            Filename = "dup-pos.json",
+            AccountId = _account1.Id,
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 },
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 0 } // Duplicate position
+            ]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_WithItems_NegativePositions_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Negative Positions",
+            Filename = "neg-pos.json",
+            AccountId = _account1.Id,
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = -1 }, // Negative position
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 0 }
+            ]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_NotFound_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated",
+            Filename = "updated.json"
+        };
+
+        var result = await _controller.UpdatePlaylist(999, item);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_ManagerAccessingOtherAccount_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated",
+            Filename = "updated.json"
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist2.Id, item);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_WithItemsFromOtherAccount_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated",
+            Filename = "updated.json",
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _videoAcc2.Id, Position = 0 } // Video from account 2
+            ]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_WithItems_NegativePositions_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated",
+            Filename = "updated.json",
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = -1 }, // Negative position
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 0 }
+            ]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_RemoveAllVideos_ClearsPlaylist()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Empty",
+            Filename = "empty.json",
+            VideoIds = []
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        var playlist = await _dbContext.Playlists
+            .Include(p => p.VideoPlaylists)
+            .FirstAsync(p => p.Id == _playlist1.Id);
+            
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_OnlyUpdateTitle_KeepsExistingVideos()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "New Title",
+            Filename = _playlist1.Filename
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        var playlist = await _dbContext.Playlists
+            .Include(p => p.VideoPlaylists)
+            .FirstAsync(p => p.Id == _playlist1.Id);
+            
+        Assert.That(playlist.Title, Is.EqualTo("New Title"));
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(2)); // Still has original videos
+    }
+
+    [Test]
+    public async Task DeletePlaylist_NotFound_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.DeletePlaylist(999);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task DeletePlaylist_ManagerAccessingOtherAccount_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.DeletePlaylist(_playlist2.Id);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeletePlaylist_EmptyPlaylist_DeletesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        
+        // Create an empty playlist
+        var emptyPlaylist = new Playlist
+        {
+            Title = "Empty",
+            Filename = "empty.json",
+            AccountId = _account1.Id
+        };
+        _dbContext.Playlists.Add(emptyPlaylist);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.DeletePlaylist(emptyPlaylist.Id);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var deleted = await _dbContext.Playlists.FindAsync(emptyPlaylist.Id);
+        Assert.That(deleted, Is.Null);
+    }
+
+    [Test]
+    public async Task GetPlaylistsByAccount_EmptyAccount_ReturnsEmptyList()
+    {
+        SetCurrentUser(_admin.Id);
+        
+        // Create a new account with no playlists
+        var emptyAccount = new Account { Name = "Empty Account" };
+        _dbContext.Accounts.Add(emptyAccount);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.GetPlaylistsByAccount(emptyAccount.Id);
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!.Count(), Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_ValidDataWithManager_CreatesSuccessfully()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Manager Playlist",
+            Filename = "manager.json",
+            AccountId = _account1.Id,
+            VideoIds = [_video1Acc1.Id]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        
+        var created = (CreatedAtActionResult)result.Result!;
+        Assert.That(created.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
+    }
 }
