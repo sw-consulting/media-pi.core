@@ -55,7 +55,6 @@ public class VideoStorageService : IVideoStorageService
 
         await using var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await file.CopyToAsync(stream, ct);
-        await stream.FlushAsync(ct);
 
         var relative = NormalizeRelativePath(Path.GetRelativePath(_rootFullPath, filePath));
 
