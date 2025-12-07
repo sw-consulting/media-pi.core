@@ -64,11 +64,21 @@ public class VideoStorageServiceTests
     public void TearDown()
     {
         // Dispose all memory streams
-        foreach (var stream in _memoryStreams)
+        lock (_memoryStreams)
         {
-            stream.Dispose();
+            foreach (var stream in _memoryStreams)
+            {
+                try
+                {
+                    stream?.Dispose();
+                }
+                catch
+                {
+                    // Ignore disposal errors to ensure all streams are attempted to be disposed
+                }
+            }
+            _memoryStreams.Clear();
         }
-        _memoryStreams.Clear();
 
         // Clean up test directory
         if (Directory.Exists(_testRootPath))
@@ -81,7 +91,10 @@ public class VideoStorageServiceTests
     {
         var mockFile = new Mock<IFormFile>();
         var ms = new MemoryStream();
-        _memoryStreams.Add(ms); // Track for disposal in TearDown
+        lock (_memoryStreams)
+        {
+            _memoryStreams.Add(ms); // Track for disposal in TearDown
+        }
         using (var writer = new StreamWriter(ms, leaveOpen: true))
         {
             writer.Write(content);
