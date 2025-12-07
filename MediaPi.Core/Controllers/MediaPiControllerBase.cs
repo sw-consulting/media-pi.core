@@ -117,6 +117,18 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = $"Плейлист [id={playlistId}] не относится к лицевому счёту [id={accountId}]" });
     }
 
+    protected ObjectResult _400PlaylistItemPositionsNegative()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Playlist item positions must be non-negative" });
+    }
+
+    protected ObjectResult _400PlaylistItemPositionsDuplicate()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Playlist item positions must be unique" });
+    }
+
     protected ObjectResult _409DeviceGroupAccountMismatch(int deviceGroupId, int? deviceAccountId)
     {
         var deviceAccountMsg = deviceAccountId.HasValue ? $"лицевого счёта [id={deviceAccountId}]" : "не назначено лицевого счёта";
