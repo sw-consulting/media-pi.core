@@ -119,9 +119,6 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
-        var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, account.Id, ct);
-        if (validationError != null) return validationError;
-
         // Handle both legacy VideoIds and new Items structure
         var playlistItems = GetPlaylistItems(item);
         var (playlistVideoIds, itemValidationError) = await ValidatePlaylistItems(playlistItems, account.Id, ct);
@@ -150,11 +147,11 @@ public class PlaylistsController(
         else
         {
             // Legacy support: assign sequential positions
-            for (int i = 0; i < videoIds.Count; i++)
+            for (int i = 0; i < playlistVideoIds.Count; i++)
             {
                 playlist.VideoPlaylists.Add(new VideoPlaylist 
                 { 
-                    VideoId = videoIds[i], 
+                    VideoId = playlistVideoIds[i], 
                     Position = i,
                     Playlist = playlist 
                 });
