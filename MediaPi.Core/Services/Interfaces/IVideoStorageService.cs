@@ -17,8 +17,8 @@ public class VideoSaveResult
     public required string Filename { get; set; }
     public required string OriginalFilename { get; init; }
     public required uint FileSizeBytes { get; init; }
-    public uint? DurationSeconds { get; set; }
-    public string? Format { get; set; }
-    public int? Width { get; set; }
-    public int? Height { get; set; }
+    public uint? DurationSeconds { get; init; }
+    public string? Format { get; init; }
+    public int? Width { get; init; }
+    public int? Height { get; init; }
 }
