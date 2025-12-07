@@ -147,7 +147,7 @@ public class VideoStorageServiceTests
     }
 
     [Test]
-    public async Task SaveVideoAsync_EmptyFile_ThrowsArgumentException()
+    public void SaveVideoAsync_EmptyFile_ThrowsArgumentException()
     {
         var mockFile = CreateMockFormFile("video.mp4", "");
         mockFile.Setup(f => f.Length).Returns(0);
@@ -333,7 +333,7 @@ public class VideoStorageServiceTests
     }
 
     [Test]
-    public async Task SaveVideoAsync_LargeFile_ThrowsArgumentOutOfRangeException()
+    public void SaveVideoAsync_LargeFile_ThrowsArgumentOutOfRangeException()
     {
         var mockFile = CreateMockFormFile("large.mp4", "content");
         mockFile.Setup(f => f.Length).Returns((long)uint.MaxValue + 1000);
@@ -341,9 +341,9 @@ public class VideoStorageServiceTests
         var ex = Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
             await _service.SaveVideoAsync(mockFile.Object, "Large Video"));
 
-        Assert.That(ex.ParamName, Is.EqualTo("file"));
-        Assert.That(ex.Message, Does.Contain("exceeds maximum supported size"));
-        Assert.That(ex.Message, Does.Contain("4GB"));
+        Assert.That(ex?.ParamName, Is.EqualTo("file"));
+        Assert.That(ex?.Message, Does.Contain("exceeds maximum supported size"));
+        Assert.That(ex?.Message, Does.Contain("4GB"));
     }
 
     [Test]
@@ -390,7 +390,7 @@ public class VideoStorageServiceTests
     }
 
     [Test]
-    public async Task DeleteVideoAsync_NonExistentFile_DoesNotThrow()
+    public void DeleteVideoAsync_NonExistentFile_DoesNotThrow()
     {
         Assert.DoesNotThrowAsync(async () =>
             await _service.DeleteVideoAsync("nonexistent/file.mp4"));
@@ -465,7 +465,7 @@ public class VideoStorageServiceTests
     }
 
     [Test]
-    public async Task SaveVideoAsync_WithCancellationToken_RespectsToken()
+    public void SaveVideoAsync_WithCancellationToken_RespectsToken()
     {
         var mockFile = CreateMockFormFile("video.mp4", "content");
         using (var cts = new CancellationTokenSource())
