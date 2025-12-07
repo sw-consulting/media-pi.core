@@ -71,8 +71,8 @@ public class VideosControllerTests
         _playlistAccount2 = new Playlist { Id = 3, Title = "Playlist 3", Filename = "playlist3.json", AccountId = _account2.Id, Account = _account2 };
         _dbContext.Playlists.AddRange(_playlistAccount1, _playlistAccount1Second, _playlistAccount2);
 
-        _videoAccount1 = new Video { Id = 1, Title = "Video 1", Filename = "0001/video1.mp4", AccountId = _account1.Id, Account = _account1 };
-        _videoAccount2 = new Video { Id = 2, Title = "Video 2", Filename = "0001/video2.mp4", AccountId = _account2.Id, Account = _account2 };
+        _videoAccount1 = new Video { Id = 1, Title = "Video 1", Filename = "0001/video1.mp4", OriginalFilename = "video1.mp4", FileSizeBytes = 1024000, AccountId = _account1.Id, Account = _account1 };
+        _videoAccount2 = new Video { Id = 2, Title = "Video 2", Filename = "0001/video2.mp4", OriginalFilename = "video2.mp4", FileSizeBytes = 2048000, AccountId = _account2.Id, Account = _account2 };
         _dbContext.Videos.AddRange(_videoAccount1, _videoAccount2);
 
         const string pass = "pwd";
@@ -176,9 +176,16 @@ public class VideosControllerTests
         SetCurrentUser(_admin.Id);
         var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
         var file = new FormFile(stream, 0, stream.Length, "file", "sample.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/sample.mp4",
+            OriginalFilename = "sample.mp4",
+            FileSizeBytes = (uint)stream.Length,
+            DurationSeconds = 121 // 2 minutes sample (rounded)
+        };
         _mockVideoStorageService
             .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("0002/sample.mp4");
+            .ReturnsAsync(saveResult);
 
         var item = new VideoUploadItem
         {
@@ -197,6 +204,9 @@ public class VideosControllerTests
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.Filename, Is.EqualTo("0002/sample.mp4"));
+        Assert.That(video.OriginalFilename, Is.EqualTo("sample.mp4"));
+        Assert.That(video.FileSizeBytes, Is.EqualTo((uint)stream.Length));
+        Assert.That(video.DurationSeconds, Is.EqualTo(121u));
         _mockVideoStorageService.Verify(s => s.SaveVideoAsync(file, item.Title, It.IsAny<CancellationToken>()), Times.Once);
     }
 

@@ -57,8 +57,9 @@ namespace MediaPi.Core.Data
                 .WithMany(a => a.UserAccounts)
                 .HasForeignKey(ua => ua.AccountId);
 
+            // VideoPlaylist now uses Id as primary key instead of composite key
             modelBuilder.Entity<VideoPlaylist>()
-                .HasKey(vp => new { vp.VideoId, vp.PlaylistId });
+                .HasKey(vp => vp.Id);
 
             modelBuilder.Entity<VideoPlaylist>()
                 .HasOne(vp => vp.Video)
@@ -69,6 +70,18 @@ namespace MediaPi.Core.Data
                 .HasOne(vp => vp.Playlist)
                 .WithMany(p => p.VideoPlaylists)
                 .HasForeignKey(vp => vp.PlaylistId);
+
+            // Configure Video entity - explicitly map uint properties to bigint
+            // This documents the intentional type mismatch for clarity
+            modelBuilder.Entity<Video>()
+                .Property(v => v.FileSizeBytes)
+                .HasColumnType("bigint")
+                .HasComment("Stores uint values (0 to 4,294,967,295) in bigint column for EF Core compatibility");
+
+            modelBuilder.Entity<Video>()
+                .Property(v => v.DurationSeconds)
+                .HasColumnType("bigint")
+                .HasComment("Stores uint values (0 to 4,294,967,295) in bigint column for EF Core compatibility");
 
             modelBuilder.Entity<Device>()
                 .HasOne(d => d.Account)

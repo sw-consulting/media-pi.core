@@ -13,6 +13,9 @@ public class VideoViewItem(Video video)
     public int Id { get; set; } = video.Id;
     public string Title { get; set; } = video.Title;
     public string Filename { get; set; } = video.Filename;
+    public string OriginalFilename { get; set; } = video.OriginalFilename;
+    public uint FileSizeBytes { get; set; } = video.FileSizeBytes;
+    public uint? DurationSeconds { get; set; } = video.DurationSeconds;
     public int AccountId { get; set; } = video.AccountId;
 
     public override string ToString()
