@@ -79,7 +79,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
 
         return new VideoMetadata
         {
-            FileSizeBytes = ConvertFileSizeToUInt(0), // Default to 0 if extraction fails
+            FileSizeBytes = ConvertFileSizeToUInt(0), 
             DurationSeconds = ConvertDurationToUInt(result.DurationSeconds)
         };
     }
