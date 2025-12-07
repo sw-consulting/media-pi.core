@@ -512,6 +512,26 @@ public class PlaylistsControllerTests
     }
 
     [Test]
+    public async Task CreatePlaylist_WithItems_NegativePositions_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Negative Positions",
+            Filename = "neg-pos.json",
+            AccountId = _account1.Id,
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = -1 }, // Negative position
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 0 }
+            ]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
     public async Task UpdatePlaylist_NotFound_Returns404()
     {
         SetCurrentUser(_admin.Id);
@@ -561,6 +581,25 @@ public class PlaylistsControllerTests
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_WithItems_NegativePositions_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated",
+            Filename = "updated.json",
+            Items = 
+            [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = -1 }, // Negative position
+                new PlaylistItemDto { VideoId = _video2Acc1.Id, Position = 0 }
+            ]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
     }
 
     [Test]
