@@ -101,7 +101,7 @@ public class VideoMetadataServiceTests
         {
             await File.WriteAllTextAsync(tempFile, "dummy video content", CancellationToken.None);
 
-            var cts = new CancellationTokenSource();
+            using var cts = new CancellationTokenSource();
             cts.Cancel();
 
             try
