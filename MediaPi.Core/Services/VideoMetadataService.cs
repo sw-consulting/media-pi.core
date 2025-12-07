@@ -272,13 +272,10 @@ public class VideoMetadataService : IVideoMetadataService
             }
 
             // Format: numbers only (assume seconds)
-            if (double.TryParse(description.Trim(), out var numericValue))
+            // Only consider it duration if it's a reasonable value (between 0.1 and 86400 seconds = 24 hours)
+            if (double.TryParse(description.Trim(), out var numericValue) && numericValue >= 0.1 && numericValue <= 86400)
             {
-                // Only consider it duration if it's a reasonable value (between 0.1 and 86400 seconds = 24 hours)
-                if (numericValue >= 0.1 && numericValue <= 86400)
-                {
-                    return numericValue;
-                }
+                return numericValue;
             }
         }
         catch (Exception)
