@@ -46,7 +46,7 @@ public class PlaylistViewItem
     {
         if (playlist.VideoPlaylists == null || !playlist.VideoPlaylists.Any())
         {
-            return (0, 0, 0);
+            return (0, null, 0);
         }
 
         var videoCount = playlist.VideoPlaylists.Count; // Include duplicates in count
