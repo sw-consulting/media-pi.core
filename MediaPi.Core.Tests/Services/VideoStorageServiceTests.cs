@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -24,6 +25,7 @@ public class VideoStorageServiceTests
     private VideoStorageSettings _settings = null!;
     private string _testRootPath = null!;
     private VideoStorageService _service = null!;
+    private readonly ConcurrentBag<MemoryStream> _memoryStreams = new();
 
     [SetUp]
     public void SetUp()
@@ -61,6 +63,20 @@ public class VideoStorageServiceTests
     [TearDown]
     public void TearDown()
     {
+        // Dispose all memory streams
+        foreach (var stream in _memoryStreams)
+        {
+            try
+            {
+                stream?.Dispose();
+            }
+            catch (Exception)
+            {
+                // Ignore disposal errors to ensure all streams are attempted to be disposed
+            }
+        }
+        _memoryStreams.Clear();
+
         // Clean up test directory
         if (Directory.Exists(_testRootPath))
         {
@@ -72,9 +88,12 @@ public class VideoStorageServiceTests
     {
         var mockFile = new Mock<IFormFile>();
         var ms = new MemoryStream();
-        var writer = new StreamWriter(ms);
-        writer.Write(content);
-        writer.Flush();
+        _memoryStreams.Add(ms); // Track for disposal in TearDown
+        using (var writer = new StreamWriter(ms, leaveOpen: true))
+        {
+            writer.Write(content);
+            writer.Flush();
+        }
         ms.Position = 0;
 
         mockFile.Setup(f => f.FileName).Returns(fileName);
