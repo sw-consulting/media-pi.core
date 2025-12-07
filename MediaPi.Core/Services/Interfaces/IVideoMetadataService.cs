@@ -17,10 +17,10 @@ public interface IVideoMetadataService
 public class VideoMetadata
 {
     public required uint FileSizeBytes { get; init; }
-    public uint? DurationSeconds { get; set; }
-    public string? Format { get; set; }
-    public int? Width { get; set; }
-    public int? Height { get; set; }
-    public string? VideoCodec { get; set; }
-    public string? AudioCodec { get; set; }
+    public uint? DurationSeconds { get; init; }
+    public string? Format { get; init; }
+    public int? Width { get; init; }
+    public int? Height { get; init; }
+    public string? VideoCodec { get; init; }
+    public string? AudioCodec { get; init; }
 }
