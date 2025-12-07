@@ -477,11 +477,13 @@ public class VideoStorageServiceTests
     public async Task SaveVideoAsync_WithCancellationToken_RespectsToken()
     {
         var mockFile = CreateMockFormFile("video.mp4", "content");
-        var cts = new CancellationTokenSource();
-        cts.Cancel();
+        using (var cts = new CancellationTokenSource())
+        {
+            cts.Cancel();
 
-        Assert.ThrowsAsync<TaskCanceledException>(async () =>
-            await _service.SaveVideoAsync(mockFile.Object, "Title", cts.Token));
+            Assert.ThrowsAsync<TaskCanceledException>(async () =>
+                await _service.SaveVideoAsync(mockFile.Object, "Title", cts.Token));
+        }
     }
 
     [Test]
