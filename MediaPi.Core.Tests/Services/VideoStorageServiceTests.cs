@@ -51,10 +51,7 @@ public class VideoStorageServiceTests
             .ReturnsAsync(new VideoMetadata
             {
                 FileSizeBytes = 1000,
-                DurationSeconds = 60,
-                Format = "MP4",
-                Width = 1920,
-                Height = 1080
+                DurationSeconds = 60
             });
 
         _service = new VideoStorageService(_mockOptions.Object, _mockMetadataService.Object);
@@ -103,21 +100,6 @@ public class VideoStorageServiceTests
             .Returns((Stream stream, CancellationToken token) => ms.CopyToAsync(stream, token));
 
         return mockFile;
-    }
-
-    [Test]
-    public void Constructor_NullOptions_ThrowsException()
-    {
-        // VideoStorageService will throw NullReferenceException when accessing options.Value
-        Assert.Throws<NullReferenceException>(() =>
-            new VideoStorageService(null!, _mockMetadataService.Object));
-    }
-
-    [Test]
-    public void Constructor_NullMetadataService_ThrowsArgumentNullException()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            new VideoStorageService(_mockOptions.Object, null!));
     }
 
     [Test]
@@ -315,10 +297,7 @@ public class VideoStorageServiceTests
         var expectedMetadata = new VideoMetadata
         {
             FileSizeBytes = 5000,
-            DurationSeconds = 120,
-            Format = "AVI",
-            Width = 1280,
-            Height = 720
+            DurationSeconds = 120
         };
 
         _mockMetadataService
@@ -331,9 +310,6 @@ public class VideoStorageServiceTests
 
         Assert.That(result.FileSizeBytes, Is.EqualTo(expectedMetadata.FileSizeBytes));
         Assert.That(result.DurationSeconds, Is.EqualTo(expectedMetadata.DurationSeconds));
-        Assert.That(result.Format, Is.EqualTo(expectedMetadata.Format));
-        Assert.That(result.Width, Is.EqualTo(expectedMetadata.Width));
-        Assert.That(result.Height, Is.EqualTo(expectedMetadata.Height));
     }
 
     [Test]

@@ -74,10 +74,7 @@ public class VideoStorageService : IVideoStorageService
             Filename = relative,
             OriginalFilename = file.FileName,
             FileSizeBytes = metadata?.FileSizeBytes ?? fileSizeBytes,
-            DurationSeconds = metadata?.DurationSeconds,
-            Format = metadata?.Format,
-            Width = metadata?.Width,
-            Height = metadata?.Height
+            DurationSeconds = metadata?.DurationSeconds
         };
     }
 

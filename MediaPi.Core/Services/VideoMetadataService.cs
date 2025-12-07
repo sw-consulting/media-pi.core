@@ -4,18 +4,12 @@
 using MediaPi.Core.Services.Interfaces;
 using MetadataExtractor;
 using MetadataExtractor.Formats.QuickTime;
-using Microsoft.Extensions.Logging;
 
 namespace MediaPi.Core.Services;
 
-public class VideoMetadataService : IVideoMetadataService
+public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideoMetadataService
 {
-    private readonly ILogger<VideoMetadataService> _logger;
-
-    public VideoMetadataService(ILogger<VideoMetadataService> logger)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly ILogger<VideoMetadataService> _logger = logger;
 
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default)
     {
@@ -37,12 +31,7 @@ public class VideoMetadataService : IVideoMetadataService
             return new VideoMetadata
             {
                 FileSizeBytes = fileSizeBytes,
-                DurationSeconds = ConvertDurationToUInt(metadata.DurationSeconds),
-                Format = metadata.Format,
-                Width = metadata.Width,
-                Height = metadata.Height,
-                VideoCodec = metadata.VideoCodec,
-                AudioCodec = metadata.AudioCodec
+                DurationSeconds = ConvertDurationToUInt(metadata.DurationSeconds)
             };
         }
         catch (Exception ex)
@@ -81,9 +70,6 @@ public class VideoMetadataService : IVideoMetadataService
                 {
                     result.DurationSeconds = ExtractDuration(directory);
                 }
-
-                // Extract video dimensions and format information
-                ExtractVideoInfo(directory, result);
             }
         }
         catch (Exception ex)
@@ -94,12 +80,7 @@ public class VideoMetadataService : IVideoMetadataService
         return new VideoMetadata
         {
             FileSizeBytes = ConvertFileSizeToUInt(0), // Default to 0 if extraction fails
-            DurationSeconds = ConvertDurationToUInt(result.DurationSeconds),
-            Format = result.Format,
-            Width = result.Width,
-            Height = result.Height,
-            VideoCodec = result.VideoCodec,
-            AudioCodec = result.AudioCodec
+            DurationSeconds = ConvertDurationToUInt(result.DurationSeconds)
         };
     }
 
@@ -143,100 +124,6 @@ public class VideoMetadataService : IVideoMetadataService
         return null;
     }
 
-    private static void ExtractVideoInfo(MetadataExtractor.Directory directory, InternalVideoMetadata result)
-    {
-        try
-        {
-            // Extract video dimensions
-            if (result.Width == null || result.Height == null)
-            {
-                ExtractDimensions(directory, result);
-            }
-
-            // Extract format and codec information
-            ExtractFormatInfo(directory, result);
-        }
-        catch (Exception)
-        {
-            // Ignore individual extraction failures
-        }
-    }
-
-    private static void ExtractDimensions(MetadataExtractor.Directory directory, InternalVideoMetadata result)
-    {
-        // Try to get width and height from various directory types
-        var widthTags = new[] { "Image Width", "Width", "Video Width", "Frame Width" };
-        var heightTags = new[] { "Image Height", "Height", "Video Height", "Frame Height" };
-
-        foreach (var tag in directory.Tags)
-        {
-            var tagName = tag.Name;
-            if (tagName != null)
-            {
-                if (result.Width == null && widthTags.Any(wt => tagName.Contains(wt, StringComparison.OrdinalIgnoreCase)) &&
-                    directory.TryGetInt32(tag.Type, out var width) && width > 0)
-                {
-                    result.Width = width;
-                }
-                if (result.Height == null && heightTags.Any(ht => tagName.Contains(ht, StringComparison.OrdinalIgnoreCase)) &&
-                    directory.TryGetInt32(tag.Type, out var height) && height > 0)
-                {
-                    result.Height = height;
-                }
-            }
-        }
-    }
-
-    private static void ExtractFormatInfo(MetadataExtractor.Directory directory, InternalVideoMetadata result)
-    {
-        foreach (var tag in directory.Tags)
-        {
-            var tagName = tag.Name?.ToLowerInvariant();
-            var description = tag.Description;
-
-            if (string.IsNullOrWhiteSpace(tagName) || string.IsNullOrWhiteSpace(description))
-                continue;
-
-            // Extract format information
-            if (result.Format == null && (tagName.Contains("format") || tagName.Contains("container")))
-            {
-                result.Format = description;
-            }
-
-            // Extract codec information
-            if (result.VideoCodec == null && tagName.Contains("codec") && tagName.Contains("video"))
-            {
-                result.VideoCodec = description;
-            }
-
-            if (result.AudioCodec == null && tagName.Contains("codec") && tagName.Contains("audio"))
-            {
-                result.AudioCodec = description;
-            }
-
-            // Extract basic file type from directory name
-            if (result.Format == null)
-            {
-                var directoryName = directory.GetType().Name?.ToLowerInvariant();
-                if (directoryName != null)
-                {
-                    if (directoryName.Contains("quicktime") || directoryName.Contains("mp4"))
-                    {
-                        result.Format = "MP4/QuickTime";
-                    }
-                    else if (directoryName.Contains("avi"))
-                    {
-                        result.Format = "AVI";
-                    }
-                    else if (directoryName.Contains("mkv"))
-                    {
-                        result.Format = "Matroska";
-                    }
-                }
-            }
-        }
-    }
-
     private static double? ParseDurationFromDescription(string description)
     {
         try
@@ -252,7 +139,7 @@ public class VideoMetadataService : IVideoMetadataService
             var secondsPatterns = new[] { " seconds", " sec", " s" };
             foreach (var pattern in secondsPatterns.Where(p => description.EndsWith(p, StringComparison.OrdinalIgnoreCase)))
             {
-                var numberPart = description.Substring(0, description.Length - pattern.Length).Trim();
+                var numberPart = description[..^pattern.Length].Trim();
                 if (double.TryParse(numberPart, out var seconds))
                 {
                     return seconds;
@@ -316,10 +203,5 @@ public class VideoMetadataService : IVideoMetadataService
     private class InternalVideoMetadata
     {
         public double? DurationSeconds { get; set; }
-        public string? Format { get; set; }
-        public int? Width { get; set; }
-        public int? Height { get; set; }
-        public string? VideoCodec { get; set; }
-        public string? AudioCodec { get; set; }
     }
 }
