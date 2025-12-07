@@ -10,9 +10,10 @@ namespace MediaPi.Core.RestModels
         public required string Title { get; set; }
         public required string Filename { get; set; }
         public int AccountId { get; set; }
-        public List<int> VideoIds { get; set; } = [];
         
-        // New property to support ordered items with positions
-        public List<PlaylistItemDto>? Items { get; set; }
+        /// <summary>
+        /// Ordered playlist items with positions. This is the only supported method for creating playlists.
+        /// </summary>
+        public required List<PlaylistItemDto> Items { get; set; }
     }
 }

@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251207184811_AddVideoColumnComments")]
-    partial class AddVideoColumnComments
+    [Migration("20251207185328_0_6_0_Extend_Video_and_Playlist")]
+    partial class _0_6_0_Extend_Video_and_Playlist
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

@@ -19,14 +19,16 @@ namespace MediaPi.Core.Migrations
                 name: "duration_seconds",
                 table: "videos",
                 type: "bigint",
-                nullable: true);
+                nullable: true,
+                comment: "Stores uint values (0 to 4,294,967,295) in bigint column for EF Core compatibility");
 
             migrationBuilder.AddColumn<long>(
                 name: "file_size_bytes",
                 table: "videos",
                 type: "bigint",
                 nullable: false,
-                defaultValue: 0L);
+                defaultValue: 0L,
+                comment: "Stores uint values (0 to 4,294,967,295) in bigint column for EF Core compatibility");
 
             migrationBuilder.AddColumn<string>(
                 name: "original_filename",

@@ -340,15 +340,17 @@ public class VideoStorageServiceTests
     }
 
     [Test]
-    public async Task SaveVideoAsync_LargeFile_CapsFileSizeAtUintMax()
+    public async Task SaveVideoAsync_LargeFile_ThrowsArgumentOutOfRangeException()
     {
         var mockFile = CreateMockFormFile("large.mp4", "content");
         mockFile.Setup(f => f.Length).Returns((long)uint.MaxValue + 1000);
 
-        var result = await _service.SaveVideoAsync(mockFile.Object, "Large Video");
+        var ex = Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await _service.SaveVideoAsync(mockFile.Object, "Large Video"));
 
-        // Metadata service should return actual size if available, but fallback caps at uint.MaxValue
-        Assert.That(result.FileSizeBytes, Is.LessThanOrEqualTo(uint.MaxValue));
+        Assert.That(ex.ParamName, Is.EqualTo("file"));
+        Assert.That(ex.Message, Does.Contain("exceeds maximum supported size"));
+        Assert.That(ex.Message, Does.Contain("4GB"));
     }
 
     [Test]

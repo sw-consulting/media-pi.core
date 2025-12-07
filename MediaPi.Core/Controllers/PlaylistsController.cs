@@ -119,9 +119,13 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
-        // Handle both legacy VideoIds and new Items structure
-        var playlistItems = GetPlaylistItems(item);
-        var (playlistVideoIds, itemValidationError) = await ValidatePlaylistItems(playlistItems, account.Id, ct);
+        // Handle only new Items structure
+        if (item.Items == null || item.Items.Count == 0)
+        {
+            return BadRequest(new ErrMessage { Msg = "Items are required. Legacy VideoIds support has been removed." });
+        }
+
+        var (playlistVideoIds, itemValidationError) = await ValidatePlaylistItems(item.Items, account.Id, ct);
         if (itemValidationError != null) return itemValidationError;
 
         var playlist = new Playlist
@@ -131,31 +135,15 @@ public class PlaylistsController(
             AccountId = item.AccountId,
         };
 
-        // Use Items if provided, otherwise fall back to VideoIds for backwards compatibility
-        if (item.Items?.Count > 0)
+        // Add items with their positions
+        foreach (var playlistItem in item.Items.OrderBy(i => i.Position))
         {
-            foreach (var playlistItem in playlistItems.OrderBy(i => i.Position))
-            {
-                playlist.VideoPlaylists.Add(new VideoPlaylist 
-                { 
-                    VideoId = playlistItem.VideoId, 
-                    Position = playlistItem.Position,
-                    Playlist = playlist 
-                });
-            }
-        }
-        else
-        {
-            // Legacy support: assign sequential positions
-            for (int i = 0; i < playlistVideoIds.Count; i++)
-            {
-                playlist.VideoPlaylists.Add(new VideoPlaylist 
-                { 
-                    VideoId = playlistVideoIds[i], 
-                    Position = i,
-                    Playlist = playlist 
-                });
-            }
+            playlist.VideoPlaylists.Add(new VideoPlaylist 
+            { 
+                VideoId = playlistItem.VideoId, 
+                Position = playlistItem.Position,
+                Playlist = playlist 
+            });
         }
 
         _db.Playlists.Add(playlist);
@@ -185,63 +173,33 @@ public class PlaylistsController(
 
         playlist.UpdateFrom(item);
 
-        // Handle both legacy VideoIds and new Items structure
-        if (item.Items?.Count > 0)
+        // Handle only new Items structure
+        if (item.Items == null || item.Items.Count == 0)
         {
-            // Use new Items structure
-            var playlistItems = GetPlaylistItems(item);
-            var (_, validationError) = await ValidatePlaylistItems(playlistItems, playlist.AccountId, ct);
-            if (validationError != null) return validationError;
-
-            // Remove all existing items and replace with new ones
-            var toRemove = playlist.VideoPlaylists.ToList();
-            if (toRemove.Count > 0)
-            {
-                playlist.VideoPlaylists.Clear();
-                _db.VideoPlaylists.RemoveRange(toRemove);
-            }
-
-            // Add new items
-            foreach (var playlistItem in playlistItems.OrderBy(i => i.Position))
-            {
-                playlist.VideoPlaylists.Add(new VideoPlaylist 
-                { 
-                    PlaylistId = playlist.Id, 
-                    VideoId = playlistItem.VideoId,
-                    Position = playlistItem.Position
-                });
-            }
+            return BadRequest(new ErrMessage { Msg = "Items are required. Legacy VideoIds support has been removed." });
         }
-        else if (item.VideoIds is not null)
+
+        var (_, validationError) = await ValidatePlaylistItems(item.Items, playlist.AccountId, ct);
+        if (validationError != null) return validationError;
+
+        // Remove all existing items and replace with new ones
+        var toRemove = playlist.VideoPlaylists.ToList();
+        if (toRemove.Count > 0)
         {
-            // Legacy VideoIds support
-            var (videoIds, validationError) = await ValidatePlaylistVideos(item.VideoIds, playlist.AccountId, ct);
-            if (validationError != null) return validationError;
+            playlist.VideoPlaylists.Clear();
+            _db.VideoPlaylists.RemoveRange(toRemove);
+        }
 
-            var normalizedSet = videoIds.ToHashSet();
-            var toRemove = playlist.VideoPlaylists.Where(vp => !normalizedSet.Contains(vp.VideoId)).ToList();
-            foreach (var remove in toRemove)
-            {
-                playlist.VideoPlaylists.Remove(remove);
-            }
-            if (toRemove.Count > 0)
-            {
-                _db.VideoPlaylists.RemoveRange(toRemove);
-            }
-
-            var existingIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
-            var position = playlist.VideoPlaylists.Count > 0 ? playlist.VideoPlaylists.Max(vp => vp.Position) + 1 : 0;
-            
-            foreach (var videoId in normalizedSet.Except(existingIds))
-            {
-                playlist.VideoPlaylists.Add(new VideoPlaylist 
-                { 
-                    PlaylistId = playlist.Id, 
-                    VideoId = videoId,
-                    Position = position++
-                });
-             }
-         }
+        // Add new items
+        foreach (var playlistItem in item.Items.OrderBy(i => i.Position))
+        {
+            playlist.VideoPlaylists.Add(new VideoPlaylist 
+            { 
+                PlaylistId = playlist.Id, 
+                VideoId = playlistItem.VideoId,
+                Position = playlistItem.Position
+            });
+        }
 
         await _db.SaveChangesAsync(ct);
         return NoContent();
@@ -275,70 +233,13 @@ public class PlaylistsController(
         return NoContent();
     }
 
-    private async Task<(List<int> VideoIds, ObjectResult? Error)> ValidatePlaylistVideos(IEnumerable<int>? videoIds, int accountId, CancellationToken ct)
-    {
-        var normalized = (videoIds ?? Enumerable.Empty<int>()).Distinct().ToList();
-        if (normalized.Count == 0) return (normalized, null);
-
-        var videos = await _db.Videos
-            .AsNoTracking()
-            .Where(v => normalized.Contains(v.Id))
-            .Select(v => new { v.Id, v.AccountId })
-            .ToListAsync(ct);
-
-        if (videos.Count != normalized.Count)
-        {
-            var foundIds = videos.Select(v => v.Id).ToHashSet();
-            var missingId = normalized.First(id => !foundIds.Contains(id));
-            return (normalized, _404Video(missingId));
-        }
-
-        var mismatch = videos.FirstOrDefault(v => v.AccountId != accountId);
-        if (mismatch != null)
-        {
-            return (normalized, _400PlaylistVideoAccountMismatch(mismatch.Id, accountId));
-        }
-
-        return (normalized, null);
-    }
-
-    private static List<PlaylistItemDto> GetPlaylistItems(PlaylistCreateItem item)
-    {
-        if (item.Items?.Count > 0)
-        {
-            return item.Items;
-        }
-        
-        // Convert legacy VideoIds to Items with sequential positions
-        return item.VideoIds.Select((videoId, index) => new PlaylistItemDto 
-        { 
-            VideoId = videoId, 
-            Position = index 
-        }).ToList();
-    }
-
-    private static List<PlaylistItemDto> GetPlaylistItems(PlaylistUpdateItem item)
-    {
-        if (item.Items?.Count > 0)
-        {
-            return item.Items;
-        }
-        
-        // Convert legacy VideoIds to Items with sequential positions
-        return item.VideoIds?.Select((videoId, index) => new PlaylistItemDto 
-        { 
-            VideoId = videoId, 
-            Position = index 
-        }).ToList() ?? [];
-    }
-
     private async Task<(List<int> VideoIds, ObjectResult? Error)> ValidatePlaylistItems(IEnumerable<PlaylistItemDto> items, int accountId, CancellationToken ct)
     {
         var videoIds = items.Select(i => i.VideoId).Distinct().ToList();
         
         if (videoIds.Count == 0) return (videoIds, null);
 
-        // Validate positions are sequential and start from 0
+        // Validate positions
         var positions = items.Select(i => i.Position).ToList();
         if (positions.Any(p => p < 0))
         {

@@ -213,7 +213,7 @@ public class PlaylistsControllerTests
             Title = "New",
             Filename = "new.json",
             AccountId = _account2.Id,
-            VideoIds = [_videoAcc2.Id]
+            Items = [new PlaylistItemDto { VideoId = _videoAcc2.Id, Position = 0 }]
         };
 
         var result = await _controller.CreatePlaylist(item);
@@ -231,7 +231,7 @@ public class PlaylistsControllerTests
             Title = "New",
             Filename = "new.json",
             AccountId = _account1.Id,
-            VideoIds = [_videoAcc2.Id]
+            Items = [new PlaylistItemDto { VideoId = _videoAcc2.Id, Position = 0 }]
         };
 
         var result = await _controller.CreatePlaylist(item);
@@ -248,7 +248,7 @@ public class PlaylistsControllerTests
         {
             Title = "Updated",
             Filename = "updated.json",
-            VideoIds = [999]
+            Items = [new PlaylistItemDto { VideoId = 999, Position = 0 }]
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
@@ -265,7 +265,7 @@ public class PlaylistsControllerTests
         {
             Title = "Updated",
             Filename = "updated.json",
-            VideoIds = [_video1Acc1.Id]
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
@@ -323,7 +323,7 @@ public class PlaylistsControllerTests
         // Test the PlaylistViewItem with duplicates - should count duplicates in duration but not size
         var playlistView = playlist.ToViewItem();
         Assert.That(playlistView.VideoCount, Is.EqualTo(3)); // 3 items total including duplicates
-        Assert.That(playlistView.TotalFileSizeBytes, Is.EqualTo(1536000)); // Unique videos only: 512000 + 1024000
+        Assert.That(playlistView.TotalFileSizeBytes, Is.EqualTo(1536000UL)); // Unique videos only: 512000 + 1024000
         Assert.That(playlistView.TotalDurationSeconds, Is.EqualTo(150)); // All instances: 60 + 30 + 60 = 150
     }
 
@@ -342,7 +342,7 @@ public class PlaylistsControllerTests
         
         // Check stats (now direct properties)
         Assert.That(playlistView.VideoCount, Is.EqualTo(2));
-        Assert.That(playlistView.TotalFileSizeBytes, Is.EqualTo(1536000)); // 512000 + 1024000
+        Assert.That(playlistView.TotalFileSizeBytes, Is.EqualTo(1536000UL)); // 512000 + 1024000
         Assert.That(playlistView.TotalDurationSeconds, Is.EqualTo(90)); // 30 + 60 (all instances, but no duplicates in this playlist)
         
         // Check items are ordered
@@ -420,7 +420,7 @@ public class PlaylistsControllerTests
             Title = "New",
             Filename = "new.json",
             AccountId = 999,
-            VideoIds = []
+            Items = []
         };
 
         var result = await _controller.CreatePlaylist(item);
@@ -430,7 +430,7 @@ public class PlaylistsControllerTests
     }
 
     [Test]
-    public async Task CreatePlaylist_NoVideos_CreatesEmptyPlaylist()
+    public async Task CreatePlaylist_NoVideos_Returns400()
     {
         SetCurrentUser(_admin.Id);
         var item = new PlaylistCreateItem
@@ -438,20 +438,13 @@ public class PlaylistsControllerTests
             Title = "Empty Playlist",
             Filename = "empty.json",
             AccountId = _account1.Id,
-            VideoIds = []
+            Items = []
         };
 
         var result = await _controller.CreatePlaylist(item);
-        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
-        
-        var created = (CreatedAtActionResult)result.Result!;
-        var reference = (Reference)created.Value!;
-        
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists)
-            .FirstAsync(p => p.Id == reference.Id);
-            
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(0));
+        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+        var obj = (BadRequestObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
@@ -463,7 +456,10 @@ public class PlaylistsControllerTests
             Title = "Duplicate Videos",
             Filename = "duplicate.json",
             AccountId = _account1.Id,
-            VideoIds = [_video1Acc1.Id, _video1Acc1.Id]
+            Items = [
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 },
+                new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 1 }
+            ]
         };
 
         var result = await _controller.CreatePlaylist(item);
@@ -476,8 +472,8 @@ public class PlaylistsControllerTests
             .Include(p => p.VideoPlaylists)
             .FirstAsync(p => p.Id == reference.Id);
             
-        // With legacy VideoIds, duplicates are removed
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(1));
+        // With new Items structure, duplicates are allowed
+        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(2));
     }
 
     [Test]
@@ -489,7 +485,7 @@ public class PlaylistsControllerTests
             Title = "Invalid Video",
             Filename = "invalid.json",
             AccountId = _account1.Id,
-            VideoIds = [999]
+            Items = [new PlaylistItemDto { VideoId = 999, Position = 0 }]
         };
 
         var result = await _controller.CreatePlaylist(item);
@@ -549,7 +545,8 @@ public class PlaylistsControllerTests
         var item = new PlaylistUpdateItem
         {
             Title = "Updated",
-            Filename = "updated.json"
+            Filename = "updated.json",
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
         };
 
         var result = await _controller.UpdatePlaylist(999, item);
@@ -565,7 +562,8 @@ public class PlaylistsControllerTests
         var item = new PlaylistUpdateItem
         {
             Title = "Updated",
-            Filename = "updated.json"
+            Filename = "updated.json",
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
         };
 
         var result = await _controller.UpdatePlaylist(_playlist2.Id, item);
@@ -616,45 +614,37 @@ public class PlaylistsControllerTests
     }
 
     [Test]
-    public async Task UpdatePlaylist_RemoveAllVideos_ClearsPlaylist()
+    public async Task UpdatePlaylist_RemoveAllVideos_Returns400()
     {
         SetCurrentUser(_admin.Id);
         var item = new PlaylistUpdateItem
         {
             Title = "Empty",
             Filename = "empty.json",
-            VideoIds = []
+            Items = []
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
-        Assert.That(result, Is.TypeOf<NoContentResult>());
-
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists)
-            .FirstAsync(p => p.Id == _playlist1.Id);
-            
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(0));
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        var obj = (BadRequestObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
-    public async Task UpdatePlaylist_OnlyUpdateTitle_KeepsExistingVideos()
+    public async Task UpdatePlaylist_OnlyUpdateTitle_Returns400()
     {
         SetCurrentUser(_admin.Id);
         var item = new PlaylistUpdateItem
         {
             Title = "New Title",
-            Filename = _playlist1.Filename
+            Filename = _playlist1.Filename,
+            Items = [] // Empty items not allowed
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
-        Assert.That(result, Is.TypeOf<NoContentResult>());
-
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists)
-            .FirstAsync(p => p.Id == _playlist1.Id);
-            
-        Assert.That(playlist.Title, Is.EqualTo("New Title"));
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(2)); // Still has original videos
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        var obj = (BadRequestObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
     }
 
     [Test]
@@ -723,7 +713,7 @@ public class PlaylistsControllerTests
             Title = "Manager Playlist",
             Filename = "manager.json",
             AccountId = _account1.Id,
-            VideoIds = [_video1Acc1.Id]
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
         };
 
         var result = await _controller.CreatePlaylist(item);
@@ -731,5 +721,51 @@ public class PlaylistsControllerTests
         
         var created = (CreatedAtActionResult)result.Result!;
         Assert.That(created.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
+    }
+
+    [Test]
+    public void PlaylistViewItem_WithLargeFileSizes_HandlesUlongCorrectly()
+    {
+        // Create test videos with file sizes that would exceed uint when combined
+        var largeVideo1 = new Video 
+        { 
+            Id = 10, 
+            Title = "Large1", 
+            Filename = "large1.mp4", 
+            OriginalFilename = "large1.mp4", 
+            FileSizeBytes = uint.MaxValue, // ~4GB
+            DurationSeconds = 100,
+            AccountId = _account1.Id 
+        };
+        var largeVideo2 = new Video 
+        { 
+            Id = 11, 
+            Title = "Large2", 
+            Filename = "large2.mp4", 
+            OriginalFilename = "large2.mp4", 
+            FileSizeBytes = uint.MaxValue, // ~4GB
+            DurationSeconds = 200,
+            AccountId = _account1.Id 
+        };
+        
+        var playlist = new Playlist
+        {
+            Id = 100,
+            Title = "Large Playlist",
+            Filename = "large.json",
+            AccountId = _account1.Id,
+            VideoPlaylists = [
+                new VideoPlaylist { VideoId = largeVideo1.Id, PlaylistId = 100, Position = 0, Video = largeVideo1 },
+                new VideoPlaylist { VideoId = largeVideo2.Id, PlaylistId = 100, Position = 1, Video = largeVideo2 }
+            ]
+        };
+
+        var viewItem = new PlaylistViewItem(playlist);
+        
+        // Total size should be ~8GB (exceeds uint.MaxValue)
+        var expectedTotalSize = (ulong)uint.MaxValue + (ulong)uint.MaxValue;
+        Assert.That(viewItem.TotalFileSizeBytes, Is.EqualTo(expectedTotalSize));
+        Assert.That(viewItem.VideoCount, Is.EqualTo(2));
+        Assert.That(viewItem.TotalDurationSeconds, Is.EqualTo(300)); // 100 + 200
     }
 }

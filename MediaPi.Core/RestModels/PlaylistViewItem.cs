@@ -14,12 +14,14 @@ public class PlaylistViewItem
     public string Title { get; set; }
     public string Filename { get; set; }
     public int AccountId { get; set; }
-    public IEnumerable<int> VideoIds { get; set; }
     
     public IEnumerable<PlaylistItemDto> Items { get; set; }
     
-    // Playlist statistics calculated once in constructor
-    public uint TotalFileSizeBytes { get; set; }
+    /// <summary>
+    /// Total file size of unique videos in bytes. Can exceed uint.MaxValue when playlists contain many large videos.
+    /// Uses ulong to support up to 18.4 exabytes total size.
+    /// </summary>
+    public ulong TotalFileSizeBytes { get; set; }
     public uint? TotalDurationSeconds { get; set; }
     public int VideoCount { get; set; }
 
@@ -29,7 +31,6 @@ public class PlaylistViewItem
         Title = playlist.Title;
         Filename = playlist.Filename;
         AccountId = playlist.AccountId;
-        VideoIds = [.. playlist.VideoPlaylists.Select(vp => vp.VideoId)];
         Items = playlist.VideoPlaylists
             .OrderBy(vp => vp.Position)
             .Select(vp => new PlaylistItemDto { VideoId = vp.VideoId, Position = vp.Position });
@@ -41,7 +42,7 @@ public class PlaylistViewItem
         VideoCount = stats.VideoCount;
     }
     
-    private static (uint TotalFileSizeBytes, uint? TotalDurationSeconds, int VideoCount) CalculateStats(Playlist playlist)
+    private static (ulong TotalFileSizeBytes, uint? TotalDurationSeconds, int VideoCount) CalculateStats(Playlist playlist)
     {
         if (playlist.VideoPlaylists == null || !playlist.VideoPlaylists.Any())
         {
@@ -57,8 +58,8 @@ public class PlaylistViewItem
             .Select(g => g.First().Video)
             .ToList();
 
-        var totalSize = uniqueVideos.Sum(v => (long)v.FileSizeBytes);
-        var fileSizeBytes = totalSize > uint.MaxValue ? uint.MaxValue : (uint)totalSize;
+        // Use ulong to handle large total sizes (sum of many 4GB files)
+        var totalSize = uniqueVideos.Aggregate(0UL, (acc, v) => acc + (ulong)v.FileSizeBytes);
 
         // For duration: Count all instances including duplicates
         var videosWithDuration = playlist.VideoPlaylists
@@ -74,7 +75,7 @@ public class PlaylistViewItem
             totalDuration = durationSum > uint.MaxValue ? uint.MaxValue : (uint)durationSum;
         }
 
-        return (fileSizeBytes, totalDuration, videoCount);
+        return (totalSize, totalDuration, videoCount);
     }
 
     public override string ToString()
