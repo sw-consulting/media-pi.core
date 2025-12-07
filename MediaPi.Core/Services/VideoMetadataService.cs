@@ -108,14 +108,12 @@ public class VideoMetadataService : IVideoMetadataService
         try
         {
             // Try QuickTime movie header for MP4/MOV files
-            if (directory is QuickTimeMovieHeaderDirectory movieHeader)
+            if (directory is QuickTimeMovieHeaderDirectory movieHeader &&
+                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var qtDuration) &&
+                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var qtTimeScale) &&
+                qtTimeScale > 0)
             {
-                if (movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var qtDuration) &&
-                    movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var qtTimeScale) &&
-                    qtTimeScale > 0)
-                {
-                    return (double)qtDuration / qtTimeScale;
-                }
+                return (double)qtDuration / qtTimeScale;
             }
 
             // Generic approach - look for duration-related tags
