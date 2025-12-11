@@ -1189,16 +1189,21 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task GetPlaylistSettings_Admin_ReturnsData()
+    public async Task GetConfiguration_Admin_ReturnsData()
     {
         SetCurrentUser(_admin.Id);
-        var dto = new PlaylistSettingsDto { Source = "src", Destination = "dst" };
-        var agentResponse = new MediaPiMenuDataResponse<PlaylistSettingsDto> { Ok = true, Data = dto };
+        var dto = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Source = "src", Destination = "dst" },
+            Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
+            Audio = new AudioSettingsDto { Output = "HDMI" }
+        };
+        var agentResponse = new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = true, Data = dto };
         _agentClient2Mock
-            .Setup(c => c.GetPlaylistSettingsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetConfigurationAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
             .ReturnsAsync(agentResponse);
 
-        var result = await _controller.GetPlaylistSettings(1, CancellationToken.None);
+        var result = await _controller.GetConfiguration(1, CancellationToken.None);
 
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
@@ -1206,31 +1211,36 @@ public class DevicesControllerTests
     }
 
     [Test]
-    public async Task GetPlaylistSettings_Admin_AgentError_Returns502()
+    public async Task GetConfiguration_Admin_AgentError_Returns502()
     {
         SetCurrentUser(_admin.Id);
-        var agentResponse = new MediaPiMenuDataResponse<PlaylistSettingsDto> { Ok = false, ErrMsg = "bad" };
+        var agentResponse = new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = false, ErrMsg = "bad" };
         _agentClient2Mock
-            .Setup(c => c.GetPlaylistSettingsAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetConfigurationAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(agentResponse);
 
-        var result = await _controller.GetPlaylistSettings(1, CancellationToken.None);
+        var result = await _controller.GetConfiguration(1, CancellationToken.None);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
     }
 
     [Test]
-    public async Task UpdatePlaylistSettings_Admin_ReturnsAgentResponse()
+    public async Task UpdateConfiguration_Admin_ReturnsAgentResponse()
     {
         SetCurrentUser(_admin.Id);
-        var payload = new PlaylistSettingsDto { Source = "s", Destination = "d" };
+        var payload = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
+            Audio = new AudioSettingsDto { Output = "LINE" }
+        };
         var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
         _agentClient2Mock
-            .Setup(c => c.UpdatePlaylistSettingsAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
+            .Setup(c => c.UpdateConfigurationAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
             .ReturnsAsync(agentResponse);
 
-        var result = await _controller.UpdatePlaylistSettings(1, payload, CancellationToken.None);
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         Assert.That(ok!.Value, Is.SameAs(agentResponse));
@@ -1250,62 +1260,6 @@ public class DevicesControllerTests
 
         Assert.That((r1.Result as OkObjectResult)!.Value, Is.SameAs(startResp));
         Assert.That((r2.Result as OkObjectResult)!.Value, Is.SameAs(stopResp));
-    }
-
-    [Test]
-    public async Task GetSchedule_Admin_ReturnsData()
-    {
-        SetCurrentUser(_admin.Id);
-        var dto = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } };
-        var agentResponse = new MediaPiMenuDataResponse<ScheduleSettingsDto> { Ok = true, Data = dto };
-        _agentClient2Mock.Setup(c => c.GetScheduleAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>())).ReturnsAsync(agentResponse);
-
-        var result = await _controller.GetSchedule(1, CancellationToken.None);
-        var ok = result.Result as OkObjectResult;
-        Assert.That(ok, Is.Not.Null);
-        Assert.That(ok!.Value, Is.SameAs(dto));
-    }
-
-    [Test]
-    public async Task UpdateSchedule_Admin_ReturnsAgentResponse()
-    {
-        SetCurrentUser(_admin.Id);
-        var payload = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } };
-        var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
-        _agentClient2Mock.Setup(c => c.UpdateScheduleAsync(It.IsAny<Device>(), payload, It.IsAny<CancellationToken>())).ReturnsAsync(agentResponse);
-
-        var result = await _controller.UpdateSchedule(1, payload, CancellationToken.None);
-        var ok = result.Result as OkObjectResult;
-        Assert.That(ok, Is.Not.Null);
-        Assert.That(ok!.Value, Is.SameAs(agentResponse));
-    }
-
-    [Test]
-    public async Task GetAudioSettings_Admin_ReturnsData()
-    {
-        SetCurrentUser(_admin.Id);
-        var dto = new AudioSettingsDto { Output = "HDMI" };
-        var agentResponse = new MediaPiMenuDataResponse<AudioSettingsDto> { Ok = true, Data = dto };
-        _agentClient2Mock.Setup(c => c.GetAudioSettingsAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>())).ReturnsAsync(agentResponse);
-
-        var result = await _controller.GetAudioSettings(1, CancellationToken.None);
-        var ok = result.Result as OkObjectResult;
-        Assert.That(ok, Is.Not.Null);
-        Assert.That(ok!.Value, Is.SameAs(dto));
-    }
-
-    [Test]
-    public async Task UpdateAudioSettings_Admin_ReturnsAgentResponse()
-    {
-        SetCurrentUser(_admin.Id);
-        var payload = new AudioSettingsDto { Output = "LINE" };
-        var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
-        _agentClient2Mock.Setup(c => c.UpdateAudioSettingsAsync(It.IsAny<Device>(), payload, It.IsAny<CancellationToken>())).ReturnsAsync(agentResponse);
-
-        var result = await _controller.UpdateAudioSettings(1, payload, CancellationToken.None);
-        var ok = result.Result as OkObjectResult;
-        Assert.That(ok, Is.Not.Null);
-        Assert.That(ok!.Value, Is.SameAs(agentResponse));
     }
 
     [Test]
