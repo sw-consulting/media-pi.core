@@ -1263,6 +1263,22 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task StartStopVideoUpload_Admin_ReturnsAgentResponses()
+    {
+        SetCurrentUser(_admin.Id);
+        var startResp = new MediaPiMenuCommandResponse { Ok = true };
+        var stopResp = new MediaPiMenuCommandResponse { Ok = true };
+        _agentClient2Mock.Setup(c => c.StartVideoUploadAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>())).ReturnsAsync(startResp);
+        _agentClient2Mock.Setup(c => c.StopVideoUploadAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>())).ReturnsAsync(stopResp);
+
+        var r1 = await _controller.StartVideoUpload(1, CancellationToken.None);
+        var r2 = await _controller.StopVideoUpload(1, CancellationToken.None);
+
+        Assert.That((r1.Result as OkObjectResult)!.Value, Is.SameAs(startResp));
+        Assert.That((r2.Result as OkObjectResult)!.Value, Is.SameAs(stopResp));
+    }
+
+    [Test]
     public async Task SystemCommands_Admin_ExceptionHandled_Returns502()
     {
         SetCurrentUser(_admin.Id);
