@@ -39,29 +39,17 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     public Task<MediaPiMenuDataResponse<ServiceStatusDto>> GetServiceStatusAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteTypedDataRequestAsync<ServiceStatusDto>(device, HttpMethod.Get, "/api/menu/service/status", cancellationToken);
 
-    public Task<MediaPiMenuDataResponse<PlaylistSettingsDto>> GetPlaylistSettingsAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteTypedDataRequestAsync<PlaylistSettingsDto>(device, HttpMethod.Get, "/api/menu/playlist/get", cancellationToken);
-
-    public Task<MediaPiMenuCommandResponse> UpdatePlaylistSettingsAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default) =>
-        ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/playlist/update", payload, cancellationToken);
-
     public Task<MediaPiMenuCommandResponse> StartPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playlist/start-upload", cancellationToken);
 
     public Task<MediaPiMenuCommandResponse> StopPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playlist/stop-upload", cancellationToken);
 
-    public Task<MediaPiMenuDataResponse<ScheduleSettingsDto>> GetScheduleAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteTypedDataRequestAsync<ScheduleSettingsDto>(device, HttpMethod.Get, "/api/menu/schedule/get", cancellationToken);
+    public Task<MediaPiMenuDataResponse<ConfigurationSettingsDto>> GetConfigurationAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteTypedDataRequestAsync<ConfigurationSettingsDto>(device, HttpMethod.Get, "/api/menu/configuration/get", cancellationToken);
 
-    public Task<MediaPiMenuCommandResponse> UpdateScheduleAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default) =>
-        ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/schedule/update", payload, cancellationToken);
-
-    public Task<MediaPiMenuDataResponse<AudioSettingsDto>> GetAudioSettingsAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteTypedDataRequestAsync<AudioSettingsDto>(device, HttpMethod.Get, "/api/menu/audio/get", cancellationToken);
-
-    public Task<MediaPiMenuCommandResponse> UpdateAudioSettingsAsync(Device device, AudioSettingsDto payload, CancellationToken cancellationToken = default) =>
-        ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/audio/update", payload, cancellationToken);
+    public Task<MediaPiMenuCommandResponse> UpdateConfigurationAsync(Device device, ConfigurationSettingsDto payload, CancellationToken cancellationToken = default) =>
+        ExecuteCommandWithPayloadAsync(device, HttpMethod.Put, "/api/menu/configuration/update", payload, cancellationToken);
 
     public Task<MediaPiMenuCommandResponse> ReloadSystemAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/system/reload", cancellationToken);

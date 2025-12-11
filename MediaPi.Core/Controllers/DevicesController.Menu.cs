@@ -39,36 +39,6 @@ public partial class DevicesController
             ct);
     }
 
-    [HttpGet("{id}/playlist/get")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PlaylistSettingsDto))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<PlaylistSettingsDto>> GetPlaylistSettings(int id, CancellationToken ct = default)
-    {
-        return ExecuteAgentDataOperation(
-            id,
-            "get playlist settings",
-            (device, token) => mediaPiAgentClient2.GetPlaylistSettingsAsync(device, token),
-            "Устройство не вернуло данные настроек плейлиста",
-            ct);
-    }
-
-    [HttpPut("{id}/playlist/update")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdatePlaylistSettings(int id, [FromBody] PlaylistSettingsDto payload, CancellationToken ct = default)
-    {
-        return ExecuteAgentOperation(
-            id,
-            "update playlist settings",
-            (device, token) => mediaPiAgentClient2.UpdatePlaylistSettingsAsync(device, payload, token),
-            ct);
-    }
-
     [HttpPost("{id}/playlist/start-upload")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
@@ -97,63 +67,33 @@ public partial class DevicesController
             ct);
     }
 
-    [HttpGet("{id}/schedule/get")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ScheduleSettingsDto))]
+    [HttpGet("{id}/configuration/get")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ConfigurationSettingsDto))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<ScheduleSettingsDto>> GetSchedule(int id, CancellationToken ct = default)
+    public Task<ActionResult<ConfigurationSettingsDto>> GetConfiguration(int id, CancellationToken ct = default)
     {
         return ExecuteAgentDataOperation(
             id,
-            "get schedule",
-            (device, token) => mediaPiAgentClient2.GetScheduleAsync(device, token),
-            "Устройство не вернуло данные расписания",
+            "get configuration",
+            (device, token) => mediaPiAgentClient2.GetConfigurationAsync(device, token),
+            "Устройство не вернуло данные конфигурации",
             ct);
     }
 
-    [HttpPut("{id}/schedule/update")]
+    [HttpPut("{id}/configuration/update")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateSchedule(int id, [FromBody] ScheduleSettingsDto payload, CancellationToken ct = default)
+    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateConfiguration(int id, [FromBody] ConfigurationSettingsDto payload, CancellationToken ct = default)
     {
         return ExecuteAgentOperation(
             id,
-            "update schedule",
-            (device, token) => mediaPiAgentClient2.UpdateScheduleAsync(device, payload, token),
-            ct);
-    }
-
-    [HttpGet("{id}/audio/get")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AudioSettingsDto))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<AudioSettingsDto>> GetAudioSettings(int id, CancellationToken ct = default)
-    {
-        return ExecuteAgentDataOperation(
-            id,
-            "get audio settings",
-            (device, token) => mediaPiAgentClient2.GetAudioSettingsAsync(device, token),
-            "Устройство не вернуло данные настроек аудио",
-            ct);
-    }
-
-    [HttpPut("{id}/audio/update")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateAudioSettings(int id, [FromBody] AudioSettingsDto payload, CancellationToken ct = default)
-    {
-        return ExecuteAgentOperation(
-            id,
-            "update audio settings",
-            (device, token) => mediaPiAgentClient2.UpdateAudioSettingsAsync(device, payload, token),
+            "update configuration",
+            (device, token) => mediaPiAgentClient2.UpdateConfigurationAsync(device, payload, token),
             ct);
     }
 

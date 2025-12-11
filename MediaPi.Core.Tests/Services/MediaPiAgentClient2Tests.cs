@@ -97,7 +97,16 @@ public class MediaPiAgentClient2Tests
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
-            var json = JsonSerializer.Serialize(new { ok = true, data = new { output = "HDMI" } });
+            var json = JsonSerializer.Serialize(new
+            {
+                ok = true,
+                data = new
+                {
+                    playlist = new { source = "s", destination = "d" },
+                    schedule = new { playlist = new[] { "one" }, video = Array.Empty<string>(), rest = Array.Empty<object>() },
+                    audio = new { output = "HDMI" }
+                }
+            });
             return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -107,10 +116,10 @@ public class MediaPiAgentClient2Tests
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        MediaPiMenuDataResponse<AudioSettingsDto> response;
+        MediaPiMenuDataResponse<ConfigurationSettingsDto> response;
         try
         {
-            response = await client.GetAudioSettingsAsync(device, CancellationToken.None);
+            response = await client.GetConfigurationAsync(device, CancellationToken.None);
         }
         finally
         {
@@ -123,11 +132,13 @@ public class MediaPiAgentClient2Tests
 
         var model = response.Data;
         Assert.That(model, Is.Not.Null);
-        Assert.That(model!.Output, Is.EqualTo("HDMI"));
+        Assert.That(model!.Audio.Output, Is.EqualTo("HDMI"));
+        Assert.That(model.Playlist.Source, Is.EqualTo("s"));
+        Assert.That(model.Schedule.Playlist, Does.Contain("one"));
     }
 
     [Test]
-    public async Task UpdatePlaylistSettingsAsync_SendsPayload()
+    public async Task UpdateConfigurationAsync_SendsPayload()
     {
         string? observedContent = null;
         AuthenticationHeaderValue? observedAuth = null;
@@ -147,12 +158,17 @@ public class MediaPiAgentClient2Tests
 
         var client = CreateClient(handler);
         var device = CreateDevice(serverKey: "secret");
-        var payload = new { enabled = true, login = "user" };
+        var payload = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Source = "src", Destination = "dst" },
+            Schedule = new ScheduleSettingsDto { Playlist = ["a"] },
+            Audio = new AudioSettingsDto { Output = "HDMI" }
+        };
 
         MediaPiMenuCommandResponse response;
         try
         {
-            response = await client.UpdatePlaylistSettingsAsync(device, payload, CancellationToken.None);
+            response = await client.UpdateConfigurationAsync(device, payload, CancellationToken.None);
         }
         finally
         {
@@ -160,24 +176,24 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"enabled\":true,\"login\":\"user\"}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"source\":\"src\",\"destination\":\"dst\"},\"schedule\":{\"playlist\":[\"a\"],\"video\":[]},\"audio\":{\"output\":\"HDMI\"}}"));
         Assert.That(observedAuth, Is.Not.Null);
         Assert.That(observedAuth!.Scheme, Is.EqualTo("Bearer"));
         Assert.That(observedAuth.Parameter, Is.EqualTo("secret"));
     }
 
     [Test]
-    public void UpdateScheduleAsync_WhenPayloadIsNull_Throws()
+    public void UpdateConfigurationAsync_WhenPayloadIsNull_Throws()
     {
         using var responseMessage = new HttpResponseMessage(HttpStatusCode.OK);
         var client = CreateClient(new StubHttpMessageHandler((_, _) => Task.FromResult(responseMessage)));
         var device = CreateDevice();
 
-        Assert.ThrowsAsync<ArgumentNullException>(() => client.UpdateScheduleAsync<object?>(device, null!, CancellationToken.None));
+        Assert.ThrowsAsync<ArgumentNullException>(() => client.UpdateConfigurationAsync(device, null!, CancellationToken.None));
     }
 
     [Test]
-    public async Task GetPlaylistSettingsAsync_WhenResponseEmpty_HasDataFalse()
+    public async Task GetConfigurationAsync_WhenResponseEmpty_HasDataFalse()
     {
         var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -192,10 +208,10 @@ public class MediaPiAgentClient2Tests
         var client = CreateClient(handler);
         var device = CreateDevice();
 
-        MediaPiMenuDataResponse<PlaylistSettingsDto> response;
+        MediaPiMenuDataResponse<ConfigurationSettingsDto> response;
         try
         {
-            response = await client.GetPlaylistSettingsAsync(device, CancellationToken.None);
+            response = await client.GetConfigurationAsync(device, CancellationToken.None);
         }
         finally
         {
@@ -270,14 +286,14 @@ public class MediaPiAgentClient2Tests
     }
 
     [Test]
-    public async Task GetScheduleAsync_WhenPortInvalid_LogsWarningAndUsesDefault()
+    public async Task GetConfigurationAsync_WhenPortInvalid_LogsWarningAndUsesDefault()
     {
         Uri? observedUri = null;
         var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             observedUri = request.RequestUri;
-            var json = JsonSerializer.Serialize(new { ok = true, data = new { cron = "* * * * *" } });
+            var json = JsonSerializer.Serialize(new { ok = true, data = new { playlist = new { source = "s", destination = "d" }, schedule = new { playlist = Array.Empty<string>(), video = Array.Empty<string>(), rest = Array.Empty<object>() }, audio = new { output = "HDMI" } } });
             return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -288,10 +304,10 @@ public class MediaPiAgentClient2Tests
         var client = CreateClient(handler, logger);
         var device = CreateDevice(port: 0, serverKey: string.Empty);
 
-        MediaPiMenuDataResponse<ScheduleSettingsDto> response;
+        MediaPiMenuDataResponse<ConfigurationSettingsDto> response;
         try
         {
-            response = await client.GetScheduleAsync(device, CancellationToken.None);
+            response = await client.GetConfigurationAsync(device, CancellationToken.None);
         }
         finally
         {
@@ -306,7 +322,7 @@ public class MediaPiAgentClient2Tests
     }
 
     [Test]
-    public void GetAudioSettingsAsync_WhenResponseInvalidJson_Throws()
+    public void GetConfigurationAsync_WhenResponseInvalidJson_Throws()
     {
         var responses = new List<HttpResponseMessage>();
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -323,7 +339,7 @@ public class MediaPiAgentClient2Tests
 
         try
         {
-            var ex = Assert.ThrowsAsync<InvalidOperationException>(() => client.GetAudioSettingsAsync(device, CancellationToken.None));
+            var ex = Assert.ThrowsAsync<InvalidOperationException>(() => client.GetConfigurationAsync(device, CancellationToken.None));
             Assert.That(ex!.Message, Does.Contain("Failed to deserialize response from device API"));
         }
         finally
@@ -333,7 +349,7 @@ public class MediaPiAgentClient2Tests
     }
 
     [Test]
-    public async Task UpdateAudioSettingsAsync_SendsTypedPayload()
+    public async Task UpdateConfigurationAsync_SendsTypedPayload_WithRest()
     {
         string? observedContent = null;
         var responses = new List<HttpResponseMessage>();
@@ -351,12 +367,22 @@ public class MediaPiAgentClient2Tests
 
         var client = CreateClient(handler);
         var device = CreateDevice();
-        var payload = new AudioSettingsDto { Output = "HDMI" };
+        var payload = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Source = "cloud", Destination = "local" },
+            Schedule = new ScheduleSettingsDto
+            {
+                Playlist = new List<string> { "morning" },
+                Video = new List<string> { "clip" },
+                Rest = [new RestTimePairDto { Stop = "10:00", Start = "09:00" }]
+            },
+            Audio = new AudioSettingsDto { Output = "HDMI" }
+        };
 
         MediaPiMenuCommandResponse response;
         try
         {
-            response = await client.UpdateAudioSettingsAsync(device, payload, CancellationToken.None);
+            response = await client.UpdateConfigurationAsync(device, payload, CancellationToken.None);
         }
         finally
         {
@@ -364,7 +390,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"output\":\"HDMI\"}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"source\":\"cloud\",\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"}}"));
     }
 
     [Test]
