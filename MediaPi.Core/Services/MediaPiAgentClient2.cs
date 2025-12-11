@@ -36,14 +36,16 @@ public sealed class MediaPiAgentClient2 : IMediaPiAgentClient2
     public Task<MediaPiMenuCommandResponse> StartPlaybackAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playback/start", cancellationToken);
 
-    public Task<MediaPiMenuDataResponse<ServiceStatusDto>> GetServiceStatusAsync(Device device, CancellationToken cancellationToken = default) =>
-        ExecuteTypedDataRequestAsync<ServiceStatusDto>(device, HttpMethod.Get, "/api/menu/service/status", cancellationToken);
-
     public Task<MediaPiMenuCommandResponse> StartPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playlist/start-upload", cancellationToken);
-
     public Task<MediaPiMenuCommandResponse> StopPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/playlist/stop-upload", cancellationToken);
+    public Task<MediaPiMenuCommandResponse> StartVideoUploadAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/video/start-upload", cancellationToken);
+    public Task<MediaPiMenuCommandResponse> StopVideoUploadAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteCommandAsync(device, HttpMethod.Post, "/api/menu/video/stop-upload", cancellationToken);
+    public Task<MediaPiMenuDataResponse<ServiceStatusDto>> GetServiceStatusAsync(Device device, CancellationToken cancellationToken = default) =>
+        ExecuteTypedDataRequestAsync<ServiceStatusDto>(device, HttpMethod.Get, "/api/menu/service/status", cancellationToken);
 
     public Task<MediaPiMenuDataResponse<ConfigurationSettingsDto>> GetConfigurationAsync(Device device, CancellationToken cancellationToken = default) =>
         ExecuteTypedDataRequestAsync<ConfigurationSettingsDto>(device, HttpMethod.Get, "/api/menu/configuration/get", cancellationToken);

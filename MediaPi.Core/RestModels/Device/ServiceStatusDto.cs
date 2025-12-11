@@ -13,6 +13,9 @@ namespace MediaPi.Core.RestModels.Device
         [JsonPropertyName("playlistUploadServiceStatus")]
         public bool PlaylistUploadServiceStatus { get; init; }
 
+        [JsonPropertyName("videoUploadServiceStatus")]
+        public bool VideoUploadServiceStatus { get; init; }
+
         [JsonPropertyName("yaDiskMountStatus")]
         public bool YaDiskMountStatus { get; init; }
     }

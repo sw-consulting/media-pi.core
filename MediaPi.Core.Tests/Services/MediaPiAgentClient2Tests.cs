@@ -66,6 +66,8 @@ public class MediaPiAgentClient2Tests
             await client.StartPlaybackAsync(device, CancellationToken.None);
             await client.StartPlaylistUploadAsync(device, CancellationToken.None);
             await client.StopPlaylistUploadAsync(device, CancellationToken.None);
+            await client.StartVideoUploadAsync(device, CancellationToken.None);
+            await client.StopVideoUploadAsync(device, CancellationToken.None);
             await client.ReloadSystemAsync(device, CancellationToken.None);
             await client.RebootSystemAsync(device, CancellationToken.None);
             await client.ShutdownSystemAsync(device, CancellationToken.None);
@@ -82,6 +84,8 @@ public class MediaPiAgentClient2Tests
             "/api/menu/playback/start",
             "/api/menu/playlist/start-upload",
             "/api/menu/playlist/stop-upload",
+            "/api/menu/video/start-upload",
+            "/api/menu/video/stop-upload",
             "/api/menu/system/reload",
             "/api/menu/system/reboot",
             "/api/menu/system/shutdown"
@@ -407,6 +411,7 @@ public class MediaPiAgentClient2Tests
                 {
                     playbackServiceStatus = true,
                     playlistUploadServiceStatus = false,
+                    videoUploadServiceStatus = false,
                     yaDiskMountStatus = true
                 }
             });
@@ -438,6 +443,7 @@ public class MediaPiAgentClient2Tests
         Assert.That(model, Is.Not.Null);
         Assert.That(model!.PlaybackServiceStatus, Is.True);
         Assert.That(model.PlaylistUploadServiceStatus, Is.False);
+        Assert.That(model.VideoUploadServiceStatus, Is.False);
         Assert.That(model.YaDiskMountStatus, Is.True);
     }
 

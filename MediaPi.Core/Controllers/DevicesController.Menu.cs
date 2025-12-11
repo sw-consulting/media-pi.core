@@ -67,6 +67,34 @@ public partial class DevicesController
             ct);
     }
 
+    [HttpPost("{id}/video/start-upload")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public Task<ActionResult<MediaPiMenuCommandResponse>> StartVideoUpload(int id, CancellationToken ct = default)
+    {
+        return ExecuteAgentOperation(
+            id,
+            "start video upload",
+            (device, token) => mediaPiAgentClient2.StartVideoUploadAsync(device, token),
+            ct);
+    }
+
+    [HttpPost("{id}/video/stop-upload")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public Task<ActionResult<MediaPiMenuCommandResponse>> StopVideoUpload(int id, CancellationToken ct = default)
+    {
+        return ExecuteAgentOperation(
+            id,
+            "stop video upload",
+            (device, token) => mediaPiAgentClient2.StopVideoUploadAsync(device, token),
+            ct);
+    }
+
     [HttpGet("{id}/configuration/get")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ConfigurationSettingsDto))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
