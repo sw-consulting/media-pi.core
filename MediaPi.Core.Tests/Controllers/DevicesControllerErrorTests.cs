@@ -513,15 +513,20 @@ public class DevicesControllerErrorTests
     }
 
     [Test]
-    public async Task GetAudioSettings_AgentReportedError_ReturnsBadGateway()
+    public async Task GetConfiguration_AgentReportedError_ReturnsBadGateway()
     {
         SetCurrentUser(_admin.Id);
-        var audioSettings = new AudioSettingsDto { Output = "HDMI" };
+        var configuration = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "one" } },
+            Audio = new AudioSettingsDto { Output = "HDMI" }
+        };
         _agentClient2Mock
-            .Setup(c => c.GetAudioSettingsAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MediaPiMenuDataResponse<AudioSettingsDto> { Ok = false, Data = audioSettings, ErrMsg = "Agent error" });
+            .Setup(c => c.GetConfigurationAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = false, Data = configuration, ErrMsg = "Agent error" });
 
-        var result = await _controller.GetAudioSettings(1, CancellationToken.None);
+        var result = await _controller.GetConfiguration(1, CancellationToken.None);
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;

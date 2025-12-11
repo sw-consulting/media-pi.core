@@ -12,14 +12,10 @@ public interface IMediaPiAgentClient2
     Task<MediaPiMenuCommandResponse> StopPlaybackAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiMenuCommandResponse> StartPlaybackAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiMenuDataResponse<ServiceStatusDto>> GetServiceStatusAsync(Device device, CancellationToken cancellationToken = default);
-    Task<MediaPiMenuDataResponse<PlaylistSettingsDto>> GetPlaylistSettingsAsync(Device device, CancellationToken cancellationToken = default);
-    Task<MediaPiMenuCommandResponse> UpdatePlaylistSettingsAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default);
     Task<MediaPiMenuCommandResponse> StartPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiMenuCommandResponse> StopPlaylistUploadAsync(Device device, CancellationToken cancellationToken = default);
-    Task<MediaPiMenuDataResponse<ScheduleSettingsDto>> GetScheduleAsync(Device device, CancellationToken cancellationToken = default);
-    Task<MediaPiMenuCommandResponse> UpdateScheduleAsync<TPayload>(Device device, TPayload payload, CancellationToken cancellationToken = default);
-    Task<MediaPiMenuDataResponse<AudioSettingsDto>> GetAudioSettingsAsync(Device device, CancellationToken cancellationToken = default);
-    Task<MediaPiMenuCommandResponse> UpdateAudioSettingsAsync(Device device, AudioSettingsDto payload, CancellationToken cancellationToken = default);
+    Task<MediaPiMenuDataResponse<ConfigurationSettingsDto>> GetConfigurationAsync(Device device, CancellationToken cancellationToken = default);
+    Task<MediaPiMenuCommandResponse> UpdateConfigurationAsync(Device device, ConfigurationSettingsDto payload, CancellationToken cancellationToken = default);
     Task<MediaPiMenuCommandResponse> ReloadSystemAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiMenuCommandResponse> RebootSystemAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiMenuCommandResponse> ShutdownSystemAsync(Device device, CancellationToken cancellationToken = default);
