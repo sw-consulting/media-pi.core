@@ -10,4 +10,5 @@ public class DeviceStatusSnapshot
     public DateTime LastChecked { get; set; }
     public long ConnectLatencyMs { get; set; }
     public long TotalLatencyMs { get; set; }
+    public string? SoftwareVersion { get; set; }
 }
