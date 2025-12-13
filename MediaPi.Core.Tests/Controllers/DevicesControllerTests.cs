@@ -356,7 +356,8 @@ public class DevicesControllerTests
             IsOnline = true,
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = 1,
-            TotalLatencyMs = 2
+            TotalLatencyMs = 2,
+            SoftwareVersion = "9.8.7"
         };
         _monitoringServiceMock.Setup(s => s.TryGetStatusItem(1, out It.Ref<DeviceStatusItem?>.IsAny))
             .Returns((int id, out DeviceStatusItem? status) => { status = new DeviceStatusItem(id, snapshot); return true; });
@@ -366,6 +367,7 @@ public class DevicesControllerTests
         var item = result.Value!.First(d => d.Id == 1);
         Assert.That(item.DeviceStatus, Is.Not.Null);
         Assert.That(item.DeviceStatus!.IsOnline, Is.True);
+        Assert.That(item.DeviceStatus!.SoftwareVersion, Is.EqualTo("9.8.7"));
     }
 
     [Test]
@@ -551,7 +553,8 @@ public class DevicesControllerTests
             IsOnline = true,
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = 1,
-            TotalLatencyMs = 2
+            TotalLatencyMs = 2,
+            SoftwareVersion = "7.8.9"
         };
         _monitoringServiceMock.Setup(s => s.TryGetStatusItem(1, out It.Ref<DeviceStatusItem?>.IsAny))
 
@@ -562,6 +565,7 @@ public class DevicesControllerTests
         Assert.That(result.Value, Is.Not.Null);
         Assert.That(result.Value!.DeviceStatus, Is.Not.Null);
         Assert.That(result.Value!.DeviceStatus!.IsOnline, Is.True);
+        Assert.That(result.Value!.DeviceStatus!.SoftwareVersion, Is.EqualTo("7.8.9"));
     }
 
     [Test]
@@ -1240,6 +1244,11 @@ public class DevicesControllerTests
             .Setup(c => c.UpdateConfigurationAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
             .ReturnsAsync(agentResponse);
 
+        // Ensure reload operation also succeeds so controller returns Ok
+        _agentClient2Mock
+            .Setup(c => c.ReloadSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = true });
+
         var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
@@ -1282,9 +1291,24 @@ public class DevicesControllerTests
     public async Task SystemCommands_Admin_ExceptionHandled_Returns502()
     {
         SetCurrentUser(_admin.Id);
-        _agentClient2Mock.Setup(c => c.ReloadSystemAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException("boom"));
 
-        var result = await _controller.ReloadSystem(1, CancellationToken.None);
+        // Prepare payload for UpdateConfiguration
+        var payload = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
+            Audio = new AudioSettingsDto { Output = "HDMI" }
+        };
+
+        // Make UpdateConfiguration succeed
+        _agentClient2Mock.Setup(c => c.UpdateConfigurationAsync(It.IsAny<Device>(), It.IsAny<ConfigurationSettingsDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = true });
+
+        // Simulate reload system throwing an exception
+        _agentClient2Mock.Setup(c => c.ReloadSystemAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));

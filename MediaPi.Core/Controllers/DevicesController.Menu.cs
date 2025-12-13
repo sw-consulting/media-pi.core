@@ -116,27 +116,45 @@ public partial class DevicesController
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> UpdateConfiguration(int id, [FromBody] ConfigurationSettingsDto payload, CancellationToken ct = default)
+    public async Task<ActionResult<MediaPiMenuCommandResponse>> UpdateConfiguration(int id, [FromBody] ConfigurationSettingsDto payload, CancellationToken ct = default)
     {
-        return ExecuteAgentOperation(
-            id,
-            "update configuration",
-            (device, token) => mediaPiAgentClient2.UpdateConfigurationAsync(device, payload, token),
-            ct);
-    }
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
 
-    [HttpPost("{id}/system/reload")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public Task<ActionResult<MediaPiMenuCommandResponse>> ReloadSystem(int id, CancellationToken ct = default)
-    {
-        return ExecuteAgentOperation(
-            id,
-            "reload system",
-            (device, token) => mediaPiAgentClient2.ReloadSystemAsync(device, token),
-            ct);
+        var targetDevice = device!;
+
+        try
+        {
+            var updateResponse = await mediaPiAgentClient2.UpdateConfigurationAsync(targetDevice, payload, ct);
+            if (!updateResponse.Ok)
+            {
+                logger.LogWarning("Не удалось сохранить конфигурацию устройства {DeviceId}: {Error}", id, updateResponse.ErrMsg ?? "неизвестная ошибка");
+                return _502Agent(updateResponse.ErrMsg);
+            }
+
+            // If update succeeded, request the device to reload system configuration
+            try
+            {
+                var reloadResponse = await mediaPiAgentClient2.ReloadSystemAsync(targetDevice, ct);
+                if (!reloadResponse.Ok)
+                {
+                    logger.LogWarning("Не удалось применить конфигурацию устройства {DeviceId}: {Error}", id, reloadResponse.ErrMsg ?? "неизвестная ошибка");
+                    return _502Agent(reloadResponse.ErrMsg);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Ошибка при выполнении операции reload system для устройства {DeviceId}", id);
+                return _502Agent();
+            }
+
+            return Ok(updateResponse);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции update configuration для устройства {DeviceId}", id);
+            return _502Agent();
+        }
     }
 
     [HttpPost("{id}/system/reboot")]

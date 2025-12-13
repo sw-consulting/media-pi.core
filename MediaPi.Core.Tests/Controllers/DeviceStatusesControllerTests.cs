@@ -47,8 +47,8 @@ public class DeviceStatusesControllerTests
     {
         var snapshot = new Dictionary<int, DeviceStatusSnapshot>
         {
-            { 1, new DeviceStatusSnapshot { IpAddress = "192.168.1.10", IsOnline = true, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 10, TotalLatencyMs = 20 } },
-            { 2, new DeviceStatusSnapshot { IpAddress = "192.168.1.11", IsOnline = false, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 30, TotalLatencyMs = 40 } }
+            { 1, new DeviceStatusSnapshot { IpAddress = "192.168.1.10", IsOnline = true, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 10, TotalLatencyMs = 20, SoftwareVersion = "1.2.3" } },
+            { 2, new DeviceStatusSnapshot { IpAddress = "192.168.1.11", IsOnline = false, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 30, TotalLatencyMs = 40, SoftwareVersion = null } }
         };
         _monitoringServiceMock.Setup(s => s.Snapshot).Returns(snapshot);
 
@@ -61,7 +61,9 @@ public class DeviceStatusesControllerTests
             var list = value.ToList();
             Assert.That(list.Count, Is.EqualTo(2));
             Assert.That(list[0].DeviceId, Is.EqualTo(1));
+            Assert.That(list[0].SoftwareVersion, Is.EqualTo("1.2.3"));
             Assert.That(list[1].DeviceId, Is.EqualTo(2));
+            Assert.That(list[1].SoftwareVersion, Is.Null);
         }
     }
 
@@ -88,7 +90,8 @@ public class DeviceStatusesControllerTests
             IsOnline = true,
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = 10,
-            TotalLatencyMs = 20
+            TotalLatencyMs = 20,
+            SoftwareVersion = "2.4.6"
         };
         _monitoringServiceMock.Setup(s => s.Test(1, It.IsAny<CancellationToken>())).ReturnsAsync(snapshot);
         var result = await _controller.Get(1);
@@ -99,6 +102,7 @@ public class DeviceStatusesControllerTests
         {
             Assert.That(returnedItem.DeviceId, Is.EqualTo(1));
             Assert.That(returnedItem.IsOnline, Is.True);
+            Assert.That(returnedItem.SoftwareVersion, Is.EqualTo("2.4.6"));
         }
     }
 
@@ -127,7 +131,8 @@ public class DeviceStatusesControllerTests
             IsOnline = true,
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = 10,
-            TotalLatencyMs = 20
+            TotalLatencyMs = 20,
+            SoftwareVersion = "3.1.4"
         };
         _monitoringServiceMock.Setup(s => s.Test(1, It.IsAny<CancellationToken>())).ReturnsAsync(snapshot);
         var result = await _controller.Test(1);
@@ -138,6 +143,7 @@ public class DeviceStatusesControllerTests
         {
             Assert.That(item.DeviceId, Is.EqualTo(1));
             Assert.That(item.IsOnline, Is.True);
+            Assert.That(item.SoftwareVersion, Is.EqualTo("3.1.4"));
         }
     }
 
@@ -179,7 +185,8 @@ public class DeviceStatusesControllerTests
             IsOnline = true,
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = 10,
-            TotalLatencyMs = 20
+            TotalLatencyMs = 20,
+            SoftwareVersion = "4.2.0"
         };
         var events = CreateSingleEventAsyncEnumerable(new DeviceStatusEvent(1, snapshot));
 
@@ -205,6 +212,7 @@ public class DeviceStatusesControllerTests
         Assert.That(jsonContent, Does.Contain("\"isOnline\":true"));
         Assert.That(jsonContent, Does.Contain("\"connectLatencyMs\":10"));
         Assert.That(jsonContent, Does.Contain("\"totalLatencyMs\":20"));
+        Assert.That(jsonContent, Does.Contain("\"softwareVersion\":\"4.2.0\""));
     }
 
     [Test]
@@ -314,8 +322,8 @@ public class DeviceStatusesControllerTests
     private static async IAsyncEnumerable<DeviceStatusEvent> CreateMultipleEventsAsyncEnumerable()
     {
         await Task.Delay(1);
-        yield return new DeviceStatusEvent(1, new DeviceStatusSnapshot { IpAddress = "192.168.1.10", IsOnline = true, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 10, TotalLatencyMs = 20 });
-        yield return new DeviceStatusEvent(2, new DeviceStatusSnapshot { IpAddress = "192.168.1.11", IsOnline = false, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 30, TotalLatencyMs = 40 });
+        yield return new DeviceStatusEvent(1, new DeviceStatusSnapshot { IpAddress = "192.168.1.10", IsOnline = true, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 10, TotalLatencyMs = 20, SoftwareVersion = "1.0.0" });
+        yield return new DeviceStatusEvent(2, new DeviceStatusSnapshot { IpAddress = "192.168.1.11", IsOnline = false, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 30, TotalLatencyMs = 40, SoftwareVersion = null });
     }
 
     private static async IAsyncEnumerable<DeviceStatusEvent> CreateInfiniteAsyncEnumerable([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -326,7 +334,8 @@ public class DeviceStatusesControllerTests
             IsOnline = true,
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = 10,
-            TotalLatencyMs = 20
+            TotalLatencyMs = 20,
+            SoftwareVersion = "inf.0.0"
         };
 
         int deviceId = 1;

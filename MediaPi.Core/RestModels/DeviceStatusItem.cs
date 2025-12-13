@@ -14,6 +14,10 @@ public class DeviceStatusItem
     public DateTime LastChecked { get; set; }
     public long ConnectLatencyMs { get; set; }
     public long TotalLatencyMs { get; set; }
+    public string? SoftwareVersion { get; set; }
+
+    // Parameterless constructor for JSON deserialization
+    public DeviceStatusItem() { }
 
     public DeviceStatusItem(int deviceId, DeviceStatusSnapshot snapshot)
     {
@@ -22,6 +26,7 @@ public class DeviceStatusItem
         LastChecked = snapshot.LastChecked;
         ConnectLatencyMs = snapshot.ConnectLatencyMs;
         TotalLatencyMs = snapshot.TotalLatencyMs;
+        SoftwareVersion = snapshot.SoftwareVersion;
     }
 
     public override string ToString()

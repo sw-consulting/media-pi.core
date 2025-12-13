@@ -108,7 +108,8 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 IsOnline = false,
                 LastChecked = DateTime.UtcNow,
                 ConnectLatencyMs = 0,
-                TotalLatencyMs = 0
+                TotalLatencyMs = 0,
+                SoftwareVersion = null
             }));
         }
     }
@@ -123,19 +124,20 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
     private async Task<(DeviceStatusSnapshot Snapshot, DeviceProbe Probe)> ProbeDevice(Device device, CancellationToken token)
     {
-        var (IsOnline, ConnectMs, TotalMs) = await Probe(device, token);
+        var probeResult = await Probe(device, token);
         var snap = new DeviceStatusSnapshot
         {
             IpAddress = device.IpAddress,
-            IsOnline = IsOnline,
+            IsOnline = probeResult.IsOnline,
             LastChecked = DateTime.UtcNow,
-            ConnectLatencyMs = ConnectMs,
-            TotalLatencyMs = TotalMs
+            ConnectLatencyMs = probeResult.ConnectMs,
+            TotalLatencyMs = probeResult.TotalMs,
+            SoftwareVersion = probeResult.SoftwareVersion
         };
         _snapshot[device.Id] = snap;
         Broadcast(new DeviceStatusEvent(device.Id, snap));
-        _logger.LogInformation("Probed device {DeviceId} ({IpAddress}): Online={IsOnline}, ConnectMs={ConnectMs}, TotalMs={TotalMs}",
-            device.Id, device.IpAddress, snap.IsOnline, snap.ConnectLatencyMs, snap.TotalLatencyMs);
+        _logger.LogInformation("Probed device {DeviceId} ({IpAddress}): Online={IsOnline}, ConnectMs={ConnectMs}, TotalMs={TotalMs}, Version={SoftwareVersion}",
+            device.Id, device.IpAddress, snap.IsOnline, snap.ConnectLatencyMs, snap.TotalLatencyMs, snap.SoftwareVersion ?? "unknown");
         var probe = new DeviceProbe
         {
             DeviceId = device.Id,
@@ -235,7 +237,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         }
     }
 
-    private async Task<(bool IsOnline, long ConnectMs, long TotalMs)> Probe(Device device, CancellationToken token)
+    private async Task<DeviceProbeResult> Probe(Device device, CancellationToken token)
     {
         var sw = Stopwatch.StartNew();
         try
@@ -244,7 +246,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 sw.Stop();
                 _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", device.IpAddress);
-                return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
+                return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
             }
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -261,22 +263,22 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
                     device.Id, device.IpAddress, healthResponse.ErrMsg);
-                return (false, connectMs, sw.ElapsedMilliseconds);
+                return new DeviceProbeResult(false, connectMs, sw.ElapsedMilliseconds, null);
             }
 
-            return (true, connectMs, sw.ElapsedMilliseconds);
+            return new DeviceProbeResult(true, connectMs, sw.ElapsedMilliseconds, healthResponse.Version);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             sw.Stop();
             _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) timed out.", device.Id, device.IpAddress);
-            return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
+            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
         }
         catch (Exception ex)
         {
             sw.Stop();
             _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
-            return (false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds);
+            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
         }
     }
 }
