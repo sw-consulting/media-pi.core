@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251207185328_0_6_0_Extend_Video_and_Playlist")]
+    [Migration("20251225130913_0_6_0_Extend_Video_and_Playlist")]
     partial class _0_6_0_Extend_Video_and_Playlist
     {
         /// <inheritdoc />
@@ -197,7 +197,8 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId");
+                    b.HasIndex("AccountId", "Filename")
+                        .IsUnique();
 
                     b.ToTable("playlists");
                 });
@@ -408,7 +409,7 @@ namespace MediaPi.Core.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("AccountId")
+                    b.Property<int?>("AccountId")
                         .HasColumnType("integer")
                         .HasColumnName("account_id");
 
@@ -446,6 +447,9 @@ namespace MediaPi.Core.Migrations
                     b.HasIndex("AccountId");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("Filename")
+                        .IsUnique();
 
                     b.ToTable("videos");
                 });
@@ -640,9 +644,7 @@ namespace MediaPi.Core.Migrations
                 {
                     b.HasOne("MediaPi.Core.Models.Account", "Account")
                         .WithMany("Videos")
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("AccountId");
 
                     b.HasOne("MediaPi.Core.Models.Category", "Category")
                         .WithMany("Videos")

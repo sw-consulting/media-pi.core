@@ -11,9 +11,25 @@ namespace MediaPi.Core.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_videos_accounts_account_id",
+                table: "videos");
+
             migrationBuilder.DropPrimaryKey(
                 name: "PK_video_playlists",
                 table: "video_playlists");
+
+            migrationBuilder.DropIndex(
+                name: "IX_playlists_account_id",
+                table: "playlists");
+
+            migrationBuilder.AlterColumn<int>(
+                name: "account_id",
+                table: "videos",
+                type: "integer",
+                nullable: true,
+                oldClrType: typeof(int),
+                oldType: "integer");
 
             migrationBuilder.AddColumn<long>(
                 name: "duration_seconds",
@@ -58,14 +74,41 @@ namespace MediaPi.Core.Migrations
                 column: "id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_videos_filename",
+                table: "videos",
+                column: "filename",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_video_playlists_video_id",
                 table: "video_playlists",
                 column: "video_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_playlists_account_id_filename",
+                table: "playlists",
+                columns: new[] { "account_id", "filename" },
+                unique: true);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_videos_accounts_account_id",
+                table: "videos",
+                column: "account_id",
+                principalTable: "accounts",
+                principalColumn: "id");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_videos_accounts_account_id",
+                table: "videos");
+
+            migrationBuilder.DropIndex(
+                name: "IX_videos_filename",
+                table: "videos");
+
             migrationBuilder.DropPrimaryKey(
                 name: "PK_video_playlists",
                 table: "video_playlists");
@@ -73,6 +116,10 @@ namespace MediaPi.Core.Migrations
             migrationBuilder.DropIndex(
                 name: "IX_video_playlists_video_id",
                 table: "video_playlists");
+
+            migrationBuilder.DropIndex(
+                name: "IX_playlists_account_id_filename",
+                table: "playlists");
 
             migrationBuilder.DropColumn(
                 name: "duration_seconds",
@@ -94,10 +141,33 @@ namespace MediaPi.Core.Migrations
                 name: "position",
                 table: "video_playlists");
 
+            migrationBuilder.AlterColumn<int>(
+                name: "account_id",
+                table: "videos",
+                type: "integer",
+                nullable: false,
+                defaultValue: 0,
+                oldClrType: typeof(int),
+                oldType: "integer",
+                oldNullable: true);
+
             migrationBuilder.AddPrimaryKey(
                 name: "PK_video_playlists",
                 table: "video_playlists",
                 columns: new[] { "video_id", "playlist_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_playlists_account_id",
+                table: "playlists",
+                column: "account_id");
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_videos_accounts_account_id",
+                table: "videos",
+                column: "account_id",
+                principalTable: "accounts",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Cascade);
         }
     }
 }

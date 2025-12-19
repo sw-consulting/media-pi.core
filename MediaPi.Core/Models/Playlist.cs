@@ -2,9 +2,11 @@
 // This file is a part of Media Pi backend
 
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Models
 {
+    [Index(nameof(AccountId), nameof(Filename), IsUnique = true)]
     [Table("playlists")]
     public class Playlist
     {

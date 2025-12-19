@@ -73,7 +73,9 @@ public class VideosControllerTests
 
         _videoAccount1 = new Video { Id = 1, Title = "Video 1", Filename = "0001/video1.mp4", OriginalFilename = "video1.mp4", FileSizeBytes = 1024000, AccountId = _account1.Id, Account = _account1 };
         _videoAccount2 = new Video { Id = 2, Title = "Video 2", Filename = "0001/video2.mp4", OriginalFilename = "video2.mp4", FileSizeBytes = 2048000, AccountId = _account2.Id, Account = _account2 };
-        _dbContext.Videos.AddRange(_videoAccount1, _videoAccount2);
+        // Unassigned common video available to everyone but managed by administrators only
+        var videoUnassigned = new Video { Id = 3, Title = "Public Video", Filename = "0001/public.mp4", OriginalFilename = "public.mp4", FileSizeBytes = 512000, AccountId = null };
+        _dbContext.Videos.AddRange(_videoAccount1, _videoAccount2, videoUnassigned);
 
         const string pass = "pwd";
         string hashed = BCrypt.Net.BCrypt.HashPassword(pass);
@@ -147,7 +149,7 @@ public class VideosControllerTests
         SetCurrentUser(_admin.Id);
         var result = await _controller.GetVideos();
         Assert.That(result.Value, Is.Not.Null);
-        Assert.That(result.Value!.Count(), Is.EqualTo(2));
+        Assert.That(result.Value!.Count(), Is.EqualTo(3));
     }
 
     [Test]
@@ -156,8 +158,10 @@ public class VideosControllerTests
         SetCurrentUser(_managerAccount1.Id);
         var result = await _controller.GetVideos();
         Assert.That(result.Value, Is.Not.Null);
-        Assert.That(result.Value!.Count(), Is.EqualTo(1));
-        Assert.That(result.Value!.First().Id, Is.EqualTo(_videoAccount1.Id));
+        // Manager should see videos from own account and unassigned (common) videos
+        Assert.That(result.Value!.Count(), Is.EqualTo(2));
+        var ids = result.Value!.Select(v => v.Id).ToList();
+        Assert.That(ids, Does.Contain(_videoAccount1.Id));
     }
 
     [Test]
@@ -168,6 +172,38 @@ public class VideosControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetVideo_Manager_Unassigned_ReturnsOk()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        // Unassigned video has id 3 per setup
+        var result = await _controller.GetVideo(3);
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!.Id, Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_Admin_Zero_ReturnsUnassigned()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetVideosByAccount(0);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_Manager_Zero_ReturnsUnassigned()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.GetVideosByAccount(0);
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(3));
     }
 
     [Test]
@@ -200,7 +236,7 @@ public class VideosControllerTests
         Assert.That(created.Value, Is.TypeOf<Reference>());
         var reference = (Reference)created.Value!;
         Assert.That(reference.Id, Is.GreaterThan(0));
-        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(4));
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.Filename, Is.EqualTo("0002/sample.mp4"));
@@ -354,6 +390,112 @@ public class VideosControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpdateVideo_Manager_Unassigned_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var item = new VideoUpdateItem { Title = "Updated" };
+        var result = await _controller.UpdateVideo(3, item);
+        Assert.That(result, Is.TypeOf<ObjectResult>()); // Forbidden
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteVideo_Manager_Unassigned_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        var result = await _controller.DeleteVideo(3);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UploadVideo_DuplicateFilename_Returns409AndCleansUpFile()
+    {
+        SetCurrentUser(_admin.Id);
+        var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "duplicate.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0001/video1.mp4", // Same as existing video
+            OriginalFilename = "duplicate.mp4",
+            FileSizeBytes = (uint)stream.Length,
+            DurationSeconds = 121
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var item = new VideoUploadItem
+        {
+            Title = "Duplicate Video",
+            AccountId = _account1.Id,
+            File = file
+        };
+
+        var result = await _controller.UploadVideo(item);
+        
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        
+        var errMessage = (ErrMessage)obj.Value!;
+        Assert.That(errMessage.Msg, Does.Contain("0001/video1.mp4"));
+        
+        // Verify file cleanup was called
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify video count didn't increase
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task UploadVideo_UniqueFilename_SavesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "unique.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/unique.mp4", // Unique filename
+            OriginalFilename = "unique.mp4",
+            FileSizeBytes = (uint)stream.Length,
+            DurationSeconds = 60
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+
+        var item = new VideoUploadItem
+        {
+            Title = "Unique Video",
+            AccountId = _account1.Id,
+            File = file
+        };
+
+        var result = await _controller.UploadVideo(item);
+        
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
+        Assert.That(created.Value, Is.TypeOf<Reference>());
+        var reference = (Reference)created.Value!;
+        Assert.That(reference.Id, Is.GreaterThan(0));
+        
+        // Verify new video was added
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(4));
+        var video = await _dbContext.Videos.FindAsync(reference.Id);
+        Assert.That(video, Is.Not.Null);
+        Assert.That(video!.Filename, Is.EqualTo("0002/unique.mp4"));
+        
+        // Verify delete was NOT called since there was no conflict
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
 }

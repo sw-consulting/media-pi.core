@@ -13,5 +13,6 @@
     <None Include="docker-compose.yml" />
     <None Include=".dockerignore" />
     <None Include="docs\VideoMetadataService.md" />
+    <None Include="docs\VideoViewItem-Enhancement.md" />
   </ItemGroup>
 </Project>

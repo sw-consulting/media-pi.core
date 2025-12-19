@@ -48,7 +48,7 @@ public class VideosController(
         else if (user.IsManager())
         {
             var accountIds = _userInformationService.GetUserAccountIds(user);
-            query = query.Where(v => accountIds.Contains(v.AccountId));
+            query = query.Where(v => v.AccountId == null || (v.AccountId != null && accountIds.Contains(v.AccountId.Value)));
         }
         else
         {
@@ -68,8 +68,12 @@ public class VideosController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
+        if (accountId == 0)
+        {
+            return await _db.Videos.AsNoTracking().Where(d => d.AccountId == null).Select(v => v.ToViewItem()).ToListAsync(ct);
+        }
 
+        if (!_userInformationService.UserCanViewVideo(user, accountId)) return _403();
         return await _db.Videos.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync(ct);
     }
 
@@ -85,7 +89,7 @@ public class VideosController(
         var video = await _db.Videos.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id, ct);
         if (video == null) return _404Video(id);
 
-        if (!_userInformationService.UserCanManageAccount(user, video.AccountId)) return _403();
+        if (!_userInformationService.UserCanViewVideo(user, video.AccountId)) return _403();
 
         return video.ToViewItem();
     }
@@ -96,6 +100,7 @@ public class VideosController(
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
     public async Task<ActionResult<Reference>> UploadVideo([FromForm] VideoUploadItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
@@ -104,12 +109,23 @@ public class VideosController(
         if (item.File == null || item.File.Length == 0) return _400VideoFileMissing();
         if (string.IsNullOrWhiteSpace(item.Title)) return _400VideoTitleMissing();
 
-        var account = await _db.Accounts.FindAsync([item.AccountId], ct);
-        if (account == null) return _404Account(item.AccountId);
-
+        int? aId = item.AccountId == 0 ? null : item.AccountId;
+        if (aId != null)
+        { 
+            var account = await _db.Accounts.FindAsync([item.AccountId], ct);
+            if (account == null) return _404Account(item.AccountId);
+        }
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
         var saveResult = await _videoStorageService.SaveVideoAsync(item.File, item.Title, ct);
+
+        // Check for duplicate filename before saving to database
+        if (await _db.Videos.AnyAsync(v => v.Filename == saveResult.Filename, ct))
+        {
+            // Clean up the saved file since we can't use it
+            await _videoStorageService.DeleteVideoAsync(saveResult.Filename, ct);
+            return _409VideoFilename(saveResult.Filename);
+        }
 
         var video = new Video
         {
@@ -118,7 +134,7 @@ public class VideosController(
             OriginalFilename = saveResult.OriginalFilename,
             FileSizeBytes = saveResult.FileSizeBytes,
             DurationSeconds = saveResult.DurationSeconds,
-            AccountId = item.AccountId,
+            AccountId = aId
         };
 
         _db.Videos.Add(video);
@@ -144,19 +160,47 @@ public class VideosController(
             .FirstOrDefaultAsync(v => v.Id == id, ct);
         if (video == null) return _404Video(id);
 
-        if (!_userInformationService.UserCanManageAccount(user, video.AccountId)) return _403();
+        if (!_userInformationService.UserCanManageVideo(user, video.AccountId)) return _403();
 
         video.Title = item.Title;
 
         if (item.PlaylistIds != null)
         {
-            var (playlistIds, validationError) = await ValidateVideoPlaylists(item.PlaylistIds, video.AccountId, ct);
+            var (playlistIds, validationError) = await ValidateVideoPlaylists(item.PlaylistIds, video.AccountId ?? 0, ct);
             if (validationError != null) return validationError;
 
             ApplyVideoPlaylists(video, playlistIds);
         }
 
         await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<IActionResult> DeleteVideo(int id, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        var video = await _db.Videos
+            .Include(v => v.VideoPlaylists)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (video == null) return _404Video(id);
+
+        if (!_userInformationService.UserCanManageVideo(user, video.AccountId)) return _403();
+
+        if (video.VideoPlaylists.Count != 0)
+        {
+            _db.VideoPlaylists.RemoveRange(video.VideoPlaylists);
+        }
+
+        _db.Videos.Remove(video);
+        await _db.SaveChangesAsync(ct);
+
+        await _videoStorageService.DeleteVideoAsync(video.Filename, ct);
+
         return NoContent();
     }
 
@@ -207,32 +251,4 @@ public class VideosController(
         }
     }
 
-    [HttpDelete("{id}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> DeleteVideo(int id, CancellationToken ct = default)
-    {
-        var user = await CurrentUser();
-        if (user == null) return _403();
-
-        var video = await _db.Videos
-            .Include(v => v.VideoPlaylists)
-            .FirstOrDefaultAsync(v => v.Id == id, ct);
-        if (video == null) return _404Video(id);
-
-        if (!_userInformationService.UserCanManageAccount(user, video.AccountId)) return _403();
-
-        if (video.VideoPlaylists.Count != 0)
-        {
-            _db.VideoPlaylists.RemoveRange(video.VideoPlaylists);
-        }
-
-        _db.Videos.Remove(video);
-        await _db.SaveChangesAsync(ct);
-
-        await _videoStorageService.DeleteVideoAsync(video.Filename, ct);
-
-        return NoContent();
-    }
 }

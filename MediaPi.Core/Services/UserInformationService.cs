@@ -149,6 +149,18 @@ namespace MediaPi.Core.Services
             if (user.IsAdministrator()) return true;
             return ManagerOwnsAccount(user, accountId);
         }
+        public bool UserCanViewVideo(User user, int? accountId) 
+        {
+            if (user.IsAdministrator()) return true;
+            if (accountId == null) return true;
+            return ManagerOwnsAccount(user, accountId.Value);
+        }
+        public bool UserCanManageVideo(User user, int? accountId)
+        {
+            if (user.IsAdministrator()) return true;
+            if (accountId == null) return false;
+            return ManagerOwnsAccount(user, accountId.Value);
+        }
 
     }
 }

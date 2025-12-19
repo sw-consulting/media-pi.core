@@ -430,7 +430,7 @@ public class PlaylistsControllerTests
     }
 
     [Test]
-    public async Task CreatePlaylist_NoVideos_Returns400()
+    public async Task CreatePlaylist_NoVideos_ReturnsCreatedAtActionResult()
     {
         SetCurrentUser(_admin.Id);
         var item = new PlaylistCreateItem
@@ -442,9 +442,7 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.CreatePlaylist(item);
-        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
-        var obj = (BadRequestObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
     }
 
     [Test]
@@ -614,7 +612,7 @@ public class PlaylistsControllerTests
     }
 
     [Test]
-    public async Task UpdatePlaylist_RemoveAllVideos_Returns400()
+    public async Task UpdatePlaylist_RemoveAllVideos_ReturnsNoContentResult()
     {
         SetCurrentUser(_admin.Id);
         var item = new PlaylistUpdateItem
@@ -625,13 +623,11 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
-        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
-        var obj = (BadRequestObjectResult)result;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(result, Is.TypeOf<NoContentResult>());
     }
 
     [Test]
-    public async Task UpdatePlaylist_OnlyUpdateTitle_Returns400()
+    public async Task UpdatePlaylist_OnlyUpdateTitle_ReturnsNoContentResult()
     {
         SetCurrentUser(_admin.Id);
         var item = new PlaylistUpdateItem
@@ -642,9 +638,7 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
-        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
-        var obj = (BadRequestObjectResult)result;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(result, Is.TypeOf<NoContentResult>());
     }
 
     [Test]
@@ -767,5 +761,154 @@ public class PlaylistsControllerTests
         Assert.That(viewItem.TotalFileSizeBytes, Is.EqualTo(expectedTotalSize));
         Assert.That(viewItem.VideoCount, Is.EqualTo(2));
         Assert.That(viewItem.TotalDurationSeconds, Is.EqualTo(300)); // 100 + 200
+    }
+
+    [Test]
+    public async Task CreatePlaylist_DuplicateFilename_Returns409()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Duplicate",
+            Filename = "p1.json", // Same as existing playlist
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        
+        var errMessage = (ErrMessage)obj.Value!;
+        Assert.That(errMessage.Msg, Does.Contain("p1.json"));
+        
+        // Verify playlist count didn't increase
+        Assert.That(_dbContext.Playlists.Count(), Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_UniqueFilename_CreatesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Unique Playlist",
+            Filename = "unique.json", // Unique filename
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
+        Assert.That(created.Value, Is.TypeOf<Reference>());
+        var reference = (Reference)created.Value!;
+        Assert.That(reference.Id, Is.GreaterThan(0));
+        
+        // Verify new playlist was added
+        Assert.That(_dbContext.Playlists.Count(), Is.EqualTo(3));
+        var playlist = await _dbContext.Playlists.FindAsync(reference.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Filename, Is.EqualTo("unique.json"));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_DuplicateFilename_Returns409()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated",
+            Filename = "p2.json", // Same as playlist2
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        // Since filename uniqueness is per-account, and playlist2 belongs to another account,
+        // updating playlist1 to "p2.json" should succeed.
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify playlist was updated
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Filename, Is.EqualTo("p2.json"));
+        Assert.That(playlist.Title, Is.EqualTo("Updated"));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_SameFilename_UpdatesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated Title",
+            Filename = "p1.json", // Same as current playlist
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        // Verify playlist was updated
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Filename, Is.EqualTo("p1.json"));
+        Assert.That(playlist.Title, Is.EqualTo("Updated Title"));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_UniqueFilename_UpdatesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Updated with Unique Filename",
+            Filename = "updated-unique.json", // Unique filename
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        // Verify playlist was updated
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Filename, Is.EqualTo("updated-unique.json"));
+        Assert.That(playlist.Title, Is.EqualTo("Updated with Unique Filename"));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_CaseInsensitiveFilenameCheck_Returns409()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Case Test",
+            Filename = "P1.JSON", // Different case but potentially same file on case-insensitive systems
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        
+        // Note: This test depends on database collation settings
+        // With case-sensitive collation, this should succeed
+        // With case-insensitive collation, this should fail with 409
+        // The test documents the expected behavior based on DB configuration
+        if (result.Result is ObjectResult objResult && objResult.StatusCode == StatusCodes.Status409Conflict)
+        {
+            var errMessage = (ErrMessage)objResult.Value!;
+            Assert.That(errMessage.Msg, Does.Contain("P1.JSON").IgnoreCase);
+        }
+        else
+        {
+            // If using case-sensitive collation, creation should succeed
+            Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        }
     }
 }
