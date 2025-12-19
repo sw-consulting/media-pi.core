@@ -509,33 +509,6 @@ public class VideoMetadataServiceTests
     }
 
     [Test]
-    public void ExtractVideoMetadata_PrivateMethod_ReturnsBasicMetadata()
-    {
-        var method = typeof(VideoMetadataService).GetMethod("ExtractVideoMetadata", 
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        Assert.That(method, Is.Not.Null);
-
-        var tempFile = Path.GetTempFileName();
-        try
-        {
-            File.WriteAllText(tempFile, "dummy content");
-
-            var result = method!.Invoke(_service, new object[] { tempFile });
-            Assert.That(result, Is.Not.Null);
-            
-            // The result should be a VideoMetadata object
-            Assert.That(result!.GetType().Name, Does.Contain("VideoMetadata"));
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
-
-    [Test]
     public async Task ExtractMetadataAsync_VerifyLoggingBehavior()
     {
         // Test that debug logging occurs during metadata extraction failures
@@ -641,22 +614,6 @@ public class VideoMetadataServiceTests
                 File.Delete(tempFile);
             }
         }
-    }
-
-    [Test]
-    public void InternalVideoMetadata_Properties_CanBeSetAndRetrieved()
-    {
-        // Test the internal metadata class properties through reflection
-        var internalMetadataType = typeof(VideoMetadataService).GetNestedType("InternalVideoMetadata", 
-            BindingFlags.NonPublic);
-        Assert.That(internalMetadataType, Is.Not.Null);
-
-        var instance = Activator.CreateInstance(internalMetadataType!);
-        Assert.That(instance, Is.Not.Null);
-
-        // Test that properties exist and can be set
-        var properties = internalMetadataType?.GetProperties();
-        Assert.That(properties?.Length, Is.EqualTo(1)); // Should have 1 property (DurationSeconds)
     }
 
     [Test]

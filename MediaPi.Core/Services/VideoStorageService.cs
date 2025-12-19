@@ -52,12 +52,15 @@ public class VideoStorageService : IVideoStorageService
         var targetDirectory = GetOrCreateTargetDirectory();
         var filePath = Path.Combine(targetDirectory, uniqueName);
 
-        await using var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await file.CopyToAsync(stream, ct);
+        await using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            await file.CopyToAsync(stream, ct);
+            await stream.FlushAsync(ct);
+        }
 
         var relative = NormalizeRelativePath(Path.GetRelativePath(_rootFullPath, filePath));
 
-        // Extract metadata after the file is saved
+        // Extract metadata after the file is saved (and the stream has been closed)
         var metadata = await _metadataService.ExtractMetadataAsync(filePath, ct);
 
         // Convert file size to uint (files larger than 4GB will be capped)

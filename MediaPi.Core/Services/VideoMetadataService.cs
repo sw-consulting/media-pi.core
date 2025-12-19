@@ -19,69 +19,57 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             return null;
         }
 
+        var res = new VideoMetadata
+        {
+            FileSizeBytes = 0,
+            DurationSeconds = null
+        };
+
         try
         {
             // Get file size
             var fileInfo = new FileInfo(filePath);
-            var fileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length);
+            res.FileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length);
 
             // Extract metadata using MetadataExtractor
-            var metadata = await Task.Run(() => ExtractVideoMetadata(filePath), cancellationToken);
-
-            return new VideoMetadata
+            await using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                FileSizeBytes = fileSizeBytes,
-                DurationSeconds = ConvertDurationToUInt(metadata.DurationSeconds)
-            };
+                res.DurationSeconds = await Task.Run(() => ExtractVideoMetadata(stream), cancellationToken);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to extract metadata from video file: {FilePath}", filePath);
-            
-            // Return basic metadata with just file size if extraction fails
-            try
-            {
-                var fileInfo = new FileInfo(filePath);
-                return new VideoMetadata
-                {
-                    FileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length),
-                    DurationSeconds = null
-                };
-            }
-            catch
-            {
-                return null;
-            }
+            _logger.LogError(ex, "Failed to extract metadata from video file: {FilePath}", filePath);           
         }
+        return res;
+
     }
 
-    private VideoMetadata ExtractVideoMetadata(string filePath)
+    private uint? ExtractVideoMetadata(Stream fileStream)
     {
-        var result = new InternalVideoMetadata();
+        uint? res = null;
         
         try
         {
-            var directories = ImageMetadataReader.ReadMetadata(filePath);
+            var directories = ImageMetadataReader.ReadMetadata(fileStream);
             
             foreach (var directory in directories)
             {
-                // Extract duration from various directory types
-                if (result.DurationSeconds == null)
+                double? duration = ExtractDuration(directory);
+                if (duration is not null)
                 {
-                    result.DurationSeconds = ExtractDuration(directory);
+                    res = ConvertDurationToUInt(duration);
+                    break;
                 }
-            }
+
+                }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "MetadataExtractor failed for file: {FilePath}", filePath);
+            _logger.LogDebug(ex, "MetadataExtractor failed for file stream: {FilePath}", fileStream);
         }
 
-        return new VideoMetadata
-        {
-            FileSizeBytes = ConvertFileSizeToUInt(0), 
-            DurationSeconds = ConvertDurationToUInt(result.DurationSeconds)
-        };
+        return res;
     }
 
     private static double? ExtractDuration(MetadataExtractor.Directory directory)
@@ -200,8 +188,4 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         return (uint)fileSizeBytes;
     }
 
-    private class InternalVideoMetadata
-    {
-        public double? DurationSeconds { get; set; }
-    }
 }
