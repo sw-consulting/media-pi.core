@@ -1,15 +1,16 @@
 // Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
+using System.Diagnostics;
+using System.Globalization;
 using MediaPi.Core.Services.Interfaces;
-using MetadataExtractor;
-using MetadataExtractor.Formats.QuickTime;
 
 namespace MediaPi.Core.Services;
 
 public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideoMetadataService
 {
     private readonly ILogger<VideoMetadataService> _logger = logger;
+    private const string MediaInfoCommand = "mediainfo";
 
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default)
     {
@@ -31,122 +32,90 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             var fileInfo = new FileInfo(filePath);
             res.FileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length);
 
-            // Extract metadata using MetadataExtractor
-            await using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None))
-            {
-                res.DurationSeconds = await Task.Run(() => ExtractVideoMetadata(stream), cancellationToken);
-            }
+            // Extract metadata using MediaInfo command line tool
+            res.DurationSeconds = await ExtractVideoMetadataAsync(filePath, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to extract metadata from video file: {FilePath}", filePath);           
         }
         return res;
-
     }
 
-    private uint? ExtractVideoMetadata(Stream fileStream)
+    private async Task<uint?> ExtractVideoMetadataAsync(string filePath, CancellationToken cancellationToken)
     {
-        uint? res = null;
-        
         try
         {
-            var directories = ImageMetadataReader.ReadMetadata(fileStream);
+            // Use mediainfo command to get duration in seconds
+            var arguments = $"--Output=\"General;%Duration/String3%\" \"{filePath}\"";
             
-            foreach (var directory in directories)
+            var processInfo = new ProcessStartInfo
             {
-                double? duration = ExtractDuration(directory);
-                if (duration is not null)
-                {
-                    res = ConvertDurationToUInt(duration);
-                    break;
-                }
+                FileName = MediaInfoCommand,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
 
-                }
+            using var process = new Process { StartInfo = processInfo };
+            
+            process.Start();
+            
+            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            
+            await process.WaitForExitAsync(cancellationToken);
+            
+            var output = await outputTask;
+            var error = await errorTask;
+
+            if (process.ExitCode != 0)
+            {
+                _logger.LogDebug("MediaInfo process exited with code {ExitCode}. Error: {Error}", 
+                    process.ExitCode, error);
+                return null;
+            }
+
+            return ParseDurationOutput(output?.Trim());
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "MetadataExtractor failed for file stream: {FilePath}", fileStream);
+            _logger.LogDebug(ex, "MediaInfo extraction failed for file: {FilePath}", filePath);
+            return null;
         }
-
-        return res;
     }
 
-    private static double? ExtractDuration(MetadataExtractor.Directory directory)
+    private uint? ParseDurationOutput(string? output)
     {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return null;
+        }
+
         try
         {
-            // Try QuickTime movie header for MP4/MOV files
-            if (directory is QuickTimeMovieHeaderDirectory movieHeader &&
-                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var qtDuration) &&
-                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var qtTimeScale) &&
-                qtTimeScale > 0)
+            // MediaInfo returns duration in format "HH:MM:SS.mmm" or "MM:SS.mmm"
+            if (TimeSpan.TryParse(output, CultureInfo.InvariantCulture, out var timeSpan))
             {
-                return (double)qtDuration / qtTimeScale;
+                return ConvertDurationToUInt(timeSpan.TotalSeconds);
             }
 
-            // Generic approach - look for duration-related tags
-            foreach (var tag in directory.Tags)
+            // Fallback: try to parse as decimal seconds
+            if (double.TryParse(output, CultureInfo.InvariantCulture, out var seconds))
             {
-                var tagName = tag.Name?.ToLowerInvariant();
-                if (tagName != null && (tagName.Contains("duration") || tagName.Contains("length")))
-                {
-                    var description = tag.Description;
-                    if (!string.IsNullOrWhiteSpace(description))
-                    {
-                        // Try to parse duration from description
-                        var duration = ParseDurationFromDescription(description);
-                        if (duration.HasValue)
-                        {
-                            return duration.Value;
-                        }
-                    }
-                }
+                return ConvertDurationToUInt(seconds);
             }
+
+            _logger.LogDebug("Unable to parse duration output: {Output}", output);
+            return null;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Ignore individual extraction failures
+            _logger.LogDebug(ex, "Failed to parse MediaInfo duration output: {Output}", output);
+            return null;
         }
-
-        return null;
-    }
-
-    private static double? ParseDurationFromDescription(string description)
-    {
-        try
-        {
-            // Try to parse common duration formats
-            // Format: "HH:MM:SS" or "MM:SS"
-            if (TimeSpan.TryParse(description, out var timeSpan))
-            {
-                return timeSpan.TotalSeconds;
-            }
-
-            // Format: "X seconds" or "X sec" or "X s"
-            var secondsPatterns = new[] { " seconds", " sec", " s" };
-            foreach (var pattern in secondsPatterns.Where(p => description.EndsWith(p, StringComparison.OrdinalIgnoreCase)))
-            {
-                var numberPart = description[..^pattern.Length].Trim();
-                if (double.TryParse(numberPart, out var seconds))
-                {
-                    return seconds;
-                }
-            }
-
-            // Format: numbers only (assume seconds)
-            // Only consider it duration if it's a reasonable value (between 0.1 and 86400 seconds = 24 hours)
-            if (double.TryParse(description.Trim(), out var numericValue) && numericValue >= 0.1 && numericValue <= 86400)
-            {
-                return numericValue;
-            }
-        }
-        catch (Exception)
-        {
-            // Ignore parsing failures
-        }
-
-        return null;
     }
 
     private static uint? ConvertDurationToUInt(double? durationSeconds)
