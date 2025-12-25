@@ -48,17 +48,17 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         try
         {
             // Use mediainfo command to get duration in seconds
-            var arguments = $"--Output=\"General;%Duration/String3%\" \"{filePath}\"";
-            
+            // Use ArgumentList for proper escaping to prevent command injection
             var processInfo = new ProcessStartInfo
             {
                 FileName = MediaInfoCommand,
-                Arguments = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            processInfo.ArgumentList.Add("--Output=General;%Duration/String3%");
+            processInfo.ArgumentList.Add(filePath);
 
             process = new Process { StartInfo = processInfo };
             
@@ -67,7 +67,11 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
             var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
             
-            await process.WaitForExitAsync(cancellationToken);
+            // Add timeout to prevent hung processes (30 seconds should be sufficient for metadata extraction)
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            
+            await process.WaitForExitAsync(linkedCts.Token);
             
             var output = await outputTask;
             var error = await errorTask;
