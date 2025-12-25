@@ -44,6 +44,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
 
     private async Task<uint?> ExtractVideoMetadataAsync(string filePath, CancellationToken cancellationToken)
     {
+        Process? process = null;
         try
         {
             // Use mediainfo command to get duration in seconds
@@ -59,7 +60,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
                 CreateNoWindow = true
             };
 
-            using var process = new Process { StartInfo = processInfo };
+            process = new Process { StartInfo = processInfo };
             
             process.Start();
             
@@ -80,10 +81,31 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
 
             return ParseDurationOutput(output?.Trim());
         }
+        catch (OperationCanceledException)
+        {
+            // Ensure the process is killed when cancellation is requested
+            if (process != null && !process.HasExited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    _logger.LogDebug("MediaInfo process killed due to cancellation for file: {FilePath}", filePath);
+                }
+                catch (Exception killEx)
+                {
+                    _logger.LogDebug(killEx, "Failed to kill MediaInfo process for file: {FilePath}", filePath);
+                }
+            }
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "MediaInfo extraction failed for file: {FilePath}", filePath);
             return null;
+        }
+        finally
+        {
+            process?.Dispose();
         }
     }
 
