@@ -4,12 +4,10 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Text.Json;
 using System.Threading.Tasks;
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
-using MediaPi.Core.RestModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
