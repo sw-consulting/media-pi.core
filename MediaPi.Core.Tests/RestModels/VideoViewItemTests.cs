@@ -1,4 +1,4 @@
-// Copyright (c) 2025 sw.consulting
+п»ї// Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
 using System.Collections.Generic;
@@ -6,7 +6,6 @@ using System.Linq;
 using System.Text.Json;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
-using MediaPi.Core.Settings;
 using NUnit.Framework;
 
 namespace MediaPi.Core.Tests.RestModels;
@@ -54,7 +53,7 @@ public class VideoViewItemTests
 
         // Assert
         Assert.That(viewItem.DurationSeconds, Is.Null);
-        Assert.That(viewItem.Duration, Is.EqualTo("не известно"));
+        Assert.That(viewItem.Duration, Is.EqualTo("РЅРµ РёР·РІРµСЃС‚РЅРѕ"));
     }
 
     [Test]
@@ -68,7 +67,7 @@ public class VideoViewItemTests
 
         // Assert
         Assert.That(viewItem.FileSizeBytes, Is.EqualTo(0));
-        Assert.That(viewItem.FileSize, Is.EqualTo("0 байт"));
+        Assert.That(viewItem.FileSize, Is.EqualTo("0 Р±Р°Р№С‚"));
     }
 
     [Test]
@@ -86,7 +85,7 @@ public class VideoViewItemTests
         // Assert
         Assert.That(viewItem.FileSizeBytes, Is.EqualTo(uint.MaxValue));
         Assert.That(viewItem.DurationSeconds, Is.EqualTo(uint.MaxValue));
-        Assert.That(viewItem.FileSize, Contains.Substring("Гб")); // uint.MaxValue is ~4GB, not TB
+        Assert.That(viewItem.FileSize, Contains.Substring("Р“Р±")); // uint.MaxValue is ~4GB, not TB
         Assert.That(viewItem.Duration, Does.Match(@"\d+:\d{2}:\d{2}")); // Should be HH:mm:ss format
     }
 
@@ -94,10 +93,10 @@ public class VideoViewItemTests
 
     #region File Size Formatting Tests
 
-    [TestCase(0u, "0 байт")]
-    [TestCase(1u, "1 байт")]
-    [TestCase(500u, "500 байт")]
-    [TestCase(1023u, "1023 байт")]
+    [TestCase(0u, "0 Р±Р°Р№С‚")]
+    [TestCase(1u, "1 Р±Р°Р№С‚")]
+    [TestCase(500u, "500 Р±Р°Р№С‚")]
+    [TestCase(1023u, "1023 Р±Р°Р№С‚")]
     public void FileSize_SmallSizes_FormatsAsBytes(uint sizeBytes, string expected)
     {
         // Arrange
@@ -110,11 +109,11 @@ public class VideoViewItemTests
         Assert.That(viewItem.FileSize, Is.EqualTo(expected));
     }
 
-    [TestCase(1024u, "1 Кб")]
-    [TestCase(1536u, "2 Кб")]  // 1.5KB rounds to 2KB
-    [TestCase(2048u, "2 Кб")]
-    [TestCase(10240u, "10 Кб")]
-    [TestCase(1048575u, "1024 Кб")] // Just under 1MB
+    [TestCase(1024u, "1 РљР±")]
+    [TestCase(1536u, "2 РљР±")]  // 1.5KB rounds to 2KB
+    [TestCase(2048u, "2 РљР±")]
+    [TestCase(10240u, "10 РљР±")]
+    [TestCase(1048575u, "1024 РљР±")] // Just under 1MB
     public void FileSize_KilobyteRange_FormatsAsKilobytes(uint sizeBytes, string expected)
     {
         // Arrange
@@ -127,12 +126,12 @@ public class VideoViewItemTests
         Assert.That(viewItem.FileSize, Is.EqualTo(expected));
     }
 
-    [TestCase(1048576u, "1.00 Мб")]      // 1 MB
-    [TestCase(1572864u, "1.50 Мб")]     // 1.5 MB
-    [TestCase(2097152u, "2.00 Мб")]     // 2 MB
-    [TestCase(10485760u, "10.00 Мб")]   // 10 MB
-    [TestCase(104857600u, "100.00 Мб")] // 100 MB
-    [TestCase(1073741823u, "1024.00 Мб")] // Just under 1GB
+    [TestCase(1048576u, "1.00 РњР±")]      // 1 MB
+    [TestCase(1572864u, "1.50 РњР±")]     // 1.5 MB
+    [TestCase(2097152u, "2.00 РњР±")]     // 2 MB
+    [TestCase(10485760u, "10.00 РњР±")]   // 10 MB
+    [TestCase(104857600u, "100.00 РњР±")] // 100 MB
+    [TestCase(1073741823u, "1024.00 РњР±")] // Just under 1GB
     public void FileSize_MegabyteRange_FormatsAsMegabytes(uint sizeBytes, string expected)
     {
         // Arrange
@@ -145,11 +144,11 @@ public class VideoViewItemTests
         Assert.That(viewItem.FileSize, Is.EqualTo(expected));
     }
 
-    [TestCase(1073741824u, "1.00 Гб")]   // 1 GB
-    [TestCase(1610612736u, "1.50 Гб")]  // 1.5 GB
-    [TestCase(2147483648u, "2.00 Гб")]  // 2 GB
-    [TestCase(3221225472u, "3.00 Гб")]  // 3 GB
-    [TestCase(4294967295u, "4.00 Гб")]  // uint.MaxValue (just under 4GB)
+    [TestCase(1073741824u, "1.00 Р“Р±")]   // 1 GB
+    [TestCase(1610612736u, "1.50 Р“Р±")]  // 1.5 GB
+    [TestCase(2147483648u, "2.00 Р“Р±")]  // 2 GB
+    [TestCase(3221225472u, "3.00 Р“Р±")]  // 3 GB
+    [TestCase(4294967295u, "4.00 Р“Р±")]  // uint.MaxValue (just under 4GB)
     public void FileSize_GigabyteRange_FormatsAsGigabytes(uint sizeBytes, string expected)
     {
         // Arrange
@@ -168,11 +167,11 @@ public class VideoViewItemTests
         // Test various units to ensure Russian localization
         var testCases = new[]
         {
-            (0u, "байт"),
-            (500u, "байт"),
-            (1024u, "Кб"),
-            (1048576u, "Мб"),
-            (1073741824u, "Гб")
+            (0u, "Р±Р°Р№С‚"),
+            (500u, "Р±Р°Р№С‚"),
+            (1024u, "РљР±"),
+            (1048576u, "РњР±"),
+            (1073741824u, "Р“Р±")
         };
 
         foreach (var (size, expectedUnit) in testCases)
@@ -199,7 +198,7 @@ public class VideoViewItemTests
         var viewItem = new VideoViewItem(video);
 
         // Assert
-        Assert.That(viewItem.Duration, Is.EqualTo("не известно"));
+        Assert.That(viewItem.Duration, Is.EqualTo("РЅРµ РёР·РІРµСЃС‚РЅРѕ"));
     }
 
     [TestCase(0u, "00:00:00")]
@@ -325,7 +324,7 @@ public class VideoViewItemTests
         Assert.That(jsonString, Does.Contain("Test Video"));
         Assert.That(jsonString, Does.Contain("1048576"));
         Assert.That(jsonString, Does.Contain("3661"));
-        Assert.That(jsonString, Does.Contain("1.00 Мб"));
+        Assert.That(jsonString, Does.Contain("1.00 РњР±"));
         Assert.That(jsonString, Does.Contain("01:01:01"));
     }
 
@@ -334,7 +333,7 @@ public class VideoViewItemTests
     {
         // Arrange
         var video = CreateTestVideo(
-            title: "Тестовое видео с русскими символами \"и кавычками\"",
+            title: "РўРµСЃС‚РѕРІРѕРµ РІРёРґРµРѕ СЃ СЂСѓСЃСЃРєРёРјРё СЃРёРјРІРѕР»Р°РјРё \"Рё РєР°РІС‹С‡РєР°РјРё\"",
             filename: "test file & symbols.mp4"
         );
         var viewItem = new VideoViewItem(video);
@@ -344,7 +343,7 @@ public class VideoViewItemTests
 
         // Assert
         Assert.DoesNotThrow(() => JsonSerializer.Deserialize<object>(jsonString));
-        Assert.That(jsonString, Does.Contain("Тестовое видео"));
+        Assert.That(jsonString, Does.Contain("РўРµСЃС‚РѕРІРѕРµ РІРёРґРµРѕ"));
     }
 
     [Test]
