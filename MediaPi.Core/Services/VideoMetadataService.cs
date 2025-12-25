@@ -65,12 +65,12 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             
             process.Start();
             
-            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            
             // Add timeout to prevent hung processes
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(MediaInfoTimeoutSeconds));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            
+            var outputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            var errorTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
             
             await process.WaitForExitAsync(linkedCts.Token);
             
