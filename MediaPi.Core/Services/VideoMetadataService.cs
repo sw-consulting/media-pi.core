@@ -11,6 +11,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
 {
     private readonly ILogger<VideoMetadataService> _logger = logger;
     private const string MediaInfoCommand = "mediainfo";
+    private const int MediaInfoTimeoutSeconds = 30;
 
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default)
     {
@@ -67,8 +68,8 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
             var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
             
-            // Add timeout to prevent hung processes (30 seconds should be sufficient for metadata extraction)
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            // Add timeout to prevent hung processes
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(MediaInfoTimeoutSeconds));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             
             await process.WaitForExitAsync(linkedCts.Token);
