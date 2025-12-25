@@ -1,4 +1,4 @@
-// Copyright (c) 2025 sw.consulting
+п»ї// Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
 using System.Globalization;
@@ -27,11 +27,11 @@ public class VideoViewItem(Video video)
     /// Formats file size in bytes to human-readable format with Russian units
     /// </summary>
     /// <param name="sizeBytes">File size in bytes</param>
-    /// <returns>Formatted string like "1.24 Гб", "1.71 Мб", "240 Кб", "870 байт"</returns>
+    /// <returns>Formatted string like "1.24 Р“Р±", "1.71 РњР±", "240 РљР±", "870 Р±Р°Р№С‚"</returns>
     private static string FormatFileSize(uint sizeBytes)
     {
         if (sizeBytes == 0)
-            return "0 байт";
+            return "0 Р±Р°Р№С‚";
 
         const uint kilobyte = 1024;
         const uint megabyte = kilobyte * 1024;
@@ -43,23 +43,23 @@ public class VideoViewItem(Video video)
 
         return size switch
         {
-            >= terabyte => $"{(size / (double)terabyte).ToString("F2", CultureInfo.InvariantCulture)} Тб",
-            >= gigabyte => $"{(size / (double)gigabyte).ToString("F2", CultureInfo.InvariantCulture)} Гб",
-            >= megabyte => $"{(size / (double)megabyte).ToString("F2", CultureInfo.InvariantCulture)} Мб",
-            >= kilobyte => $"{(size / (double)kilobyte).ToString("F0", CultureInfo.InvariantCulture)} Кб",
-            _ => $"{size} байт"
+            >= terabyte => $"{(size / (double)terabyte).ToString("F2", CultureInfo.InvariantCulture)} РўР±",
+            >= gigabyte => $"{(size / (double)gigabyte).ToString("F2", CultureInfo.InvariantCulture)} Р“Р±",
+            >= megabyte => $"{(size / (double)megabyte).ToString("F2", CultureInfo.InvariantCulture)} РњР±",
+            >= kilobyte => $"{(size / (double)kilobyte).ToString("F0", CultureInfo.InvariantCulture)} РљР±",
+            _ => $"{size} Р±Р°Р№С‚"
         };
     }
 
     /// <summary>
-    /// Formats duration in seconds to HH:mm:ss format or "не известно" if null
+    /// Formats duration in seconds to HH:mm:ss format or "РЅРµ РёР·РІРµСЃС‚РЅРѕ" if null
     /// </summary>
     /// <param name="durationSeconds">Duration in seconds or null</param>
-    /// <returns>Formatted string like "01:23:45" or "не известно"</returns>
+    /// <returns>Formatted string like "01:23:45" or "РЅРµ РёР·РІРµСЃС‚РЅРѕ"</returns>
     private static string FormatDuration(uint? durationSeconds)
     {
         if (!durationSeconds.HasValue)
-            return "не известно";
+            return "РЅРµ РёР·РІРµСЃС‚РЅРѕ";
 
         var totalSeconds = durationSeconds.Value;
         
