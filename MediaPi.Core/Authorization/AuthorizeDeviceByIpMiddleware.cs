@@ -3,7 +3,6 @@
 
 using MediaPi.Core.Data;
 using MediaPi.Core.RestModels;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Authorization;
