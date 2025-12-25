@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System;
+using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 using MediaPi.Core.Authorization;
@@ -29,7 +30,7 @@ public class AuthorizeDeviceByIpMiddlewareTests
     private static DefaultHttpContext CreateContextWithEndpoint(params object[] metadata)
     {
         var context = new DefaultHttpContext();
-        context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(System.IO.Stream.Null));
+        context.Response.Body = new MemoryStream();
         if (metadata.Length > 0)
         {
             var endpoint = new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(metadata), "test");
@@ -91,6 +92,11 @@ public class AuthorizeDeviceByIpMiddlewareTests
 
         Assert.That(nextCalled, Is.False);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
+
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(context.Response.Body);
+        var responseBody = await reader.ReadToEndAsync();
+        Assert.That(responseBody, Does.Contain("IP адрес устройства не определен"));
     }
 
     [Test]
@@ -110,6 +116,11 @@ public class AuthorizeDeviceByIpMiddlewareTests
 
         Assert.That(nextCalled, Is.False);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
+
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(context.Response.Body);
+        var responseBody = await reader.ReadToEndAsync();
+        Assert.That(responseBody, Does.Contain("Устройство не зарегистрировано"));
     }
 
     [Test]
