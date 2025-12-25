@@ -129,7 +129,7 @@ public class PlaylistsController(
         // Allow empty playlists: treat missing/null items as empty list
         var items = item.Items ?? new List<PlaylistItemDto>();
 
-        var (playlistVideoIds, itemValidationError) = await ValidatePlaylistItems(items, account.Id, ct);
+        var itemValidationError = await ValidatePlaylistItems(items, account.Id, ct);
         if (itemValidationError != null) return itemValidationError;
 
         var playlist = new Playlist
@@ -187,7 +187,7 @@ public class PlaylistsController(
         // Allow empty playlists: treat missing/null items as empty list
         var items = item.Items ?? new List<PlaylistItemDto>();
 
-        var (_, validationError) = await ValidatePlaylistItems(items, playlist.AccountId, ct);
+        var validationError = await ValidatePlaylistItems(items, playlist.AccountId, ct);
         if (validationError != null) return validationError;
 
         // Remove all existing items and replace with new ones
@@ -241,21 +241,21 @@ public class PlaylistsController(
         return NoContent();
     }
 
-    private async Task<(List<int> VideoIds, ObjectResult? Error)> ValidatePlaylistItems(IEnumerable<PlaylistItemDto> items, int accountId, CancellationToken ct)
+    private async Task<ObjectResult?> ValidatePlaylistItems(IEnumerable<PlaylistItemDto> items, int accountId, CancellationToken ct)
     {
         var videoIds = items.Select(i => i.VideoId).Distinct().ToList();
         
-        if (videoIds.Count == 0) return (videoIds, null);
+        if (videoIds.Count == 0) return null;
 
         // Validate positions
         var positions = items.Select(i => i.Position).ToList();
         if (positions.Any(p => p < 0))
         {
-            return (videoIds, _400PlaylistItemPositionsNegative());
+            return _400PlaylistItemPositionsNegative();
         }
         if (positions.Count != positions.Distinct().Count())
         {
-            return (videoIds, _400PlaylistItemPositionsDuplicate());
+            return _400PlaylistItemPositionsDuplicate();
         }
 
         var videos = await _db.Videos
@@ -268,15 +268,15 @@ public class PlaylistsController(
         {
             var foundIds = videos.Select(v => v.Id).ToHashSet();
             var missingId = videoIds.First(id => !foundIds.Contains(id));
-            return (videoIds, _404Video(missingId));
+            return _404Video(missingId);
         }
 
         var mismatch = videos.FirstOrDefault(v => v.AccountId != null && v.AccountId != 0 && v.AccountId != accountId);
         if (mismatch != null)
         {
-            return (videoIds, _400PlaylistVideoAccountMismatch(mismatch.Id, accountId));
+            return _400PlaylistVideoAccountMismatch(mismatch.Id, accountId);
         }
 
-        return (videoIds, null);
+        return null;
     }
 }
