@@ -460,7 +460,7 @@ public class VideosControllerTests
     public async Task UploadVideo_UniqueFilename_SavesSuccessfully()
     {
         SetCurrentUser(_admin.Id);
-        var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
         var file = new FormFile(stream, 0, stream.Length, "file", "unique.mp4");
         var saveResult = new VideoSaveResult
         {
