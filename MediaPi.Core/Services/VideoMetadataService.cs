@@ -11,6 +11,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
 {
     private readonly ILogger<VideoMetadataService> _logger = logger;
     private const string MediaInfoCommand = "mediainfo";
+    private const int MediaInfoTimeoutSeconds = 30;
 
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default)
     {
@@ -48,26 +49,30 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         try
         {
             // Use mediainfo command to get duration in seconds
-            var arguments = $"--Output=\"General;%Duration/String3%\" \"{filePath}\"";
-            
+            // Use ArgumentList for proper escaping to prevent command injection
             var processInfo = new ProcessStartInfo
             {
                 FileName = MediaInfoCommand,
-                Arguments = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            processInfo.ArgumentList.Add("--Output=General;%Duration/String3%");
+            processInfo.ArgumentList.Add(filePath);
 
             process = new Process { StartInfo = processInfo };
             
             process.Start();
             
-            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            // Add timeout to prevent hung processes
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(MediaInfoTimeoutSeconds));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             
-            await process.WaitForExitAsync(cancellationToken);
+            var outputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            var errorTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
+            
+            await process.WaitForExitAsync(linkedCts.Token);
             
             var output = await outputTask;
             var error = await errorTask;
