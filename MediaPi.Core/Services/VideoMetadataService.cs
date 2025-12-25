@@ -84,12 +84,15 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         catch (OperationCanceledException)
         {
             // Ensure the process is killed when cancellation is requested
-            if (process != null && !process.HasExited)
+            if (process != null)
             {
                 try
                 {
-                    process.Kill(entireProcessTree: true);
-                    _logger.LogDebug("MediaInfo process killed due to cancellation for file: {FilePath}", filePath);
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                        _logger.LogDebug("MediaInfo process killed due to cancellation for file: {FilePath}", filePath);
+                    }
                 }
                 catch (Exception killEx)
                 {
