@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
