@@ -27,6 +27,7 @@ namespace MediaPi.Core.Services.Interfaces
         public bool UserCanAssignGroup(User user, Device device);
         public bool UserCanManageAccount(User user, int accountId);
         public bool UserCanManageAccount(User user, Account account);
-
+        public bool UserCanViewVideo(User user, int? accountId);
+        public bool UserCanManageVideo(User user, int? accountId);
     }
 }

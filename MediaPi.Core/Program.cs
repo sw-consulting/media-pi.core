@@ -9,6 +9,7 @@ using MediaPi.Core.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,8 @@ config
     // Optionally load the override config if present
     .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
+// Read max upload size from configuration (bytes). Default to 4 GiB if not set.
+var maxUploadBytes = config.GetValue<long?>("VideoStorage:MaxUploadSizeBytes") ?? 4L * 1024 * 1024 * 1024;
 
 var certPath = config["Kestrel:Certificates:Default:Path"];
 var certPassword = config["Kestrel:Certificates:Default:Password"];
@@ -26,6 +29,9 @@ var certPassword = config["Kestrel:Certificates:Default:Password"];
 bool useHttps = !string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword) && File.Exists(certPath);
 builder.WebHost.ConfigureKestrel(options =>
 {
+     // Apply max request body size to Kestrel
+     options.Limits.MaxRequestBodySize = maxUploadBytes;
+
      if (useHttps)
      { 
             options.ListenAnyIP(8081, listenOptions => listenOptions.UseHttps(certPath!, certPassword));
@@ -47,6 +53,12 @@ builder.Services
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     });
+
+// Configure multipart/form-data limits to match Kestrel setting
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = maxUploadBytes; // bytes
+});
 
 builder.Services.AddHttpClient<IMediaPiAgentClient, DeviceAgentRestClient>(client =>
 {

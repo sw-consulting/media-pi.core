@@ -105,6 +105,18 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = $"Лицевой счёт с таким именем уже существует [name = {name}]" });
     }
 
+    protected ObjectResult _409VideoFilename(string filename)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = $"Видео с таким именем файла уже существует [filename = {filename}]" });
+    }
+
+    protected ObjectResult _409PlaylistFilename(string filename)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = $"Плейлист с таким именем файла уже существует [filename = {filename}]" });
+    }
+
     protected ObjectResult _400PlaylistVideoAccountMismatch(int videoId, int accountId)
     {
         return StatusCode(StatusCodes.Status400BadRequest,

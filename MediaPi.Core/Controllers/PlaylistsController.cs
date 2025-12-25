@@ -109,6 +109,7 @@ public class PlaylistsController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
     public async Task<ActionResult<Reference>> CreatePlaylist(PlaylistCreateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
@@ -119,13 +120,16 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
 
-        // Handle only new Items structure
-        if (item.Items == null || item.Items.Count == 0)
+        // Check for duplicate filename before creating playlist
+        if (await _db.Playlists.AnyAsync(p => p.AccountId == item.AccountId && p.Filename == item.Filename, ct))
         {
-            return BadRequest(new ErrMessage { Msg = "Items are required. Legacy VideoIds support has been removed." });
+            return _409PlaylistFilename(item.Filename);
         }
 
-        var (playlistVideoIds, itemValidationError) = await ValidatePlaylistItems(item.Items, account.Id, ct);
+        // Allow empty playlists: treat missing/null items as empty list
+        var items = item.Items ?? new List<PlaylistItemDto>();
+
+        var itemValidationError = await ValidatePlaylistItems(items, account.Id, ct);
         if (itemValidationError != null) return itemValidationError;
 
         var playlist = new Playlist
@@ -136,7 +140,7 @@ public class PlaylistsController(
         };
 
         // Add items with their positions
-        foreach (var playlistItem in item.Items.OrderBy(i => i.Position))
+        foreach (var playlistItem in items.OrderBy(i => i.Position))
         {
             playlist.VideoPlaylists.Add(new VideoPlaylist 
             { 
@@ -158,6 +162,7 @@ public class PlaylistsController(
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
     public async Task<IActionResult> UpdatePlaylist(int id, PlaylistUpdateItem item, CancellationToken ct = default)
     {
         var user = await CurrentUser();
@@ -171,15 +176,18 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
-        playlist.UpdateFrom(item);
-
-        // Handle only new Items structure
-        if (item.Items == null || item.Items.Count == 0)
+        // Check for duplicate filename before updating (exclude current playlist)
+        if (await _db.Playlists.AnyAsync(p => p.AccountId == playlist.AccountId && p.Filename == item.Filename && p.Id != id, ct))
         {
-            return BadRequest(new ErrMessage { Msg = "Items are required. Legacy VideoIds support has been removed." });
+            return _409PlaylistFilename(item.Filename);
         }
 
-        var (_, validationError) = await ValidatePlaylistItems(item.Items, playlist.AccountId, ct);
+        playlist.UpdateFrom(item);
+
+        // Allow empty playlists: treat missing/null items as empty list
+        var items = item.Items ?? new List<PlaylistItemDto>();
+
+        var validationError = await ValidatePlaylistItems(items, playlist.AccountId, ct);
         if (validationError != null) return validationError;
 
         // Remove all existing items and replace with new ones
@@ -191,7 +199,7 @@ public class PlaylistsController(
         }
 
         // Add new items
-        foreach (var playlistItem in item.Items.OrderBy(i => i.Position))
+        foreach (var playlistItem in items.OrderBy(i => i.Position))
         {
             playlist.VideoPlaylists.Add(new VideoPlaylist 
             { 
@@ -233,21 +241,21 @@ public class PlaylistsController(
         return NoContent();
     }
 
-    private async Task<(List<int> VideoIds, ObjectResult? Error)> ValidatePlaylistItems(IEnumerable<PlaylistItemDto> items, int accountId, CancellationToken ct)
+    private async Task<ObjectResult?> ValidatePlaylistItems(IEnumerable<PlaylistItemDto> items, int accountId, CancellationToken ct)
     {
         var videoIds = items.Select(i => i.VideoId).Distinct().ToList();
         
-        if (videoIds.Count == 0) return (videoIds, null);
+        if (videoIds.Count == 0) return null;
 
         // Validate positions
         var positions = items.Select(i => i.Position).ToList();
         if (positions.Any(p => p < 0))
         {
-            return (videoIds, _400PlaylistItemPositionsNegative());
+            return _400PlaylistItemPositionsNegative();
         }
         if (positions.Count != positions.Distinct().Count())
         {
-            return (videoIds, _400PlaylistItemPositionsDuplicate());
+            return _400PlaylistItemPositionsDuplicate();
         }
 
         var videos = await _db.Videos
@@ -260,15 +268,15 @@ public class PlaylistsController(
         {
             var foundIds = videos.Select(v => v.Id).ToHashSet();
             var missingId = videoIds.First(id => !foundIds.Contains(id));
-            return (videoIds, _404Video(missingId));
+            return _404Video(missingId);
         }
 
-        var mismatch = videos.FirstOrDefault(v => v.AccountId != accountId);
+        var mismatch = videos.FirstOrDefault(v => v.AccountId != null && v.AccountId != accountId);
         if (mismatch != null)
         {
-            return (videoIds, _400PlaylistVideoAccountMismatch(mismatch.Id, accountId));
+            return _400PlaylistVideoAccountMismatch(mismatch.Id, accountId);
         }
 
-        return (videoIds, null);
+        return null;
     }
 }

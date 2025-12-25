@@ -3,9 +3,11 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Models
 {
+    [Index(nameof(Filename), IsUnique = true)]
     [Table("videos")]
     public class Video
     {
@@ -44,7 +46,7 @@ namespace MediaPi.Core.Models
         public Category? Category { get; set; }
 
         [Column("account_id")]
-        public int AccountId { get; set; }
+        public int? AccountId { get; set; }
         public Account? Account { get; set; }
 
         public ICollection<VideoPlaylist> VideoPlaylists { get; set; } = [];

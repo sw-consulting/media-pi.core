@@ -16,6 +16,6 @@ public interface IVideoMetadataService
 
 public class VideoMetadata
 {
-    public required uint FileSizeBytes { get; init; }
-    public uint? DurationSeconds { get; init; }
+    public required uint FileSizeBytes { get; set; }
+    public uint? DurationSeconds { get; set; }
 }

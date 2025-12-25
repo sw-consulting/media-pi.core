@@ -1,15 +1,17 @@
 // Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
+using System.Diagnostics;
+using System.Globalization;
 using MediaPi.Core.Services.Interfaces;
-using MetadataExtractor;
-using MetadataExtractor.Formats.QuickTime;
 
 namespace MediaPi.Core.Services;
 
 public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideoMetadataService
 {
     private readonly ILogger<VideoMetadataService> _logger = logger;
+    private const string MediaInfoCommand = "mediainfo";
+    private const int MediaInfoTimeoutSeconds = 30;
 
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default)
     {
@@ -19,146 +21,131 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             return null;
         }
 
+        var res = new VideoMetadata
+        {
+            FileSizeBytes = 0,
+            DurationSeconds = null
+        };
+
         try
         {
             // Get file size
             var fileInfo = new FileInfo(filePath);
-            var fileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length);
+            res.FileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length);
 
-            // Extract metadata using MetadataExtractor
-            var metadata = await Task.Run(() => ExtractVideoMetadata(filePath), cancellationToken);
-
-            return new VideoMetadata
-            {
-                FileSizeBytes = fileSizeBytes,
-                DurationSeconds = ConvertDurationToUInt(metadata.DurationSeconds)
-            };
+            // Extract metadata using MediaInfo command line tool
+            res.DurationSeconds = await ExtractVideoMetadataAsync(filePath, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to extract metadata from video file: {FilePath}", filePath);
+            _logger.LogError(ex, "Failed to extract metadata from video file: {FilePath}", filePath);           
+        }
+        return res;
+    }
+
+    private async Task<uint?> ExtractVideoMetadataAsync(string filePath, CancellationToken cancellationToken)
+    {
+        Process? process = null;
+        try
+        {
+            // Use mediainfo command to get duration in seconds
+            // Use ArgumentList for proper escaping to prevent command injection
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = MediaInfoCommand,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            processInfo.ArgumentList.Add("--Output=General;%Duration/String3%");
+            processInfo.ArgumentList.Add(filePath);
+
+            process = new Process { StartInfo = processInfo };
             
-            // Return basic metadata with just file size if extraction fails
-            try
+            process.Start();
+            
+            // Add timeout to prevent hung processes
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(MediaInfoTimeoutSeconds));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            
+            var outputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            var errorTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
+            
+            await process.WaitForExitAsync(linkedCts.Token);
+            
+            var output = await outputTask;
+            var error = await errorTask;
+
+            if (process.ExitCode != 0)
             {
-                var fileInfo = new FileInfo(filePath);
-                return new VideoMetadata
-                {
-                    FileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length),
-                    DurationSeconds = null
-                };
-            }
-            catch
-            {
+                _logger.LogDebug("MediaInfo process exited with code {ExitCode}. Error: {Error}", 
+                    process.ExitCode, error);
                 return null;
             }
-        }
-    }
 
-    private VideoMetadata ExtractVideoMetadata(string filePath)
-    {
-        var result = new InternalVideoMetadata();
-        
-        try
+            return ParseDurationOutput(output?.Trim());
+        }
+        catch (OperationCanceledException)
         {
-            var directories = ImageMetadataReader.ReadMetadata(filePath);
-            
-            foreach (var directory in directories)
+            // Ensure the process is killed when cancellation is requested
+            if (process != null)
             {
-                // Extract duration from various directory types
-                if (result.DurationSeconds == null)
+                try
                 {
-                    result.DurationSeconds = ExtractDuration(directory);
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                        _logger.LogDebug("MediaInfo process killed due to cancellation for file: {FilePath}", filePath);
+                    }
+                }
+                catch (Exception killEx)
+                {
+                    _logger.LogDebug(killEx, "Failed to kill MediaInfo process for file: {FilePath}", filePath);
                 }
             }
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "MetadataExtractor failed for file: {FilePath}", filePath);
+            _logger.LogDebug(ex, "MediaInfo extraction failed for file: {FilePath}", filePath);
+            return null;
         }
-
-        return new VideoMetadata
+        finally
         {
-            FileSizeBytes = ConvertFileSizeToUInt(0), 
-            DurationSeconds = ConvertDurationToUInt(result.DurationSeconds)
-        };
+            process?.Dispose();
+        }
     }
 
-    private static double? ExtractDuration(MetadataExtractor.Directory directory)
+    private uint? ParseDurationOutput(string? output)
     {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return null;
+        }
+
         try
         {
-            // Try QuickTime movie header for MP4/MOV files
-            if (directory is QuickTimeMovieHeaderDirectory movieHeader &&
-                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var qtDuration) &&
-                movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var qtTimeScale) &&
-                qtTimeScale > 0)
+            // MediaInfo returns duration in format "HH:MM:SS.mmm" or "MM:SS.mmm"
+            if (TimeSpan.TryParse(output, CultureInfo.InvariantCulture, out var timeSpan))
             {
-                return (double)qtDuration / qtTimeScale;
+                return ConvertDurationToUInt(timeSpan.TotalSeconds);
             }
 
-            // Generic approach - look for duration-related tags
-            foreach (var tag in directory.Tags)
+            // Fallback: try to parse as decimal seconds
+            if (double.TryParse(output, CultureInfo.InvariantCulture, out var seconds))
             {
-                var tagName = tag.Name?.ToLowerInvariant();
-                if (tagName != null && (tagName.Contains("duration") || tagName.Contains("length")))
-                {
-                    var description = tag.Description;
-                    if (!string.IsNullOrWhiteSpace(description))
-                    {
-                        // Try to parse duration from description
-                        var duration = ParseDurationFromDescription(description);
-                        if (duration.HasValue)
-                        {
-                            return duration.Value;
-                        }
-                    }
-                }
+                return ConvertDurationToUInt(seconds);
             }
+
+            _logger.LogDebug("Unable to parse duration output: {Output}", output);
+            return null;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Ignore individual extraction failures
+            _logger.LogDebug(ex, "Failed to parse MediaInfo duration output: {Output}", output);
+            return null;
         }
-
-        return null;
-    }
-
-    private static double? ParseDurationFromDescription(string description)
-    {
-        try
-        {
-            // Try to parse common duration formats
-            // Format: "HH:MM:SS" or "MM:SS"
-            if (TimeSpan.TryParse(description, out var timeSpan))
-            {
-                return timeSpan.TotalSeconds;
-            }
-
-            // Format: "X seconds" or "X sec" or "X s"
-            var secondsPatterns = new[] { " seconds", " sec", " s" };
-            foreach (var pattern in secondsPatterns.Where(p => description.EndsWith(p, StringComparison.OrdinalIgnoreCase)))
-            {
-                var numberPart = description[..^pattern.Length].Trim();
-                if (double.TryParse(numberPart, out var seconds))
-                {
-                    return seconds;
-                }
-            }
-
-            // Format: numbers only (assume seconds)
-            // Only consider it duration if it's a reasonable value (between 0.1 and 86400 seconds = 24 hours)
-            if (double.TryParse(description.Trim(), out var numericValue) && numericValue >= 0.1 && numericValue <= 86400)
-            {
-                return numericValue;
-            }
-        }
-        catch (Exception)
-        {
-            // Ignore parsing failures
-        }
-
-        return null;
     }
 
     private static uint? ConvertDurationToUInt(double? durationSeconds)
@@ -200,8 +187,4 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         return (uint)fileSizeBytes;
     }
 
-    private class InternalVideoMetadata
-    {
-        public double? DurationSeconds { get; set; }
-    }
 }

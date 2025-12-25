@@ -1,8 +1,6 @@
 // Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
-using System.Collections.Generic;
-
 namespace MediaPi.Core.RestModels;
 
 public class PlaylistUpdateItem
