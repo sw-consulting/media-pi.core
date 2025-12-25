@@ -20,7 +20,7 @@ config
     // Optionally load the override config if present
     .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
-// Read max upload size from configuration (bytes). Default to 2 GiB if not set.
+// Read max upload size from configuration (bytes). Default to 4 GiB if not set.
 var maxUploadBytes = config.GetValue<long?>("VideoStorage:MaxUploadSizeBytes") ?? 4L * 1024 * 1024 * 1024;
 
 var certPath = config["Kestrel:Certificates:Default:Path"];
