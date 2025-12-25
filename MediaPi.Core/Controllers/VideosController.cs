@@ -48,7 +48,7 @@ public class VideosController(
         else if (user.IsManager())
         {
             var accountIds = _userInformationService.GetUserAccountIds(user);
-            query = query.Where(v => v.AccountId == null || (v.AccountId != null && accountIds.Contains(v.AccountId.Value)));
+            query = query.Where(v => v.AccountId == null || accountIds.Contains(v.AccountId.Value));
         }
         else
         {
