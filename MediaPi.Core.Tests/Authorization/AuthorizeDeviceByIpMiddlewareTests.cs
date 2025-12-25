@@ -29,7 +29,7 @@ public class AuthorizeDeviceByIpMiddlewareTests
     private static DefaultHttpContext CreateContextWithEndpoint(params object[] metadata)
     {
         var context = new DefaultHttpContext();
-        context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(new System.IO.MemoryStream()));
+        context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(System.IO.Stream.Null));
         if (metadata.Length > 0)
         {
             var endpoint = new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(metadata), "test");
