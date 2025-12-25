@@ -62,7 +62,7 @@ public class AuthorizeDeviceByIpMiddlewareTests
     public async Task Invoke_SkipsAuthorization_WhenAllowAnonymousPresent()
     {
         using var db = CreateDbContext();
-        var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute(), new AllowAnonymousAttribute());
+        var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute(), new Core.Authorization.AllowAnonymousAttribute());
         var nextCalled = false;
         var middleware = new AuthorizeDeviceByIpMiddleware(_ =>
         {

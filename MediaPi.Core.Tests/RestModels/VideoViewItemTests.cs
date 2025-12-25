@@ -627,5 +627,5 @@ public class VideoViewItemTests
             Assert.That(viewItem.Duration, Is.EqualTo(expectedDuration));
         }
     }
-    #endregio
+    #endregion
 }
