@@ -271,7 +271,7 @@ public class PlaylistsController(
             return _404Video(missingId);
         }
 
-        var mismatch = videos.FirstOrDefault(v => v.AccountId != null && v.AccountId != 0 && v.AccountId != accountId);
+        var mismatch = videos.FirstOrDefault(v => v.AccountId != null && v.AccountId != accountId);
         if (mismatch != null)
         {
             return _400PlaylistVideoAccountMismatch(mismatch.Id, accountId);

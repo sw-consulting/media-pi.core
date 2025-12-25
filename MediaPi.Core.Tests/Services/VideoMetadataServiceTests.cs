@@ -358,12 +358,9 @@ public class VideoMetadataServiceTests
             var firstResult = results[0];
             if (firstResult != null)
             {
-                foreach (var result in results.Skip(1))
+                foreach (var result in results.Skip(1).Where(result => result != null))
                 {
-                    if (result != null)
-                    {
-                        Assert.That(result.FileSizeBytes, Is.EqualTo(firstResult.FileSizeBytes));
-                    }
+                    Assert.That(result!.FileSizeBytes, Is.EqualTo(firstResult.FileSizeBytes));
                 }
             }
         }
