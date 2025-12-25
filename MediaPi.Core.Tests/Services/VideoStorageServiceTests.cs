@@ -532,4 +532,22 @@ public class VideoStorageServiceTests
         Assert.That(result.Filename, Does.Contain("my-test-video"));
         Assert.That(result.Filename, Does.Not.Match(".*--.*")); // No consecutive dashes
     }
+
+    [Test]
+    public async Task SaveVideoAsync_ComputesSha256()
+    {
+        var content = "hello world";
+        var mockFile = CreateMockFormFile("video.mp4", content);
+
+        var result = await _service.SaveVideoAsync(mockFile.Object, "Title");
+
+        Assert.That(result.Sha256, Is.Not.Null.And.Not.Empty);
+
+        // Compute expected sha256 of content
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var expectedHash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+
+        Assert.That(result.Sha256, Is.EqualTo(expectedHash));
+    }
 }

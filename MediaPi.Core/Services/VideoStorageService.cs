@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
@@ -52,10 +53,22 @@ public class VideoStorageService : IVideoStorageService
         var targetDirectory = GetOrCreateTargetDirectory();
         var filePath = Path.Combine(targetDirectory, uniqueName);
 
-        await using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        // Save file and compute SHA256 while writing to disk to avoid a second read
+        string sha256Hash;
+        await using (var fs = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         {
-            await file.CopyToAsync(stream, ct);
-            await stream.FlushAsync(ct);
+            using var sha256 = SHA256.Create();
+            // Copy stream and compute hash
+            await using var cryptoStream = new CryptoStream(fs, sha256, CryptoStreamMode.Write);
+            await file.CopyToAsync(cryptoStream, ct);
+            // Ensure final block is processed so the hash is finalized
+            cryptoStream.FlushFinalBlock();
+            // Flush underlying file stream
+            await fs.FlushAsync(ct);
+
+            // Finalize hash
+            var hashBytes = sha256.Hash ?? Array.Empty<byte>();
+            sha256Hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
         }
 
         var relative = NormalizeRelativePath(Path.GetRelativePath(_rootFullPath, filePath));
@@ -77,7 +90,9 @@ public class VideoStorageService : IVideoStorageService
             Filename = relative,
             OriginalFilename = file.FileName,
             FileSizeBytes = metadata?.FileSizeBytes ?? fileSizeBytes,
-            DurationSeconds = metadata?.DurationSeconds
+            DurationSeconds = metadata?.DurationSeconds,
+            // return computed sha256
+            Sha256 = sha256Hash
         };
     }
 

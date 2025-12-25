@@ -108,8 +108,8 @@ public class PlaylistsControllerEmptyPlaylistTests
 
         var playlist = await _dbContext.Playlists.FindAsync(reference.Id);
         Assert.That(playlist, Is.Not.Null);
-        Assert.That(playlist!.VideoPlaylists, Is.Not.Null);
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(0));
+        Assert.That(playlist!.VideosPlaylist, Is.Not.Null);
+        Assert.That(playlist.VideosPlaylist.Count, Is.EqualTo(0));
     }
 
     [Test]
@@ -120,7 +120,7 @@ public class PlaylistsControllerEmptyPlaylistTests
         _dbContext.Videos.Add(video);
 
         var playlist = new Playlist { Title = "P", Filename = "p.json", AccountId = _account1.Id };
-        playlist.VideoPlaylists.Add(new VideoPlaylist { PlaylistId = playlist.Id, VideoId = video.Id, Position = 0 });
+        playlist.VideosPlaylist.Add(new VideoPlaylist { PlaylistId = playlist.Id, VideoId = video.Id, Position = 0 });
         _dbContext.Playlists.Add(playlist);
         await _dbContext.SaveChangesAsync();
 
@@ -136,7 +136,7 @@ public class PlaylistsControllerEmptyPlaylistTests
         var result = await _controller.UpdatePlaylist(playlist.Id, item);
         Assert.That(result, Is.TypeOf<NoContentResult>());
 
-        var updated = await _dbContext.Playlists.Include(p => p.VideoPlaylists).FirstAsync(p => p.Id == playlist.Id);
-        Assert.That(updated.VideoPlaylists.Count, Is.EqualTo(0));
+        var updated = await _dbContext.Playlists.Include(p => p.VideosPlaylist).FirstAsync(p => p.Id == playlist.Id);
+        Assert.That(updated.VideosPlaylist.Count, Is.EqualTo(0));
     }
 }

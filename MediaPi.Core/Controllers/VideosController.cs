@@ -134,7 +134,8 @@ public class VideosController(
             OriginalFilename = saveResult.OriginalFilename,
             FileSizeBytes = saveResult.FileSizeBytes,
             DurationSeconds = saveResult.DurationSeconds,
-            AccountId = aId
+            AccountId = aId,
+            Sha256 = saveResult.Sha256
         };
 
         _db.Videos.Add(video);

@@ -22,6 +22,8 @@ namespace MediaPi.Core.Models
         [Column("account_id")]
         public int AccountId { get; set; }
         public Account Account { get; set; } = null!;
-        public ICollection<VideoPlaylist> VideoPlaylists { get; set; } = [];
+        public ICollection<VideoPlaylist> VideosPlaylist { get; set; } = [];
+        public ICollection<PlaylistDeviceGroup> PlaylistDeviceGroups { get; set; } = [];
+
     }
 }
