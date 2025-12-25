@@ -1,4 +1,4 @@
-// Copyright (c) 2025 sw.consulting
+Ôªø// Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
 using MediaPi.Core.Models;
@@ -20,28 +20,28 @@ public class VideoViewItemIntegrationTests
                 Name = "Small video clip",
                 Size = 2_457_600u,      // ~2.3 MB
                 Duration = 45u,         // 45 seconds
-                ExpectedSize = "2.34 Ã·",
+                ExpectedSize = "2.34 –ú–±",
                 ExpectedDuration = "00:00:45"
             },
             new { 
                 Name = "Movie file",
                 Size = 1_610_612_736u,  // 1.5 GB
                 Duration = 7_200u,      // 2 hours
-                ExpectedSize = "1.50 √·",
+                ExpectedSize = "1.50 –ì–±",
                 ExpectedDuration = "02:00:00"
             },
             new { 
                 Name = "High quality documentary",
                 Size = 4_000_000_000u,  // ~3.7 GB
                 Duration = 5_400u,      // 1.5 hours
-                ExpectedSize = "3.73 √·",
+                ExpectedSize = "3.73 –ì–±",
                 ExpectedDuration = "01:30:00"
             },
             new { 
                 Name = "Short TikTok style video",
                 Size = 512_000u,        // 500 KB
                 Duration = 15u,         // 15 seconds
-                ExpectedSize = "500  ·",
+                ExpectedSize = "500 –ö–±",
                 ExpectedDuration = "00:00:15"
             }
         };
@@ -90,13 +90,13 @@ public class VideoViewItemIntegrationTests
         var viewItem = new VideoViewItem(video);
 
         // Assert
-        Assert.That(viewItem.FileSize, Is.EqualTo("1.00 Ã·"));
-        Assert.That(viewItem.Duration, Is.EqualTo("ÌÂ ËÁ‚ÂÒÚÌÓ"));
+        Assert.That(viewItem.FileSize, Is.EqualTo("1.00 –ú–±"));
+        Assert.That(viewItem.Duration, Is.EqualTo("–Ω–µ –∏–∑–≤–µ—Å—Ç–Ω–æ"));
         
         // Verify JSON serialization includes both formatted strings
         var json = viewItem.ToString();
-        Assert.That(json, Does.Contain("1.00 Ã·"));
-        Assert.That(json, Does.Contain("ÌÂ ËÁ‚ÂÒÚÌÓ"));
+        Assert.That(json, Does.Contain("1.00 –ú–±"));
+        Assert.That(json, Does.Contain("–Ω–µ –∏–∑–≤–µ—Å—Ç–Ω–æ"));
     }
 
     [Test]
@@ -105,11 +105,11 @@ public class VideoViewItemIntegrationTests
         // This test verifies that all Russian text is correctly encoded and displayed
         var testCases = new[]
         {
-            (size: 0u, duration: (uint?)null, expectedSize: "0 ·‡ÈÚ", expectedDuration: "ÌÂ ËÁ‚ÂÒÚÌÓ"),
-            (size: 1023u, duration: (uint?)1, expectedSize: "1023 ·‡ÈÚ", expectedDuration: "00:00:01"),
-            (size: 1024u, duration: (uint?)60, expectedSize: "1  ·", expectedDuration: "00:01:00"),
-            (size: 1048576u, duration: (uint?)3600, expectedSize: "1.00 Ã·", expectedDuration: "01:00:00"),
-            (size: 1073741824u, duration: (uint?)86400, expectedSize: "1.00 √·", expectedDuration: "24:00:00")
+            (size: 0u, duration: (uint?)null, expectedSize: "0 –±–∞–π—Ç", expectedDuration: "–Ω–µ –∏–∑–≤–µ—Å—Ç–Ω–æ"),
+            (size: 1023u, duration: (uint?)1, expectedSize: "1023 –±–∞–π—Ç", expectedDuration: "00:00:01"),
+            (size: 1024u, duration: (uint?)60, expectedSize: "1 –ö–±", expectedDuration: "00:01:00"),
+            (size: 1048576u, duration: (uint?)3600, expectedSize: "1.00 –ú–±", expectedDuration: "01:00:00"),
+            (size: 1073741824u, duration: (uint?)86400, expectedSize: "1.00 –ì–±", expectedDuration: "24:00:00")
         };
 
         foreach (var (size, duration, expectedSize, expectedDuration) in testCases)
