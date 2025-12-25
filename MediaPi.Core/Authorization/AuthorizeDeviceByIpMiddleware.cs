@@ -34,14 +34,20 @@ public class AuthorizeDeviceByIpMiddleware
             return;
         }
 
-        var ipAddress = context.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        var remoteIp = context.Connection.RemoteIpAddress;
+        var ipAddress = remoteIp?.ToString();
+        var ipAddressV4 = remoteIp?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+            ? remoteIp.MapToIPv4().ToString()
+            : null;
+
         if (string.IsNullOrWhiteSpace(ipAddress))
         {
             await RejectAsync(context, logger, "IP адрес устройства не определен.");
             return;
         }
 
-        var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.IpAddress == ipAddress);
+        var device = await db.Devices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.IpAddress == ipAddress || (ipAddressV4 != null && d.IpAddress == ipAddressV4));
         if (device == null)
         {
             await RejectAsync(context, logger, "Устройство не зарегистрировано.");
