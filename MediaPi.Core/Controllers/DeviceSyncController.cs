@@ -81,8 +81,6 @@ public class DeviceSyncController(
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<IActionResult> Download(int id, CancellationToken ct = default)
     {
-        var deviceId = (int)_httpContextAccessor.HttpContext!.Items["DeviceId"]!;
-
         var video = await _db.Videos.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id, ct);
         if (video == null) return _404Video(id);
 
