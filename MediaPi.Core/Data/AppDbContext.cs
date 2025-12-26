@@ -23,7 +23,7 @@ namespace MediaPi.Core.Data
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
-        public DbSet<PlaylistDeviceGroup> VideoStatuses => Set<PlaylistDeviceGroup>();
+        public DbSet<PlaylistDeviceGroup> PlaylistDeviceGroups => Set<PlaylistDeviceGroup>();
         public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
         public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
 
