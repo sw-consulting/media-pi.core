@@ -50,7 +50,9 @@ public class DeviceSyncController(
                 vp.Video.FileSizeBytes,
                 vp.Video.Sha256
             })
-            .Distinct()
+            // Videos can appear in multiple playlists; group by Video.Id to deduplicate per video.
+            .GroupBy(video => video.Id)
+            .Select(g => g.First())
             .ToListAsync(ct);
 
         var missingFilename = videos.FirstOrDefault(video => string.IsNullOrWhiteSpace(video.Filename));
