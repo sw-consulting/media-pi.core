@@ -95,7 +95,9 @@ public class DeviceGroupsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var group = await _db.DeviceGroups.FindAsync([id], ct);
+        var group = await _db.DeviceGroups
+            .Include(g => g.PlaylistsDeviceGroup)
+            .FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return _404DeviceGroup(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))
@@ -124,7 +126,25 @@ public class DeviceGroupsController(
             return _403();
         }
 
+        var (playlistIds, error) = await ValidateDeviceGroupPlaylists(item.Playlists, item.AccountId, ct);
+        if (error != null) return error;
+
         var group = new DeviceGroup { Name = item.Name, AccountId = item.AccountId };
+        var playlistLookup = item.Playlists
+            .GroupBy(p => p.PlaylistId)
+            .ToDictionary(g => g.Key, g => g.First());
+        
+        foreach (var playlistId in playlistIds)
+        {
+            if (playlistLookup.TryGetValue(playlistId, out var playlist))
+            {
+                group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+                {
+                    PlaylistId = playlist.PlaylistId,
+                    Play = playlist.Play
+                });
+            }
+        }
         _db.DeviceGroups.Add(group);
         await _db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(GetGroup), new { id = group.Id }, new Reference { Id = group.Id });
@@ -140,12 +160,41 @@ public class DeviceGroupsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var group = await _db.DeviceGroups.FindAsync([id], ct);
+        var group = await _db.DeviceGroups
+            .Include(g => g.PlaylistsDeviceGroup)
+            .FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return _404DeviceGroup(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))
         {
-            group.UpdateFrom(item);
+            if (item.Name != null) group.Name = item.Name;
+
+            if (item.Playlists != null)
+            {
+                var (playlistIds, error) = await ValidateDeviceGroupPlaylists(item.Playlists, group.AccountId, ct);
+                if (error != null) return error;
+
+                var toRemove = group.PlaylistsDeviceGroup.ToList();
+                group.PlaylistsDeviceGroup.Clear();
+                _db.PlaylistDeviceGroups.RemoveRange(toRemove);
+
+                var playlistLookup = item.Playlists
+                    .GroupBy(p => p.PlaylistId)
+                    .ToDictionary(g => g.Key, g => g.First());
+                
+                foreach (var playlistId in playlistIds)
+                {
+                    if (playlistLookup.TryGetValue(playlistId, out var playlist))
+                    {
+                        group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+                        {
+                            PlaylistId = playlist.PlaylistId,
+                            Play = playlist.Play,
+                            DeviceGroupId = group.Id
+                        });
+                    }
+                }
+            }
             await _db.SaveChangesAsync(ct);
             return NoContent();
         }
@@ -177,5 +226,35 @@ public class DeviceGroupsController(
         await _db.SaveChangesAsync(ct);
 
         return NoContent();
+    }
+
+    private async Task<(List<int> PlaylistIds, ObjectResult? Error)> ValidateDeviceGroupPlaylists(IEnumerable<PlaylistDeviceGroupItemDto> playlists, int accountId, CancellationToken ct)
+    {
+        var normalized = (playlists ?? Enumerable.Empty<PlaylistDeviceGroupItemDto>())
+            .Select(p => p.PlaylistId)
+            .Distinct()
+            .ToList();
+        if (normalized.Count == 0) return (normalized, null);
+
+        var dbPlaylists = await _db.Playlists
+            .AsNoTracking()
+            .Where(p => normalized.Contains(p.Id))
+            .Select(p => new { p.Id, p.AccountId })
+            .ToListAsync(ct);
+
+        var foundIds = dbPlaylists.Select(p => p.Id).ToHashSet();
+        if (foundIds.Count != normalized.Count)
+        {
+            var missingId = normalized.Except(foundIds).First();
+            return (normalized, _404Playlist(missingId));
+        }
+
+        var mismatch = dbPlaylists.FirstOrDefault(p => p.AccountId != accountId);
+        if (mismatch != null)
+        {
+            return (normalized, _400VideoPlaylistAccountMismatch(mismatch.Id, accountId));
+        }
+
+        return (normalized, null);
     }
 }
