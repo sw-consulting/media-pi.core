@@ -159,11 +159,8 @@ public class DeviceGroupsController(
             if (item.Playlists != null)
             {
                 var toRemove = group.PlaylistsDeviceGroup.ToList();
-                if (toRemove.Count > 0)
-                {
-                    group.PlaylistsDeviceGroup.Clear();
-                    _db.VideoStatuses.RemoveRange(toRemove);
-                }
+                group.PlaylistsDeviceGroup.Clear();
+                _db.VideoStatuses.RemoveRange(toRemove);
 
                 foreach (var playlist in item.Playlists)
                 {
