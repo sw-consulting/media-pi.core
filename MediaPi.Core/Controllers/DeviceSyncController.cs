@@ -32,8 +32,7 @@ public class DeviceSyncController(
     {
         if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
         {
-            return StatusCode(StatusCodes.Status500InternalServerError,
-                new ErrMessage { Msg = "Device authorization middleware did not set DeviceId" });
+            return _500DeviceIdMissing();
         }
 
         var device = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct);
@@ -93,8 +92,7 @@ public class DeviceSyncController(
     {
         if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
         {
-            return StatusCode(StatusCodes.Status500InternalServerError,
-                new ErrMessage { Msg = "Device authorization middleware did not set DeviceId" });
+            return _500DeviceIdMissing();
         }
 
         var video = await _db.Videos.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id, ct);
@@ -105,8 +103,7 @@ public class DeviceSyncController(
 
         if (!device.DeviceGroupId.HasValue)
         {
-            return StatusCode(StatusCodes.Status403Forbidden,
-                new ErrMessage { Msg = $"Device [id={deviceId}] is not assigned to a device group" });
+            return _403DeviceNotInGroup(deviceId);
         }
 
         var deviceGroupId = device.DeviceGroupId.Value;
@@ -118,8 +115,7 @@ public class DeviceSyncController(
 
         if (!isAuthorized)
         {
-            return StatusCode(StatusCodes.Status403Forbidden,
-                new ErrMessage { Msg = $"Device [id={deviceId}] is not authorized to access video [id={id}]" });
+            return _403DeviceUnauthorizedVideo(deviceId, id);
         }
 
         var path = _videoStorageService.GetAbsolutePath(video.Filename);

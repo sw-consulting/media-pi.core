@@ -198,6 +198,24 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status500InternalServerError,
                           new ErrMessage { Msg = $"Отсутствует обязательное поле {fieldName} для видео [id={videoId}]" });
     }
+
+    protected ObjectResult _500DeviceIdMissing()
+    {
+        return StatusCode(StatusCodes.Status500InternalServerError,
+                          new ErrMessage { Msg = "Device authorization middleware did not set DeviceId" });
+    }
+
+    protected ObjectResult _403DeviceNotInGroup(int deviceId)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden,
+                          new ErrMessage { Msg = $"Device [id={deviceId}] is not assigned to a device group" });
+    }
+
+    protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden,
+                          new ErrMessage { Msg = $"Device [id={deviceId}] is not authorized to access video [id={videoId}]" });
+    }
 }
 
 public class MediaPiControllerBase : FuelfluxControllerPreBase
