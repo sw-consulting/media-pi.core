@@ -132,6 +132,7 @@ using (var scope = app.Services.CreateScope())
 
 app
     .UseMiddleware<JwtMiddleware>()
+    .UseMiddleware<AuthorizeDeviceByIpMiddleware>()
     .UseSwagger()
     .UseSwaggerUI();
 if (useHttps)
