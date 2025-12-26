@@ -39,6 +39,8 @@ public class DeviceGroupsControllerTests
     private DeviceGroup _group1;
     private DeviceGroup _group2;
     private Device _device1;
+    private Playlist _playlist1;
+    private Playlist _playlist2;
     private UserInformationService _userInformationService;
 #pragma warning restore CS8618
 
@@ -66,6 +68,10 @@ public class DeviceGroupsControllerTests
 
         _device1 = new Device { Id = 1, Name = "Dev1", IpAddress = "1.1.1.1", Port = 8080, AccountId = _account1.Id, DeviceGroupId = _group1.Id };
         _dbContext.Devices.Add(_device1);
+
+        _playlist1 = new Playlist { Id = 1, Title = "Playlist1", Filename = "playlist1.m3u", AccountId = _account1.Id, Account = _account1 };
+        _playlist2 = new Playlist { Id = 2, Title = "Playlist2", Filename = "playlist2.m3u", AccountId = _account1.Id, Account = _account1 };
+        _dbContext.Playlists.AddRange(_playlist1, _playlist2);
 
         string pass = BCrypt.Net.BCrypt.HashPassword("pwd");
 
@@ -365,6 +371,108 @@ public class DeviceGroupsControllerTests
         var grp = await _dbContext.DeviceGroups.FindAsync(_group1.Id);
         Assert.That(grp!.AccountId, Is.EqualTo(_account1.Id)); // AccountId should remain unchanged
         Assert.That(grp.Name, Is.EqualTo("Renamed"));
+    }
+
+    [Test]
+    public async Task PostGroup_Admin_CreatesPlaylistDeviceGroups()
+    {
+        SetCurrentUser(1);
+        var dto = new DeviceGroupCreateItem
+        {
+            Name = "With Playlists",
+            AccountId = _account1.Id,
+            Playlists =
+            [
+                new PlaylistDeviceGroupItemDto { PlaylistId = _playlist1.Id, Play = true },
+                new PlaylistDeviceGroupItemDto { PlaylistId = _playlist2.Id, Play = false }
+            ]
+        };
+
+        var result = await _controller.PostGroup(dto);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
+        var reference = (Reference)created.Value!;
+        var playlists = await _dbContext.Set<PlaylistDeviceGroup>()
+            .Where(pdg => pdg.DeviceGroupId == reference.Id)
+            .ToListAsync();
+        Assert.That(playlists, Has.Count.EqualTo(2));
+        Assert.That(playlists.Select(pdg => pdg.PlaylistId), Is.EquivalentTo(new[] { _playlist1.Id, _playlist2.Id }));
+        Assert.That(playlists.Single(pdg => pdg.PlaylistId == _playlist1.Id).Play, Is.True);
+        Assert.That(playlists.Single(pdg => pdg.PlaylistId == _playlist2.Id).Play, Is.False);
+    }
+
+    [Test]
+    public async Task UpdateGroup_Manager_ReplacesPlaylists_WhenProvided()
+    {
+        _dbContext.Set<PlaylistDeviceGroup>().Add(new PlaylistDeviceGroup
+        {
+            DeviceGroupId = _group1.Id,
+            PlaylistId = _playlist1.Id,
+            Play = false
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(2);
+        var dto = new DeviceGroupUpdateItem
+        {
+            Name = "Renamed",
+            Playlists = [new PlaylistDeviceGroupItemDto { PlaylistId = _playlist2.Id, Play = true }]
+        };
+        var result = await _controller.UpdateGroup(_group1.Id, dto);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var playlists = await _dbContext.Set<PlaylistDeviceGroup>()
+            .Where(pdg => pdg.DeviceGroupId == _group1.Id)
+            .ToListAsync();
+        Assert.That(playlists, Has.Count.EqualTo(1));
+        Assert.That(playlists[0].PlaylistId, Is.EqualTo(_playlist2.Id));
+        Assert.That(playlists[0].Play, Is.True);
+    }
+
+    [Test]
+    public async Task UpdateGroup_Manager_DoesNotReplacePlaylists_WhenNull()
+    {
+        _dbContext.Set<PlaylistDeviceGroup>().Add(new PlaylistDeviceGroup
+        {
+            DeviceGroupId = _group1.Id,
+            PlaylistId = _playlist1.Id,
+            Play = true
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(2);
+        var dto = new DeviceGroupUpdateItem { Name = "Renamed", Playlists = null };
+        var result = await _controller.UpdateGroup(_group1.Id, dto);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var playlists = await _dbContext.Set<PlaylistDeviceGroup>()
+            .Where(pdg => pdg.DeviceGroupId == _group1.Id)
+            .ToListAsync();
+        Assert.That(playlists, Has.Count.EqualTo(1));
+        Assert.That(playlists[0].PlaylistId, Is.EqualTo(_playlist1.Id));
+        Assert.That(playlists[0].Play, Is.True);
+    }
+
+    [Test]
+    public async Task DeleteGroup_Admin_CascadesPlaylistDeviceGroups()
+    {
+        _dbContext.Set<PlaylistDeviceGroup>().Add(new PlaylistDeviceGroup
+        {
+            DeviceGroupId = _group1.Id,
+            PlaylistId = _playlist1.Id,
+            Play = true
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.DeleteGroup(_group1.Id);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var playlists = await _dbContext.Set<PlaylistDeviceGroup>()
+            .Where(pdg => pdg.DeviceGroupId == _group1.Id)
+            .ToListAsync();
+        Assert.That(playlists, Is.Empty);
     }
 
     [Test]

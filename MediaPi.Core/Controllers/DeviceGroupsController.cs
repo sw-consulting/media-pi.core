@@ -125,6 +125,14 @@ public class DeviceGroupsController(
         }
 
         var group = new DeviceGroup { Name = item.Name, AccountId = item.AccountId };
+        foreach (var playlist in item.Playlists)
+        {
+            group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+            {
+                PlaylistId = playlist.PlaylistId,
+                Play = playlist.Play
+            });
+        }
         _db.DeviceGroups.Add(group);
         await _db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(GetGroup), new { id = group.Id }, new Reference { Id = group.Id });
@@ -140,12 +148,33 @@ public class DeviceGroupsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        var group = await _db.DeviceGroups.FindAsync([id], ct);
+        var group = await _db.DeviceGroups
+            .Include(g => g.PlaylistsDeviceGroup)
+            .FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return _404DeviceGroup(id);
 
         if (user.IsAdministrator() || userInformationService.ManagerOwnsGroup(user, group))
         {
             group.UpdateFrom(item);
+            if (item.Playlists != null)
+            {
+                var toRemove = group.PlaylistsDeviceGroup.ToList();
+                if (toRemove.Count > 0)
+                {
+                    group.PlaylistsDeviceGroup.Clear();
+                    _db.VideoStatuses.RemoveRange(toRemove);
+                }
+
+                foreach (var playlist in item.Playlists)
+                {
+                    group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+                    {
+                        PlaylistId = playlist.PlaylistId,
+                        Play = playlist.Play,
+                        DeviceGroupId = group.Id
+                    });
+                }
+            }
             await _db.SaveChangesAsync(ct);
             return NoContent();
         }
