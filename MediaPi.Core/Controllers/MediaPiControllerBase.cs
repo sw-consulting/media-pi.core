@@ -192,6 +192,24 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status500InternalServerError,
                           new ErrMessage { Msg = "Внутренняя ошибка при загрузке файла реестра" });
     }
+
+    protected ObjectResult _500VideoManifestFieldMissing(int videoId, string fieldName)
+    {
+        return StatusCode(StatusCodes.Status500InternalServerError,
+                          new ErrMessage { Msg = $"Отсутствует обязательное поле {fieldName} для видео [id={videoId}]" });
+    }
+
+    protected ObjectResult _500DeviceIdMissing()
+    {
+        return StatusCode(StatusCodes.Status500InternalServerError,
+                          new ErrMessage { Msg = "Middleware авторизации устройства не установил DeviceId" });
+    }
+
+    protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden,
+                          new ErrMessage { Msg = $"Устройство [id={deviceId}] не имеет доступа к видео [id={videoId}]" });
+    }
 }
 
 public class MediaPiControllerBase : FuelfluxControllerPreBase
