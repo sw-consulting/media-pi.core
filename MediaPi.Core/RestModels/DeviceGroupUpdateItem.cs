@@ -10,6 +10,7 @@ namespace MediaPi.Core.RestModels;
 public class DeviceGroupUpdateItem
 {
     public string? Name { get; set; }
+    public List<PlaylistDeviceGroupItemDto>? Playlists { get; set; } = [];
 
     public override string ToString()
     {

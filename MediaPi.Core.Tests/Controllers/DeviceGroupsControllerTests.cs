@@ -221,7 +221,7 @@ public class DeviceGroupsControllerTests
     public async Task PostGroup_NoUser_Returns403()
     {
         SetCurrentUser(null);
-        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account1.Id };
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account1.Id, Playlists = [] };
         var result = await _controller.PostGroup(dto);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
@@ -232,7 +232,7 @@ public class DeviceGroupsControllerTests
     public async Task PostGroup_Engineer_Returns403()
     {
         SetCurrentUser(3); // Engineer
-        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account1.Id };
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account1.Id, Playlists = [] };
         var result = await _controller.PostGroup(dto);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
@@ -243,7 +243,7 @@ public class DeviceGroupsControllerTests
     public async Task PostGroup_Manager_OtherAccount_Returns403()
     {
         SetCurrentUser(2); // Manager with access to account1
-        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account2.Id };
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = _account2.Id, Playlists = [] };
         var result = await _controller.PostGroup(dto);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
@@ -254,7 +254,7 @@ public class DeviceGroupsControllerTests
     public async Task PostGroup_InvalidAccount_Returns404()
     {
         SetCurrentUser(1); // Admin
-        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = 999 };
+        var dto = new DeviceGroupCreateItem { Name = "New Group", AccountId = 999, Playlists = [] };
         var result = await _controller.PostGroup(dto);
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
