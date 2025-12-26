@@ -26,6 +26,7 @@ public class DeviceSyncController(
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceSyncManifestItem>))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<ActionResult<IEnumerable<DeviceSyncManifestItem>>> GetManifest(CancellationToken ct = default)
     {
