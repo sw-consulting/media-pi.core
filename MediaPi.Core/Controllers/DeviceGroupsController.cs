@@ -128,15 +128,20 @@ public class DeviceGroupsController(
         if (error != null) return error;
 
         var group = new DeviceGroup { Name = item.Name, AccountId = item.AccountId };
-        var playlistLookup = item.Playlists.GroupBy(p => p.PlaylistId).ToDictionary(g => g.Key, g => g.First());
+        var playlistLookup = item.Playlists
+            .GroupBy(p => p.PlaylistId)
+            .ToDictionary(g => g.Key, g => g.First());
+        
         foreach (var playlistId in playlistIds)
         {
-            var playlist = playlistLookup[playlistId];
-            group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+            if (playlistLookup.TryGetValue(playlistId, out var playlist))
             {
-                PlaylistId = playlist.PlaylistId,
-                Play = playlist.Play
-            });
+                group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+                {
+                    PlaylistId = playlist.PlaylistId,
+                    Play = playlist.Play
+                });
+            }
         }
         _db.DeviceGroups.Add(group);
         await _db.SaveChangesAsync(ct);
@@ -170,16 +175,21 @@ public class DeviceGroupsController(
                 group.PlaylistsDeviceGroup.Clear();
                 _db.PlaylistDeviceGroups.RemoveRange(toRemove);
 
-                var playlistLookup = item.Playlists.GroupBy(p => p.PlaylistId).ToDictionary(g => g.Key, g => g.First());
+                var playlistLookup = item.Playlists
+                    .GroupBy(p => p.PlaylistId)
+                    .ToDictionary(g => g.Key, g => g.First());
+                
                 foreach (var playlistId in playlistIds)
                 {
-                    var playlist = playlistLookup[playlistId];
-                    group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+                    if (playlistLookup.TryGetValue(playlistId, out var playlist))
                     {
-                        PlaylistId = playlist.PlaylistId,
-                        Play = playlist.Play,
-                        DeviceGroupId = group.Id
-                    });
+                        group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
+                        {
+                            PlaylistId = playlist.PlaylistId,
+                            Play = playlist.Play,
+                            DeviceGroupId = group.Id
+                        });
+                    }
                 }
             }
             await _db.SaveChangesAsync(ct);
