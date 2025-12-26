@@ -202,19 +202,19 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
     protected ObjectResult _500DeviceIdMissing()
     {
         return StatusCode(StatusCodes.Status500InternalServerError,
-                          new ErrMessage { Msg = "Device authorization middleware did not set DeviceId" });
+                          new ErrMessage { Msg = "Middleware авторизации устройства не установил DeviceId" });
     }
 
     protected ObjectResult _403DeviceNotInGroup(int deviceId)
     {
         return StatusCode(StatusCodes.Status403Forbidden,
-                          new ErrMessage { Msg = $"Device [id={deviceId}] is not assigned to a device group" });
+                          new ErrMessage { Msg = $"Устройство [id={deviceId}] не назначено группе устройств" });
     }
 
     protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
     {
         return StatusCode(StatusCodes.Status403Forbidden,
-                          new ErrMessage { Msg = $"Device [id={deviceId}] is not authorized to access video [id={videoId}]" });
+                          new ErrMessage { Msg = $"Устройство [id={deviceId}] не имеет доступа к видео [id={videoId}]" });
     }
 }
 
