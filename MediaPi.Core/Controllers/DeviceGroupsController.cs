@@ -128,8 +128,10 @@ public class DeviceGroupsController(
         if (error != null) return error;
 
         var group = new DeviceGroup { Name = item.Name, AccountId = item.AccountId };
-        foreach (var playlist in item.Playlists.Where(p => playlistIds.Contains(p.PlaylistId)).DistinctBy(p => p.PlaylistId))
+        var playlistLookup = item.Playlists.GroupBy(p => p.PlaylistId).ToDictionary(g => g.Key, g => g.First());
+        foreach (var playlistId in playlistIds)
         {
+            var playlist = playlistLookup[playlistId];
             group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
             {
                 PlaylistId = playlist.PlaylistId,
@@ -168,8 +170,10 @@ public class DeviceGroupsController(
                 group.PlaylistsDeviceGroup.Clear();
                 _db.PlaylistDeviceGroups.RemoveRange(toRemove);
 
-                foreach (var playlist in item.Playlists.Where(p => playlistIds.Contains(p.PlaylistId)).DistinctBy(p => p.PlaylistId))
+                var playlistLookup = item.Playlists.GroupBy(p => p.PlaylistId).ToDictionary(g => g.Key, g => g.First());
+                foreach (var playlistId in playlistIds)
                 {
+                    var playlist = playlistLookup[playlistId];
                     group.PlaylistsDeviceGroup.Add(new PlaylistDeviceGroup
                     {
                         PlaylistId = playlist.PlaylistId,
