@@ -133,6 +133,7 @@ public class DeviceSyncControllerTests
     [Test]
     public async Task Download_ReturnsPhysicalFileResult()
     {
+        var playlist = new Playlist { Id = 10, Title = "Download Playlist", Filename = "download_playlist.json", AccountId = _account.Id, Account = _account };
         var video = new Video
         {
             Id = 10,
@@ -141,9 +142,14 @@ public class DeviceSyncControllerTests
             OriginalFilename = "video.mp4",
             FileSizeBytes = 1024,
             AccountId = _account.Id,
-            Account = _account
+            Account = _account,
+            Sha256 = "abc"
         };
+        
+        _dbContext.Playlists.Add(playlist);
         _dbContext.Videos.Add(video);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, Video = video, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
         _dbContext.SaveChanges();
 
         var expectedPath = "/videos/0001/video.mp4";
@@ -189,5 +195,121 @@ public class DeviceSyncControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        
+        var errMessage = obj.Value as ErrMessage;
+        Assert.That(errMessage, Is.Not.Null);
+        Assert.That(errMessage!.Msg, Does.Contain("sha256"));
+        Assert.That(errMessage.Msg, Does.Contain($"id={video.Id}"));
+    }
+
+    [Test]
+    public async Task GetManifest_MissingFilename_Returns500()
+    {
+        var playlist = new Playlist { Id = 4, Title = "Playlist 4", Filename = "playlist4.json", AccountId = _account.Id, Account = _account };
+        var video = new Video
+        {
+            Id = 30,
+            Title = "Video 4",
+            Filename = "",
+            OriginalFilename = "video4.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = "xyz123"
+        };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.Add(video);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, Video = video, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.GetManifest();
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        
+        var errMessage = obj.Value as ErrMessage;
+        Assert.That(errMessage, Is.Not.Null);
+        Assert.That(errMessage!.Msg, Does.Contain("filename"));
+        Assert.That(errMessage.Msg, Does.Contain($"id={video.Id}"));
+    }
+
+    [Test]
+    public async Task Download_VideoNotFound_Returns404()
+    {
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.Download(999);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task Download_VideoNotInDeviceGroup_Returns403()
+    {
+        var otherGroup = new DeviceGroup { Id = 2, Name = "Other Group", AccountId = _account.Id, Account = _account };
+        _dbContext.DeviceGroups.Add(otherGroup);
+        
+        var playlist = new Playlist { Id = 5, Title = "Playlist 5", Filename = "playlist5.json", AccountId = _account.Id, Account = _account };
+        var video = new Video
+        {
+            Id = 40,
+            Title = "Video 5",
+            Filename = "0001/video5.mp4",
+            OriginalFilename = "video5.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = "abc456"
+        };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.Add(video);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, Video = video, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = otherGroup.Id, DeviceGroup = otherGroup });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.Download(video.Id);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task Download_DeviceWithoutGroup_Returns403()
+    {
+        var deviceWithoutGroup = new Device { Id = 3, Name = "NoGroup", IpAddress = "127.0.0.3", Port = 8082 };
+        _dbContext.Devices.Add(deviceWithoutGroup);
+        
+        var video = new Video
+        {
+            Id = 50,
+            Title = "Video 6",
+            Filename = "0001/video6.mp4",
+            OriginalFilename = "video6.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = "xyz789"
+        };
+        _dbContext.Videos.Add(video);
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(deviceWithoutGroup.Id);
+
+        var result = await _controller.Download(video.Id);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 }
