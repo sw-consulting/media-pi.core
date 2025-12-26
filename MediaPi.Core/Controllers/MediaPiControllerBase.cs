@@ -205,12 +205,6 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
                           new ErrMessage { Msg = "Middleware авторизации устройства не установил DeviceId" });
     }
 
-    protected ObjectResult _403DeviceNotInGroup(int deviceId)
-    {
-        return StatusCode(StatusCodes.Status403Forbidden,
-                          new ErrMessage { Msg = $"Устройство [id={deviceId}] не назначено группе устройств" });
-    }
-
     protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
     {
         return StatusCode(StatusCodes.Status403Forbidden,

@@ -101,17 +101,11 @@ public class DeviceSyncController(
         var device = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct);
         if (device == null) return _404Device(deviceId);
 
-        if (!device.DeviceGroupId.HasValue)
-        {
-            return _403DeviceNotInGroup(deviceId);
-        }
-
-        var deviceGroupId = device.DeviceGroupId.Value;
-
         // Verify that the video belongs to a playlist assigned to the device's group
-        var isAuthorized = await _db.VideoPlaylists.AsNoTracking()
+        // If device has no group, deviceGroupId will be null and authorization will fail
+        var isAuthorized = device.DeviceGroupId.HasValue && await _db.VideoPlaylists.AsNoTracking()
             .AnyAsync(vp => vp.VideoId == id && 
-                           vp.Playlist.PlaylistDeviceGroups.Any(pdg => pdg.DeviceGroupId == deviceGroupId), ct);
+                           vp.Playlist.PlaylistDeviceGroups.Any(pdg => pdg.DeviceGroupId == device.DeviceGroupId.Value), ct);
 
         if (!isAuthorized)
         {
