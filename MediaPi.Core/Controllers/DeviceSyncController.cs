@@ -30,7 +30,11 @@ public class DeviceSyncController(
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<ActionResult<IEnumerable<DeviceSyncManifestItem>>> GetManifest(CancellationToken ct = default)
     {
-        var deviceId = (int)_httpContextAccessor.HttpContext!.Items["DeviceId"]!;
+        if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrMessage { Msg = "Device authorization middleware did not set DeviceId" });
+        }
 
         var device = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct);
         if (device == null) return _404Device(deviceId);
@@ -56,6 +60,8 @@ public class DeviceSyncController(
             .Select(g => g.First())
             .ToListAsync(ct);
 
+        // Despite Video.Filename being marked as 'required', we validate it here as a safety net
+        // against potential data integrity issues (e.g., database migration problems, manual data edits).
         var missingFilename = videos.FirstOrDefault(video => string.IsNullOrWhiteSpace(video.Filename));
         if (missingFilename != null)
         {
@@ -73,7 +79,7 @@ public class DeviceSyncController(
             Id = video.Id,
             Filename = video.Filename,
             FileSizeBytes = video.FileSizeBytes,
-            Sha256 = video.Sha256
+            Sha256 = video.Sha256! // Safe after validation above
         }).ToList();
 
         return manifest;
@@ -82,10 +88,39 @@ public class DeviceSyncController(
     [HttpGet("{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     public async Task<IActionResult> Download(int id, CancellationToken ct = default)
     {
+        if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrMessage { Msg = "Device authorization middleware did not set DeviceId" });
+        }
+
         var video = await _db.Videos.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id, ct);
         if (video == null) return _404Video(id);
+
+        var device = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct);
+        if (device == null) return _404Device(deviceId);
+
+        if (!device.DeviceGroupId.HasValue)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ErrMessage { Msg = $"Device [id={deviceId}] is not assigned to a device group" });
+        }
+
+        var deviceGroupId = device.DeviceGroupId.Value;
+
+        // Verify that the video belongs to a playlist assigned to the device's group
+        var isAuthorized = await _db.VideoPlaylists.AsNoTracking()
+            .AnyAsync(vp => vp.VideoId == id && 
+                           vp.Playlist.PlaylistDeviceGroups.Any(pdg => pdg.DeviceGroupId == deviceGroupId), ct);
+
+        if (!isAuthorized)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ErrMessage { Msg = $"Device [id={deviceId}] is not authorized to access video [id={id}]" });
+        }
 
         var path = _videoStorageService.GetAbsolutePath(video.Filename);
         return PhysicalFile(path, "application/octet-stream", video.OriginalFilename);
