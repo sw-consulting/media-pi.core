@@ -8,5 +8,5 @@ public class DeviceSyncManifestItem
     public int Id { get; init; }
     public string Filename { get; init; } = string.Empty;
     public uint FileSizeBytes { get; init; }
-    public string? Sha256 { get; init; }
+    public string Sha256 { get; init; } = string.Empty;
 }
