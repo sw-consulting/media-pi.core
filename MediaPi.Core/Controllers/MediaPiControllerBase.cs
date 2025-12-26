@@ -192,6 +192,12 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status500InternalServerError,
                           new ErrMessage { Msg = "Внутренняя ошибка при загрузке файла реестра" });
     }
+
+    protected ObjectResult _500VideoManifestFieldMissing(int videoId, string fieldName)
+    {
+        return StatusCode(StatusCodes.Status500InternalServerError,
+                          new ErrMessage { Msg = $"Отсутствует обязательное поле {fieldName} для видео [id={videoId}]" });
+    }
 }
 
 public class MediaPiControllerBase : FuelfluxControllerPreBase
