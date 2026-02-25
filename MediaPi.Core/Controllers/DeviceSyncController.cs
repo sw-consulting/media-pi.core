@@ -128,7 +128,6 @@ public class DeviceSyncController(
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     public async Task<IActionResult> DownloadPlaylist(CancellationToken ct = default)
     {
         if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
