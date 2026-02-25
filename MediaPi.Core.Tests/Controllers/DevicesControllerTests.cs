@@ -1142,7 +1142,7 @@ public class DevicesControllerTests
     public async Task GetServiceStatus_Admin_ReturnsAgentData()
     {
         SetCurrentUser(_admin.Id);
-        var dto = new ServiceStatusDto { PlaybackServiceStatus = true, PlaylistUploadServiceStatus = false, YaDiskMountStatus = true };
+        var dto = new ServiceStatusDto { PlaybackServiceStatus = true, PlaylistUploadServiceStatus = false };
         var agentResponse = new MediaPiMenuDataResponse<ServiceStatusDto> { Ok = true, Data = dto };
         _agentClient2Mock
             .Setup(c => c.GetServiceStatusAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
