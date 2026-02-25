@@ -16,7 +16,7 @@ namespace MediaPi.Core.Controllers;
 [Route("api/[controller]")]
 public class StatusController(
     AppDbContext db,
-    ILogger<StatusController> logger) : FuelfluxControllerPreBase(db, logger)
+    ILogger<StatusController> logger) : MediaPiControllerPreBase(db, logger)
 {
     // GET: api/auth/status
     // Checks service status

@@ -19,7 +19,7 @@ public class DeviceSyncController(
     IHttpContextAccessor httpContextAccessor,
     IVideoStorageService videoStorageService,
     AppDbContext db,
-    ILogger<DeviceSyncController> logger) : FuelfluxControllerPreBase(db, logger)
+    ILogger<DeviceSyncController> logger) : MediaPiControllerPreBase(db, logger)
 {
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
     private readonly IVideoStorageService _videoStorageService = videoStorageService;

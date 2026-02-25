@@ -38,7 +38,7 @@ public class AuthController(
     AppDbContext db, 
     IJwtUtils jwtUtils,
     IOptions<AppSettings> appSettings,
-    ILogger<AuthController> logger) : FuelfluxControllerPreBase(db, logger)
+    ILogger<AuthController> logger) : MediaPiControllerPreBase(db, logger)
 {
     /// <summary>
     /// JWT utilities service for generating and validating authentication tokens
