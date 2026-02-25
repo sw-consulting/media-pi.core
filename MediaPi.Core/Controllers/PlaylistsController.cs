@@ -39,7 +39,7 @@ public class PlaylistsController(
 
         IQueryable<Playlist> query = _db.Playlists
             .AsNoTracking()
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
                 .ThenInclude(vp => vp.Video);
 
         if (user.IsAdministrator())
@@ -74,7 +74,7 @@ public class PlaylistsController(
         var playlists = await _db.Playlists
             .AsNoTracking()
             .Where(d => d.AccountId == accountId)
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
                 .ThenInclude(vp => vp.Video)
             .ToListAsync(ct);
 
@@ -93,7 +93,7 @@ public class PlaylistsController(
 
         var playlist = await _db.Playlists
             .AsNoTracking()
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
                 .ThenInclude(vp => vp.Video)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (playlist == null) return _404Playlist(id);
@@ -142,7 +142,7 @@ public class PlaylistsController(
         // Add items with their positions
         foreach (var playlistItem in items.OrderBy(i => i.Position))
         {
-            playlist.VideoPlaylists.Add(new VideoPlaylist 
+            playlist.VideosPlaylist.Add(new VideoPlaylist 
             { 
                 VideoId = playlistItem.VideoId, 
                 Position = playlistItem.Position,
@@ -169,7 +169,7 @@ public class PlaylistsController(
         if (user == null) return _403();
 
         var playlist = await _db.Playlists
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
                 .ThenInclude(vp => vp.Video)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (playlist == null) return _404Playlist(id);
@@ -191,17 +191,17 @@ public class PlaylistsController(
         if (validationError != null) return validationError;
 
         // Remove all existing items and replace with new ones
-        var toRemove = playlist.VideoPlaylists.ToList();
+        var toRemove = playlist.VideosPlaylist.ToList();
         if (toRemove.Count > 0)
         {
-            playlist.VideoPlaylists.Clear();
+            playlist.VideosPlaylist.Clear();
             _db.VideoPlaylists.RemoveRange(toRemove);
         }
 
         // Add new items
         foreach (var playlistItem in items.OrderBy(i => i.Position))
         {
-            playlist.VideoPlaylists.Add(new VideoPlaylist 
+            playlist.VideosPlaylist.Add(new VideoPlaylist 
             { 
                 PlaylistId = playlist.Id, 
                 VideoId = playlistItem.VideoId,
@@ -224,16 +224,16 @@ public class PlaylistsController(
         if (user == null) return _403();
 
         var playlist = await _db.Playlists
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
                 .ThenInclude(vp => vp.Video)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (playlist == null) return _404Playlist(id);
 
         if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
-        if (playlist.VideoPlaylists.Count != 0)
+        if (playlist.VideosPlaylist.Count != 0)
         {
-            _db.VideoPlaylists.RemoveRange(playlist.VideoPlaylists);
+            _db.VideoPlaylists.RemoveRange(playlist.VideosPlaylist);
         }
 
         _db.Playlists.Remove(playlist);

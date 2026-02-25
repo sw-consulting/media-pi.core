@@ -73,7 +73,7 @@ public class PlaylistsControllerTests
             Filename = "p1.json",
             AccountId = _account1.Id,
             Account = _account1,
-            VideoPlaylists =
+            VideosPlaylist =
             [
                 new VideoPlaylist { VideoId = _video1Acc1.Id, PlaylistId = 1, Position = 0 },
                 new VideoPlaylist { VideoId = _video2Acc1.Id, PlaylistId = 1, Position = 1 }
@@ -87,7 +87,7 @@ public class PlaylistsControllerTests
             Filename = "p2.json",
             AccountId = _account2.Id,
             Account = _account2,
-            VideoPlaylists =
+            VideosPlaylist =
             [
                 new VideoPlaylist { VideoId = _videoAcc2.Id, PlaylistId = 2, Position = 0 }
             ]
@@ -272,10 +272,10 @@ public class PlaylistsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
 
         var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
             .FirstAsync(p => p.Id == _playlist1.Id);
         Assert.That(playlist.Title, Is.EqualTo("Updated"));
-        Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EquivalentTo(new[] { _video1Acc1.Id }));
+        Assert.That(playlist.VideosPlaylist.Select(vp => vp.VideoId), Is.EquivalentTo(new[] { _video1Acc1.Id }));
     }
 
     [Test]
@@ -312,13 +312,13 @@ public class PlaylistsControllerTests
         var reference = (Reference)created.Value!;
         
         var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists.OrderBy(vp => vp.Position))
+            .Include(p => p.VideosPlaylist.OrderBy(vp => vp.Position))
             .ThenInclude(vp => vp.Video)
             .FirstAsync(p => p.Id == reference.Id);
             
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(3));
-        Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video2Acc1.Id, _video1Acc1.Id, _video2Acc1.Id }));
-        Assert.That(playlist.VideoPlaylists.Select(vp => vp.Position), Is.EqualTo(new[] { 0, 1, 2 }));
+        Assert.That(playlist.VideosPlaylist.Count, Is.EqualTo(3));
+        Assert.That(playlist.VideosPlaylist.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video2Acc1.Id, _video1Acc1.Id, _video2Acc1.Id }));
+        Assert.That(playlist.VideosPlaylist.Select(vp => vp.Position), Is.EqualTo(new[] { 0, 1, 2 }));
         
         // Test the PlaylistViewItem with duplicates - should count duplicates in duration but not size
         var playlistView = playlist.ToViewItem();
@@ -372,13 +372,13 @@ public class PlaylistsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
 
         var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists.OrderBy(vp => vp.Position))
+            .Include(p => p.VideosPlaylist.OrderBy(vp => vp.Position))
             .FirstAsync(p => p.Id == _playlist1.Id);
             
         Assert.That(playlist.Title, Is.EqualTo("Updated Playlist"));
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(2));
-        Assert.That(playlist.VideoPlaylists.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video1Acc1.Id, _video1Acc1.Id }));
-        Assert.That(playlist.VideoPlaylists.Select(vp => vp.Position), Is.EqualTo(new[] { 5, 10 }));
+        Assert.That(playlist.VideosPlaylist.Count, Is.EqualTo(2));
+        Assert.That(playlist.VideosPlaylist.Select(vp => vp.VideoId), Is.EqualTo(new[] { _video1Acc1.Id, _video1Acc1.Id }));
+        Assert.That(playlist.VideosPlaylist.Select(vp => vp.Position), Is.EqualTo(new[] { 5, 10 }));
     }
 
     [Test]
@@ -467,11 +467,11 @@ public class PlaylistsControllerTests
         var reference = (Reference)created.Value!;
         
         var playlist = await _dbContext.Playlists
-            .Include(p => p.VideoPlaylists)
+            .Include(p => p.VideosPlaylist)
             .FirstAsync(p => p.Id == reference.Id);
             
         // With new Items structure, duplicates are allowed
-        Assert.That(playlist.VideoPlaylists.Count, Is.EqualTo(2));
+        Assert.That(playlist.VideosPlaylist.Count, Is.EqualTo(2));
     }
 
     [Test]
@@ -748,7 +748,7 @@ public class PlaylistsControllerTests
             Title = "Large Playlist",
             Filename = "large.json",
             AccountId = _account1.Id,
-            VideoPlaylists = [
+            VideosPlaylist = [
                 new VideoPlaylist { VideoId = largeVideo1.Id, PlaylistId = 100, Position = 0, Video = largeVideo1 },
                 new VideoPlaylist { VideoId = largeVideo2.Id, PlaylistId = 100, Position = 1, Video = largeVideo2 }
             ]

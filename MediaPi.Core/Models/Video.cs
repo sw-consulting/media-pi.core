@@ -41,6 +41,11 @@ namespace MediaPi.Core.Models
         [Range(0, uint.MaxValue, ErrorMessage = "Duration must be between 0 and 4,294,967,295 seconds")]
         public uint? DurationSeconds { get; set; }
 
+        // Store SHA-256 as fixed-length 64-character hex string (Postgres CHAR(64))
+        [Column("sha256", TypeName = "char(64)")]
+        [StringLength(64)]
+        public string? Sha256 { get; set; }
+
         [Column("category_id")]
         public int? CategoryId { get; set; }
         public Category? Category { get; set; }

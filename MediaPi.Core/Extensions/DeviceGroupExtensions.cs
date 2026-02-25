@@ -8,10 +8,5 @@ namespace MediaPi.Core.Extensions;
 
 public static class DeviceGroupExtensions
 {
-    public static DeviceGroupViewItem ToViewItem(this DeviceGroup group) => new(group);
-
-    public static void UpdateFrom(this DeviceGroup group, DeviceGroupUpdateItem item)
-    {
-        if (item.Name != null) group.Name = item.Name;
-    }
+    public static DeviceGroupViewItem ToViewItem(this DeviceGroup group) => new (group);
 }

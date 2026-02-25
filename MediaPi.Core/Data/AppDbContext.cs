@@ -23,7 +23,7 @@ namespace MediaPi.Core.Data
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
-        public DbSet<VideoStatus> VideoStatuses => Set<VideoStatus>();
+        public DbSet<PlaylistDeviceGroup> PlaylistDeviceGroups => Set<PlaylistDeviceGroup>();
         public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
         public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
 
@@ -67,8 +67,20 @@ namespace MediaPi.Core.Data
 
             modelBuilder.Entity<VideoPlaylist>()
                 .HasOne(vp => vp.Playlist)
-                .WithMany(p => p.VideoPlaylists)
+                .WithMany(p => p.VideosPlaylist)
                 .HasForeignKey(vp => vp.PlaylistId);
+
+            modelBuilder.Entity<PlaylistDeviceGroup>()
+                .HasOne(vp => vp.Playlist)
+                .WithMany(p => p.PlaylistDeviceGroups)
+                .HasForeignKey(vp => vp.PlaylistId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PlaylistDeviceGroup>()
+                .HasOne(vp => vp.DeviceGroup)
+                .WithMany(p => p.PlaylistsDeviceGroup)
+                .HasForeignKey(vp => vp.DeviceGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Configure Video entity - explicitly map uint properties to bigint
             // This documents the intentional type mismatch for clarity
@@ -93,13 +105,6 @@ namespace MediaPi.Core.Data
                 .WithMany(g => g.Devices)
                 .HasForeignKey(d => d.DeviceGroupId)
                 .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<VideoStatus>().HasData(
-                new VideoStatus { Id = StatusConstants.Queued, Name = "Queued" },
-                new VideoStatus { Id = StatusConstants.Loading, Name = "Loading" },
-                new VideoStatus { Id = StatusConstants.Loaded, Name = "Loaded" },
-                new VideoStatus { Id = StatusConstants.Playing, Name = "Playing" }
-            );
 
             modelBuilder.Entity<Role>().HasData(
                 new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" },

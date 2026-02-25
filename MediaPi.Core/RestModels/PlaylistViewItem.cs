@@ -31,7 +31,7 @@ public class PlaylistViewItem
         Title = playlist.Title;
         Filename = playlist.Filename;
         AccountId = playlist.AccountId;
-        Items = playlist.VideoPlaylists
+        Items = playlist.VideosPlaylist
             .OrderBy(vp => vp.Position)
             .Select(vp => new PlaylistItemDto { VideoId = vp.VideoId, Position = vp.Position });
 
@@ -44,15 +44,15 @@ public class PlaylistViewItem
     
     private static (ulong TotalFileSizeBytes, uint? TotalDurationSeconds, int VideoCount) CalculateStats(Playlist playlist)
     {
-        if (playlist.VideoPlaylists == null || !playlist.VideoPlaylists.Any())
+        if (playlist.VideosPlaylist == null || !playlist.VideosPlaylist.Any())
         {
             return (0, null, 0);
         }
 
-        var videoCount = playlist.VideoPlaylists.Count; // Include duplicates in count
+        var videoCount = playlist.VideosPlaylist.Count; // Include duplicates in count
 
         // For file size: Get unique videos to avoid counting duplicates
-        var uniqueVideos = playlist.VideoPlaylists
+        var uniqueVideos = playlist.VideosPlaylist
             .Where(vp => vp.Video != null)
             .GroupBy(vp => vp.VideoId)
             .Select(g => g.First().Video)
@@ -62,13 +62,13 @@ public class PlaylistViewItem
         var totalSize = uniqueVideos.Aggregate(0UL, (acc, v) => acc + (ulong)v.FileSizeBytes);
 
         // For duration: Count all instances including duplicates
-        var videosWithDuration = playlist.VideoPlaylists
+        var videosWithDuration = playlist.VideosPlaylist
             .Where(vp => vp.Video != null && vp.Video.DurationSeconds.HasValue)
             .Select(vp => vp.Video)
             .ToList();
 
         uint? totalDuration = null;
-        if (videosWithDuration.Count == playlist.VideoPlaylists.Count)
+        if (videosWithDuration.Count == playlist.VideosPlaylist.Count)
         {
             // All videos have duration data
             var durationSum = videosWithDuration.Sum(v => (long)v.DurationSeconds!.Value);
