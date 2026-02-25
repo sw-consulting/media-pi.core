@@ -3,6 +3,7 @@
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
+using MediaPi.Core.Middleware;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Settings;
@@ -133,6 +134,7 @@ using (var scope = app.Services.CreateScope())
 app
     .UseMiddleware<JwtMiddleware>()
     .UseMiddleware<AuthorizeDeviceByIpMiddleware>()
+    .UseMiddleware<DatabaseConstraintMiddleware>()
     .UseSwagger()
     .UseSwaggerUI();
 if (useHttps)

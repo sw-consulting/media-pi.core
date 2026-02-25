@@ -518,7 +518,7 @@ public class DevicesControllerErrorTests
         SetCurrentUser(_admin.Id);
         var configuration = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "one" } },
             Audio = new AudioSettingsDto { Output = "HDMI" }
         };

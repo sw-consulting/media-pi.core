@@ -1142,7 +1142,7 @@ public class DevicesControllerTests
     public async Task GetServiceStatus_Admin_ReturnsAgentData()
     {
         SetCurrentUser(_admin.Id);
-        var dto = new ServiceStatusDto { PlaybackServiceStatus = true, PlaylistUploadServiceStatus = false, YaDiskMountStatus = true };
+        var dto = new ServiceStatusDto { PlaybackServiceStatus = true, PlaylistUploadServiceStatus = false };
         var agentResponse = new MediaPiMenuDataResponse<ServiceStatusDto> { Ok = true, Data = dto };
         _agentClient2Mock
             .Setup(c => c.GetServiceStatusAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
@@ -1198,7 +1198,7 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var dto = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "src", Destination = "dst" },
+            Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" }
         };
@@ -1235,7 +1235,7 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var payload = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
             Audio = new AudioSettingsDto { Output = "LINE" }
         };
@@ -1295,7 +1295,7 @@ public class DevicesControllerTests
         // Prepare payload for UpdateConfiguration
         var payload = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" }
         };

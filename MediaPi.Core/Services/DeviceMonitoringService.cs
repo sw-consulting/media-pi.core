@@ -211,15 +211,8 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 foreach (var probe in probeResults)
                     db.DeviceProbes.Add(probe);
 
-                try
-                {
-                    await db.SaveChangesAsync(stoppingToken);
-                    _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error saving device probe results to database.");
-                }
+                await db.SaveChangesAsync(stoppingToken);
+                _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
 
                 var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(_settings.FallbackIntervalSeconds)).Min();
                 var delay = next - DateTime.UtcNow;

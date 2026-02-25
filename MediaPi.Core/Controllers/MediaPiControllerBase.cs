@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Controllers;
-public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
+public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
 {
     protected readonly AppDbContext _db = db;
     protected readonly ILogger _logger = logger;
@@ -212,7 +212,7 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
     }
 }
 
-public class MediaPiControllerBase : FuelfluxControllerPreBase
+public class MediaPiControllerBase : MediaPiControllerPreBase
 {
 
     protected readonly int _curUserId;

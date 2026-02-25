@@ -106,7 +106,7 @@ public class MediaPiAgentClient2Tests
                 ok = true,
                 data = new
                 {
-                    playlist = new { source = "s", destination = "d" },
+                    playlist = new { destination = "d" },
                     schedule = new { playlist = new[] { "one" }, video = Array.Empty<string>(), rest = Array.Empty<object>() },
                     audio = new { output = "HDMI" }
                 }
@@ -137,7 +137,7 @@ public class MediaPiAgentClient2Tests
         var model = response.Data;
         Assert.That(model, Is.Not.Null);
         Assert.That(model!.Audio.Output, Is.EqualTo("HDMI"));
-        Assert.That(model.Playlist.Source, Is.EqualTo("s"));
+        Assert.That(model.Playlist.Destination, Is.EqualTo("d"));
         Assert.That(model.Schedule.Playlist, Does.Contain("one"));
     }
 
@@ -164,7 +164,7 @@ public class MediaPiAgentClient2Tests
         var device = CreateDevice(serverKey: "secret");
         var payload = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "src", Destination = "dst" },
+            Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = ["a"] },
             Audio = new AudioSettingsDto { Output = "HDMI" }
         };
@@ -180,7 +180,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"source\":\"src\",\"destination\":\"dst\"},\"schedule\":{\"playlist\":[\"a\"],\"video\":[]},\"audio\":{\"output\":\"HDMI\"}}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"dst\"},\"schedule\":{\"playlist\":[\"a\"],\"video\":[]},\"audio\":{\"output\":\"HDMI\"}}"));
         Assert.That(observedAuth, Is.Not.Null);
         Assert.That(observedAuth!.Scheme, Is.EqualTo("Bearer"));
         Assert.That(observedAuth.Parameter, Is.EqualTo("secret"));
@@ -297,7 +297,7 @@ public class MediaPiAgentClient2Tests
         var handler = new StubHttpMessageHandler((request, _) =>
         {
             observedUri = request.RequestUri;
-            var json = JsonSerializer.Serialize(new { ok = true, data = new { playlist = new { source = "s", destination = "d" }, schedule = new { playlist = Array.Empty<string>(), video = Array.Empty<string>(), rest = Array.Empty<object>() }, audio = new { output = "HDMI" } } });
+            var json = JsonSerializer.Serialize(new { ok = true, data = new { playlist = new { destination = "d" }, schedule = new { playlist = Array.Empty<string>(), video = Array.Empty<string>(), rest = Array.Empty<object>() }, audio = new { output = "HDMI" } } });
             return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -373,7 +373,7 @@ public class MediaPiAgentClient2Tests
         var device = CreateDevice();
         var payload = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "cloud", Destination = "local" },
+            Playlist = new PlaylistSettingsDto { Destination = "local" },
             Schedule = new ScheduleSettingsDto
             {
                 Playlist = new List<string> { "morning" },
@@ -394,7 +394,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"source\":\"cloud\",\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"}}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"}}"));
     }
 
     [Test]
@@ -411,8 +411,7 @@ public class MediaPiAgentClient2Tests
                 {
                     playbackServiceStatus = true,
                     playlistUploadServiceStatus = false,
-                    videoUploadServiceStatus = false,
-                    yaDiskMountStatus = true
+                    videoUploadServiceStatus = false
                 }
             });
 
@@ -444,7 +443,6 @@ public class MediaPiAgentClient2Tests
         Assert.That(model!.PlaybackServiceStatus, Is.True);
         Assert.That(model.PlaylistUploadServiceStatus, Is.False);
         Assert.That(model.VideoUploadServiceStatus, Is.False);
-        Assert.That(model.YaDiskMountStatus, Is.True);
     }
 
     private static MediaPiAgentClient2 CreateClient(HttpMessageHandler handler, TestLogger<MediaPiAgentClient2>? logger = null)

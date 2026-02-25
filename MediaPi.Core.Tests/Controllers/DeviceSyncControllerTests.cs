@@ -312,4 +312,164 @@ public class DeviceSyncControllerTests
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
+
+    [Test]
+    public async Task DownloadPlaylist_DeviceWithoutGroup_ReturnsNoContent()
+    {
+        var deviceWithoutGroup = new Device { Id = 4, Name = "NoGroup", IpAddress = "127.0.0.4", Port = 8083 };
+        _dbContext.Devices.Add(deviceWithoutGroup);
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(deviceWithoutGroup.Id);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+    }
+
+    [Test]
+    public async Task DownloadPlaylist_NoPlaylistWithPlayTrue_ReturnsNoContent()
+    {
+        var playlist = new Playlist { Id = 6, Title = "Playlist 6", Filename = "playlist6.json", AccountId = _account.Id, Account = _account };
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup 
+        { 
+            PlaylistId = playlist.Id, 
+            Playlist = playlist, 
+            DeviceGroupId = _deviceGroup.Id, 
+            DeviceGroup = _deviceGroup,
+            Play = false 
+        });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+    }
+
+    [Test]
+    public async Task DownloadPlaylist_PlaylistWithPlayTrue_ReturnsM3uFile()
+    {
+        var playlist = new Playlist { Id = 7, Title = "Playlist 7", Filename = "playlist7.json", AccountId = _account.Id, Account = _account };
+        var video1 = new Video { Id = 60, Title = "Video 7", Filename = "0001/video7.mp4", OriginalFilename = "video7.mp4", FileSizeBytes = 1024, AccountId = _account.Id, Account = _account, Sha256 = "aaa" };
+        var video2 = new Video { Id = 61, Title = "Video 8", Filename = "0001/video8.mp4", OriginalFilename = "video8.mp4", FileSizeBytes = 2048, AccountId = _account.Id, Account = _account, Sha256 = "bbb" };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.AddRange(video1, video2);
+        _dbContext.VideoPlaylists.AddRange(
+            new VideoPlaylist { VideoId = video1.Id, Video = video1, PlaylistId = playlist.Id, Playlist = playlist, Position = 1 },
+            new VideoPlaylist { VideoId = video2.Id, Video = video2, PlaylistId = playlist.Id, Playlist = playlist, Position = 0 });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup 
+        { 
+            PlaylistId = playlist.Id, 
+            Playlist = playlist, 
+            DeviceGroupId = _deviceGroup.Id, 
+            DeviceGroup = _deviceGroup,
+            Play = true 
+        });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var fileResult = (FileContentResult)result;
+        Assert.That(fileResult.ContentType, Is.EqualTo("text/plain"));
+        Assert.That(fileResult.FileDownloadName, Is.EqualTo("playlist.m3u"));
+
+        var content = System.Text.Encoding.UTF8.GetString(fileResult.FileContents);
+        Assert.That(content, Does.StartWith("#EXTM3U"));
+        Assert.That(content, Does.Contain("0001/video8.mp4")); // Position 0 should be first
+        Assert.That(content, Does.Contain("0001/video7.mp4")); // Position 1 should be second
+        
+        // Verify ordering
+        var video8Index = content.IndexOf("0001/video8.mp4");
+        var video7Index = content.IndexOf("0001/video7.mp4");
+        Assert.That(video8Index, Is.LessThan(video7Index), "Videos should be ordered by position");
+    }
+
+    [Test]
+    public async Task DownloadPlaylist_DeviceNotFound_Returns404()
+    {
+        SetDeviceContext(999);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task DownloadPlaylist_DeviceIdMissing_Returns500()
+    {
+        SetDeviceContext(null);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+    }
+
+    [Test]
+    public async Task DownloadPlaylist_MultiplePlaylistsOneWithPlayTrue_ReturnsCorrectM3u()
+    {
+        var playlist1 = new Playlist { Id = 8, Title = "Playlist 8", Filename = "playlist8.json", AccountId = _account.Id, Account = _account };
+        var playlist2 = new Playlist { Id = 9, Title = "Playlist 9", Filename = "playlist9.json", AccountId = _account.Id, Account = _account };
+        var video1 = new Video { Id = 70, Title = "Video 9", Filename = "0001/video9.mp4", OriginalFilename = "video9.mp4", FileSizeBytes = 1024, AccountId = _account.Id, Account = _account, Sha256 = "ccc" };
+        var video2 = new Video { Id = 71, Title = "Video 10", Filename = "0001/video10.mp4", OriginalFilename = "video10.mp4", FileSizeBytes = 2048, AccountId = _account.Id, Account = _account, Sha256 = "ddd" };
+
+        _dbContext.Playlists.AddRange(playlist1, playlist2);
+        _dbContext.Videos.AddRange(video1, video2);
+        _dbContext.VideoPlaylists.AddRange(
+            new VideoPlaylist { VideoId = video1.Id, Video = video1, PlaylistId = playlist1.Id, Playlist = playlist1, Position = 0 },
+            new VideoPlaylist { VideoId = video2.Id, Video = video2, PlaylistId = playlist2.Id, Playlist = playlist2, Position = 0 });
+        _dbContext.PlaylistDeviceGroups.AddRange(
+            new PlaylistDeviceGroup { PlaylistId = playlist1.Id, Playlist = playlist1, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup, Play = false },
+            new PlaylistDeviceGroup { PlaylistId = playlist2.Id, Playlist = playlist2, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup, Play = true });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var fileResult = (FileContentResult)result;
+        var content = System.Text.Encoding.UTF8.GetString(fileResult.FileContents);
+        
+        Assert.That(content, Does.Contain("0001/video10.mp4"));
+        Assert.That(content, Does.Not.Contain("0001/video9.mp4"));
+    }
+
+    [Test]
+    public async Task DownloadPlaylist_PlaylistWithPlayTrueButNoVideos_ReturnsEmptyM3u()
+    {
+        var playlist = new Playlist { Id = 10, Title = "Empty Playlist", Filename = "empty.json", AccountId = _account.Id, Account = _account };
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup 
+        { 
+            PlaylistId = playlist.Id, 
+            Playlist = playlist, 
+            DeviceGroupId = _deviceGroup.Id, 
+            DeviceGroup = _deviceGroup,
+            Play = true 
+        });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.DownloadPlaylist();
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var fileResult = (FileContentResult)result;
+        var content = System.Text.Encoding.UTF8.GetString(fileResult.FileContents);
+        
+        Assert.That(content, Does.StartWith("#EXTM3U"));
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.That(lines.Length, Is.EqualTo(1)); // Only #EXTM3U line
+    }
 }
