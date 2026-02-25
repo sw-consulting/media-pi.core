@@ -11,9 +11,9 @@ namespace MediaPi.Core.RestModels;
 public class DeviceGroupViewItem
 {
     public int Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
     public int AccountId { get; set; }
-    public List<PlaylistDeviceGroupItemDto> PlayLists { get; set; }
+    public List<PlaylistDeviceGroupItemDto> PlayLists { get; set; } = [];
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
