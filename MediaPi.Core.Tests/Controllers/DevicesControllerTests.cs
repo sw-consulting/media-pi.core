@@ -1198,7 +1198,7 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var dto = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "src", Destination = "dst" },
+            Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" }
         };
@@ -1235,7 +1235,7 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var payload = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
             Audio = new AudioSettingsDto { Output = "LINE" }
         };
@@ -1295,7 +1295,7 @@ public class DevicesControllerTests
         // Prepare payload for UpdateConfiguration
         var payload = new ConfigurationSettingsDto
         {
-            Playlist = new PlaylistSettingsDto { Source = "s", Destination = "d" },
+            Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" }
         };

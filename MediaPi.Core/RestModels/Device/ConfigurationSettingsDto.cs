@@ -10,7 +10,6 @@ public class ConfigurationSettingsDto
     [JsonPropertyName("playlist")]
     public PlaylistSettingsDto Playlist { get; set; } = new()
     {
-        Source = string.Empty,
         Destination = string.Empty
     };
 
