@@ -24,8 +24,9 @@ public class DeviceGroupViewItem
         Id = group.Id;
         Name = group.Name;
         AccountId = group.AccountId;
+        // Order by the join-entity Id to preserve a stable, insertion-based ordering of playlists.
         PlayLists = [.. group.PlaylistsDeviceGroup
-            .OrderBy(pdg => (pdg.Id))
+            .OrderBy(pdg => pdg.Id)
             .Select((pdg => new PlaylistDeviceGroupItemDto { PlaylistId = pdg.PlaylistId, Play = pdg.Play }))];
     }
 }
