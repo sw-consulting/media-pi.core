@@ -411,8 +411,7 @@ public class MediaPiAgentClient2Tests
                 {
                     playbackServiceStatus = true,
                     playlistUploadServiceStatus = false,
-                    videoUploadServiceStatus = false,
-                    yaDiskMountStatus = true
+                    videoUploadServiceStatus = false
                 }
             });
 
@@ -444,7 +443,6 @@ public class MediaPiAgentClient2Tests
         Assert.That(model!.PlaybackServiceStatus, Is.True);
         Assert.That(model.PlaylistUploadServiceStatus, Is.False);
         Assert.That(model.VideoUploadServiceStatus, Is.False);
-        Assert.That(model.YaDiskMountStatus, Is.True);
     }
 
     private static MediaPiAgentClient2 CreateClient(HttpMessageHandler handler, TestLogger<MediaPiAgentClient2>? logger = null)
