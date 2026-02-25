@@ -210,6 +210,12 @@ public class FuelfluxControllerPreBase(AppDbContext db, ILogger logger) : Contro
         return StatusCode(StatusCodes.Status403Forbidden,
                           new ErrMessage { Msg = $"Устройство [id={deviceId}] не имеет доступа к видео [id={videoId}]" });
     }
+
+    protected ObjectResult _409PlaylistDeviceGroupPlayConstraint()
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = "Группа устройств может иметь не более одного плейлиста с Play = true" });
+    }
 }
 
 public class MediaPiControllerBase : FuelfluxControllerPreBase

@@ -106,6 +106,11 @@ namespace MediaPi.Core.Data
                 .HasForeignKey(d => d.DeviceGroupId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            modelBuilder.Entity<PlaylistDeviceGroup>()
+                 .HasIndex(pdg => pdg.DeviceGroupId)
+                 .IsUnique()
+                 .HasFilter("\"play\" = true");
+    
             modelBuilder.Entity<Role>().HasData(
                 new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" },
                 new Role { Id = 2, RoleId = UserRoleConstants.AccountManager, Name = "Менеджер лицевого счёта" },
