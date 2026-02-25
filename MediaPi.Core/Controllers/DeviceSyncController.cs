@@ -123,4 +123,66 @@ public class DeviceSyncController(
         var path = _videoStorageService.GetAbsolutePath(video.Filename);
         return PhysicalFile(path, "application/octet-stream", video.OriginalFilename);
     }
+
+    [HttpGet("playlist")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<IActionResult> DownloadPlaylist(CancellationToken ct = default)
+    {
+        if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
+        {
+            return _500DeviceIdMissing();
+        }
+
+        var device = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct);
+        if (device == null) return _404Device(deviceId);
+
+        if (!device.DeviceGroupId.HasValue)
+        {
+            return NoContent();
+        }
+
+        var deviceGroupId = device.DeviceGroupId.Value;
+
+        // Find a playlist with Play=true associated with this device group
+        var playlistWithPlay = await _db.PlaylistDeviceGroups.AsNoTracking()
+            .Include(pdg => pdg.Playlist)
+                .ThenInclude(p => p.VideosPlaylist)
+                    .ThenInclude(vp => vp.Video)
+            .Where(pdg => pdg.DeviceGroupId == deviceGroupId && pdg.Play == true)
+            .FirstOrDefaultAsync(ct);
+
+        if (playlistWithPlay == null)
+        {
+            return NoContent();
+        }
+
+        // Get videos ordered by position
+        var videos = playlistWithPlay.Playlist.VideosPlaylist
+            .OrderBy(vp => vp.Position)
+            .Select(vp => vp.Video.Filename)
+            .ToList();
+
+        // Generate M3U content
+        var m3uContent = GenerateM3uContent(videos);
+
+        // Return as text/plain with .m3u extension
+        var bytes = System.Text.Encoding.UTF8.GetBytes(m3uContent);
+        return File(bytes, "text/plain", "playlist.m3u");
+    }
+
+    private string GenerateM3uContent(List<string> videoFilenames)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("#EXTM3U");
+
+        foreach (var filename in videoFilenames)
+        {
+            sb.AppendLine(filename);
+        }
+
+        return sb.ToString();
+    }
 }
