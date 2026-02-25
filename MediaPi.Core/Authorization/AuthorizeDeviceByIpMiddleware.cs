@@ -36,6 +36,7 @@ public class AuthorizeDeviceByIpMiddleware
         var remoteIp = context.Connection.RemoteIpAddress;
         var ipAddress = remoteIp?.ToString();
         var ipAddressV4 = remoteIp?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+            && remoteIp.IsIPv4MappedToIPv6
             ? remoteIp.MapToIPv4().ToString()
             : null;
 
