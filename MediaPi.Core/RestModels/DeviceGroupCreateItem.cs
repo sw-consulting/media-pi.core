@@ -11,7 +11,7 @@ public class DeviceGroupCreateItem
 {
     public string Name { get; set; } = string.Empty;
     public int AccountId { get; set; }
-    public required List<PlaylistDeviceGroupItemDto> Playlists { get; set; } = [];
+    public required List<PlaylistDeviceGroupItemDto> Playlists { get; set; }
     public override string ToString()
     {
         return JsonSerializer.Serialize(this, JOptions.DefaultOptions);
