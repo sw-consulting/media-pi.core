@@ -177,12 +177,12 @@ public class DeviceSyncController(
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("#EXTM3U");
-        
+
         foreach (var filename in videoFilenames)
         {
             sb.AppendLine(filename);
         }
-        
+
         return sb.ToString();
     }
 }
