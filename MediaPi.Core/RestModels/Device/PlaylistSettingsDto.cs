@@ -6,9 +6,6 @@ namespace MediaPi.Core.RestModels.Device
 {
     public class PlaylistSettingsDto
     {
-        [JsonPropertyName("source")]
-        public required string Source { get; init; }
-
         [JsonPropertyName("destination")]
         public required string Destination { get; init; }
     }
