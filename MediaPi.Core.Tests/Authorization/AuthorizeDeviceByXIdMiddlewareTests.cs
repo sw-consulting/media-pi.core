@@ -17,10 +17,10 @@ using NUnit.Framework;
 namespace MediaPi.Core.Tests.Authorization;
 
 /// <summary>
-/// Tests for AuthorizeDeviceByServerKeyMiddleware.
+/// Tests for AuthorizeDeviceByXIdMiddleware.
 /// Devices are authorized via X-Device-Id header containing server_key.
 /// </summary>
-public class AuthorizeDeviceByServerKeyMiddlewareTests
+public class AuthorizeDeviceByXIdMiddlewareTests
 {
     private static AppDbContext CreateDbContext()
     {
@@ -49,13 +49,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         using var db = CreateDbContext();
         var context = new DefaultHttpContext();
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.True);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status200OK));
@@ -67,13 +67,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         using var db = CreateDbContext();
         var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute(), new Core.Authorization.AllowAnonymousAttribute());
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.True);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status200OK));
@@ -85,13 +85,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         using var db = CreateDbContext();
         var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute());
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.False);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
@@ -109,13 +109,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute());
         context.Request.Headers["X-Device-Id"] = new StringValues(string.Empty);
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.False);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
@@ -133,13 +133,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute());
         context.Request.Headers["X-Device-Id"] = new StringValues("unknown-server-key");
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.False);
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
@@ -167,13 +167,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute());
         context.Request.Headers["X-Device-Id"] = new StringValues("device-server-key-123");
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.True);
         Assert.That(context.Items["DeviceId"], Is.EqualTo(42));
@@ -196,13 +196,13 @@ public class AuthorizeDeviceByServerKeyMiddlewareTests
         var context = CreateContextWithEndpoint(new AuthorizeDeviceAttribute());
         context.Request.Headers["X-Device-Id"] = new StringValues("  my-key  ");
         var nextCalled = false;
-        var middleware = new AuthorizeDeviceByServerKeyMiddleware(_ =>
+        var middleware = new AuthorizeDeviceByXIdMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
         });
 
-        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByServerKeyMiddleware>>());
+        await middleware.Invoke(context, db, Mock.Of<ILogger<AuthorizeDeviceByXIdMiddleware>>());
 
         Assert.That(nextCalled, Is.True);
         Assert.That(context.Items["DeviceId"], Is.EqualTo(99));

@@ -133,7 +133,7 @@ using (var scope = app.Services.CreateScope())
 
 app
     .UseMiddleware<JwtMiddleware>()
-    .UseMiddleware<AuthorizeDeviceByServerKeyMiddleware>()
+    .UseMiddleware<AuthorizeDeviceByXIdMiddleware>()
     .UseMiddleware<DatabaseConstraintMiddleware>()
     .UseSwagger()
     .UseSwaggerUI();

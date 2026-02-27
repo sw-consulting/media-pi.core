@@ -14,17 +14,17 @@ namespace MediaPi.Core.Authorization;
 /// Middleware to authorize devices by server key via X-Device-Id header.
 /// Devices must provide their server_key in the X-Device-Id header.
 /// </summary>
-public class AuthorizeDeviceByServerKeyMiddleware
+public class AuthorizeDeviceByXIdMiddleware
 {
     private readonly RequestDelegate _next;
     private const string DeviceIdHeaderName = "X-Device-Id";
 
-    public AuthorizeDeviceByServerKeyMiddleware(RequestDelegate next)
+    public AuthorizeDeviceByXIdMiddleware(RequestDelegate next)
     {
         _next = next;
     }
 
-    public async Task Invoke(HttpContext context, AppDbContext db, ILogger<AuthorizeDeviceByServerKeyMiddleware> logger)
+    public async Task Invoke(HttpContext context, AppDbContext db, ILogger<AuthorizeDeviceByXIdMiddleware> logger)
     {
         var endpoint = context.GetEndpoint();
         var authorizeDevice = endpoint?.Metadata.GetMetadata<AuthorizeDeviceAttribute>();
@@ -68,7 +68,7 @@ public class AuthorizeDeviceByServerKeyMiddleware
         await _next(context);
     }
 
-    private static async Task RejectAsync(HttpContext context, ILogger<AuthorizeDeviceByServerKeyMiddleware> logger, string message)
+    private static async Task RejectAsync(HttpContext context, ILogger<AuthorizeDeviceByXIdMiddleware> logger, string message)
     {
         logger.LogWarning(message);
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
