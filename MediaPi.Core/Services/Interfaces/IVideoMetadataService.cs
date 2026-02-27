@@ -6,7 +6,7 @@ namespace MediaPi.Core.Services.Interfaces;
 public interface IVideoMetadataService
 {
     /// <summary>
-    /// Extracts metadata from a video file including file size and duration
+    /// Extracts metadata from a video file including file size, duration, and SHA256 hash
     /// </summary>
     /// <param name="filePath">Full path to the video file</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -18,4 +18,5 @@ public class VideoMetadata
 {
     public required uint FileSizeBytes { get; set; }
     public uint? DurationSeconds { get; set; }
+    public string? Sha256 { get; set; }
 }

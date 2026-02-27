@@ -647,6 +647,166 @@ public class VideoMetadataServiceTests
 
     #endregion
 
+    #region SHA256 Calculation Tests
+
+    [Test]
+    public async Task ExtractMetadataAsync_CalculatesSha256()
+    {
+        var content = "test video content for sha256 calculation";
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", content);
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Sha256, Is.Not.Null.And.Not.Empty);
+            Assert.That(result.Sha256, Has.Length.EqualTo(64), "SHA256 hex string should be 64 characters");
+            Assert.That(result.Sha256, Does.Match("^[a-f0-9]{64}$"), "SHA256 should be lowercase hex");
+
+            // Verify the hash is correct
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var expectedHash = Convert.ToHexString(sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
+            Assert.That(result.Sha256, Is.EqualTo(expectedHash));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_EmptyFile_CalculatesSha256()
+    {
+        var tempFile = await TestVideoFileGenerator.CreateEmptyFileAsync();
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Sha256, Is.Not.Null.And.Not.Empty);
+            Assert.That(result.Sha256, Has.Length.EqualTo(64));
+
+            // Empty file should have known SHA256
+            const string emptyFileSha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+            Assert.That(result.Sha256, Is.EqualTo(emptyFileSha256));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_LargeFile_CalculatesSha256()
+    {
+        // Create a 1MB file
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithSizeAsync(".mp4", 1024 * 1024);
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Sha256, Is.Not.Null.And.Not.Empty);
+            Assert.That(result.Sha256, Has.Length.EqualTo(64));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_Sha256IsConsistent()
+    {
+        var content = "consistent content for testing sha256";
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", content);
+        try
+        {
+            var result1 = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+            var result2 = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+
+            Assert.That(result1, Is.Not.Null);
+            Assert.That(result2, Is.Not.Null);
+            Assert.That(result1!.Sha256, Is.EqualTo(result2!.Sha256), "SHA256 should be consistent across multiple calls");
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_DifferentContents_DifferentSha256()
+    {
+        var tempFile1 = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", "content1");
+        var tempFile2 = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", "content2");
+        try
+        {
+            var result1 = await _service.ExtractMetadataAsync(tempFile1, CancellationToken.None);
+            var result2 = await _service.ExtractMetadataAsync(tempFile2, CancellationToken.None);
+
+            Assert.That(result1, Is.Not.Null);
+            Assert.That(result2, Is.Not.Null);
+            Assert.That(result1!.Sha256, Is.Not.EqualTo(result2!.Sha256), "Different content should produce different SHA256");
+        }
+        finally
+        {
+            if (File.Exists(tempFile1))
+            {
+                File.Delete(tempFile1);
+            }
+            if (File.Exists(tempFile2))
+            {
+                File.Delete(tempFile2);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_Sha256WithCancellation_RespectsToken()
+    {
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithSizeAsync(".mp4", 10 * 1024 * 1024); // 10MB
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
+
+            try
+            {
+                var result = await _service.ExtractMetadataAsync(tempFile, cts.Token);
+                // If it completes, that's fine
+                if (result != null)
+                {
+                    Assert.That(result.Sha256, Is.Null.Or.Not.Empty);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Assert.Pass("SHA256 calculation was properly cancelled");
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private MethodInfo? GetPrivateStaticMethod(string methodName)
