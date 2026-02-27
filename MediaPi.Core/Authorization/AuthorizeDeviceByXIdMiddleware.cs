@@ -60,7 +60,7 @@ public class AuthorizeDeviceByXIdMiddleware
             .FirstOrDefaultAsync(d => d.ServerKey == serverKey);
         if (device == null)
         {
-            await RejectAsync(context, logger, $"Устройство с идентификатором '{serverKey}' не найдено или не зарегистрировано.");
+            await RejectAsync(context, logger, "Устройство не найдено или не зарегистрировано.");
             return;
         }
 
