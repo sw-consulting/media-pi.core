@@ -1,22 +1,30 @@
 // Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
+// Copyright (c) 2025 sw.consulting
+// This file is a part of Media Pi backend
+
 using MediaPi.Core.Data;
 using MediaPi.Core.RestModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Authorization;
 
-public class AuthorizeDeviceByIpMiddleware
+/// <summary>
+/// Middleware to authorize devices by server key via X-Device-Id header.
+/// Devices must provide their server_key in the X-Device-Id header.
+/// </summary>
+public class AuthorizeDeviceByServerKeyMiddleware
 {
     private readonly RequestDelegate _next;
+    private const string DeviceIdHeaderName = "X-Device-Id";
 
-    public AuthorizeDeviceByIpMiddleware(RequestDelegate next)
+    public AuthorizeDeviceByServerKeyMiddleware(RequestDelegate next)
     {
         _next = next;
     }
 
-    public async Task Invoke(HttpContext context, AppDbContext db, ILogger<AuthorizeDeviceByIpMiddleware> logger)
+    public async Task Invoke(HttpContext context, AppDbContext db, ILogger<AuthorizeDeviceByServerKeyMiddleware> logger)
     {
         var endpoint = context.GetEndpoint();
         var authorizeDevice = endpoint?.Metadata.GetMetadata<AuthorizeDeviceAttribute>();
@@ -33,24 +41,26 @@ public class AuthorizeDeviceByIpMiddleware
             return;
         }
 
-        var remoteIp = context.Connection.RemoteIpAddress;
-        var ipAddress = remoteIp?.ToString();
-        var ipAddressV4 = remoteIp?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-            && remoteIp.IsIPv4MappedToIPv6
-            ? remoteIp.MapToIPv4().ToString()
-            : null;
-
-        if (string.IsNullOrWhiteSpace(ipAddress))
+        // Extract server_key from X-Device-Id header
+        if (!context.Request.Headers.TryGetValue(DeviceIdHeaderName, out var serverKeyValue))
         {
-            await RejectAsync(context, logger, "IP адрес устройства не определен.");
+            await RejectAsync(context, logger, $"Заголовок {DeviceIdHeaderName} не найден в запросе.");
             return;
         }
 
+        var serverKey = serverKeyValue.ToString().Trim();
+        if (string.IsNullOrWhiteSpace(serverKey))
+        {
+            await RejectAsync(context, logger, $"Заголовок {DeviceIdHeaderName} пуст или содержит только пробелы.");
+            return;
+        }
+
+        // Lookup device by server_key
         var device = await db.Devices.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.IpAddress == ipAddress || (ipAddressV4 != null && d.IpAddress == ipAddressV4));
+            .FirstOrDefaultAsync(d => d.ServerKey == serverKey);
         if (device == null)
         {
-            await RejectAsync(context, logger, "Устройство не зарегистрировано.");
+            await RejectAsync(context, logger, $"Устройство с идентификатором '{serverKey}' не найдено или не зарегистрировано.");
             return;
         }
 
@@ -58,10 +68,11 @@ public class AuthorizeDeviceByIpMiddleware
         await _next(context);
     }
 
-    private static async Task RejectAsync(HttpContext context, ILogger<AuthorizeDeviceByIpMiddleware> logger, string message)
+    private static async Task RejectAsync(HttpContext context, ILogger<AuthorizeDeviceByServerKeyMiddleware> logger, string message)
     {
         logger.LogWarning(message);
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         await context.Response.WriteAsJsonAsync(new ErrMessage { Msg = message });
     }
 }
+
