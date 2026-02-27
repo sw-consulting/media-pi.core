@@ -8,6 +8,7 @@ namespace MediaPi.Core.Models
 {
     [Table("devices")]
     [Index(nameof(IpAddress), IsUnique = true)]
+    [Index(nameof(ServerKey), IsUnique = false)]
     public class Device
     {
         [Column("id")]

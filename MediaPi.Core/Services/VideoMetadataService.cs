@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using MediaPi.Core.Services.Interfaces;
 
 namespace MediaPi.Core.Services;
@@ -24,7 +25,8 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         var res = new VideoMetadata
         {
             FileSizeBytes = 0,
-            DurationSeconds = null
+            DurationSeconds = null,
+            Sha256 = null
         };
 
         try
@@ -35,12 +37,44 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
 
             // Extract metadata using MediaInfo command line tool
             res.DurationSeconds = await ExtractVideoMetadataAsync(filePath, cancellationToken);
+
+            // Calculate SHA256 hash
+            res.Sha256 = await CalculateSha256Async(filePath, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to extract metadata from video file: {FilePath}", filePath);           
         }
         return res;
+    }
+
+    /// <summary>
+    /// Calculates the SHA256 hash of a file.
+    /// </summary>
+    private static async Task<string?> CalculateSha256Async(string filePath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+            using (var sha256 = SHA256.Create())
+            {
+                // Read file in chunks to handle large files efficiently
+                var buffer = new byte[81920]; // 80KB buffer
+                int bytesRead;
+                while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+                {
+                    sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
+                }
+                sha256.TransformFinalBlock(buffer, 0, 0);
+
+                // Convert hash to lowercase hex string
+                return Convert.ToHexString(sha256.Hash ?? Array.Empty<byte>()).ToLowerInvariant();
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to calculate SHA256 for file: {filePath}", ex);
+        }
     }
 
     private async Task<uint?> ExtractVideoMetadataAsync(string filePath, CancellationToken cancellationToken)

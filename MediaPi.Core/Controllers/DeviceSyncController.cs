@@ -7,6 +7,7 @@ using MediaPi.Core.RestModels;
 using MediaPi.Core.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace MediaPi.Core.Controllers;
 
@@ -67,21 +68,68 @@ public class DeviceSyncController(
             return _500VideoManifestFieldMissing(missingFilename.Id, "filename");
         }
 
-        var missingSha256 = videos.FirstOrDefault(video => string.IsNullOrWhiteSpace(video.Sha256));
-        if (missingSha256 != null)
+        // If SHA256 is missing, calculate it on-the-fly (graceful fallback)
+        var manifestItems = new List<DeviceSyncManifestItem>();
+        foreach (var video in videos)
         {
-            return _500VideoManifestFieldMissing(missingSha256.Id, "sha256");
+            var sha256 = video.Sha256;
+            if (string.IsNullOrWhiteSpace(sha256))
+            {
+                sha256 = await CalculateSha256OnTheFlyAsync(video.Filename, video.Id, ct);
+                if (sha256 == null)
+                {
+                    return _500VideoManifestFieldMissing(video.Id, "sha256 (on-the-fly calculation failed)");
+                }
+            }
+
+            manifestItems.Add(new DeviceSyncManifestItem
+            {
+                Id = video.Id,
+                Filename = video.Filename,
+                FileSizeBytes = video.FileSizeBytes,
+                Sha256 = sha256!
+            });
         }
 
-        var manifest = videos.Select(video => new DeviceSyncManifestItem
-        {
-            Id = video.Id,
-            Filename = video.Filename,
-            FileSizeBytes = video.FileSizeBytes,
-            Sha256 = video.Sha256! // Safe after validation above
-        }).ToList();
+        return manifestItems;
+    }
 
-        return manifest;
+    /// <summary>
+    /// Calculates SHA256 hash on-the-fly for videos missing the hash.
+    /// This is a graceful fallback for data consistency issues.
+    /// </summary>
+    private async Task<string?> CalculateSha256OnTheFlyAsync(string relativeFilename, int videoId, CancellationToken ct)
+    {
+        try
+        {
+            var absolutePath = _videoStorageService.GetAbsolutePath(relativeFilename);
+            if (!System.IO.File.Exists(absolutePath))
+            {
+                _logger.LogError("Video file not found for on-the-fly SHA256 calculation: {FilePath} (Video ID: {VideoId})", absolutePath, videoId);
+                return null;
+            }
+
+            using (var fileStream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+            using (var sha256 = SHA256.Create())
+            {
+                var buffer = new byte[81920];
+                int bytesRead;
+                while ((bytesRead = await fileStream.ReadAsync(buffer, ct)) > 0)
+                {
+                    sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
+                }
+                sha256.TransformFinalBlock(buffer, 0, 0);
+
+                var hash = Convert.ToHexString(sha256.Hash ?? Array.Empty<byte>()).ToLowerInvariant();
+                _logger.LogInformation("Calculated SHA256 on-the-fly for Video ID: {VideoId}: {Sha256}", videoId, hash);
+                return hash;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to calculate SHA256 on-the-fly for Video ID: {VideoId}", videoId);
+            return null;
+        }
     }
 
     [HttpGet("{id:int}")]
