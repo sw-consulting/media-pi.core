@@ -125,6 +125,10 @@ public class DeviceSyncController(
                 return hash;
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to calculate SHA256 on-the-fly for Video ID: {VideoId}", videoId);
