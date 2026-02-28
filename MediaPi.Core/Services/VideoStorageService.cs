@@ -74,7 +74,8 @@ public class VideoStorageService : IVideoStorageService
         var relative = NormalizeRelativePath(Path.GetRelativePath(_rootFullPath, filePath));
 
         // Extract metadata after the file is saved (and the stream has been closed)
-        var metadata = await _metadataService.ExtractMetadataAsync(filePath, ct);
+        // Pass the precomputed sha256Hash to avoid re-reading the file
+        var metadata = await _metadataService.ExtractMetadataAsync(filePath, ct, sha256Hash);
 
         // Convert file size to uint (files larger than 4GB will be capped)
         if (file.Length > uint.MaxValue)

@@ -47,7 +47,7 @@ public class VideoStorageServiceTests
         
         // Default metadata service behavior
         _mockMetadataService
-            .Setup(x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<string>()))
             .ReturnsAsync(new VideoMetadata
             {
                 FileSizeBytes = 1000,
@@ -287,7 +287,7 @@ public class VideoStorageServiceTests
         await _service.SaveVideoAsync(mockFile.Object, "Title");
 
         _mockMetadataService.Verify(
-            x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<string>()),
             Times.Once);
     }
 
@@ -301,7 +301,7 @@ public class VideoStorageServiceTests
         };
 
         _mockMetadataService
-            .Setup(x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<string>()))
             .ReturnsAsync(expectedMetadata);
 
         var mockFile = CreateMockFormFile("video.avi", "content");
@@ -316,7 +316,7 @@ public class VideoStorageServiceTests
     public async Task SaveVideoAsync_MetadataServiceReturnsNull_UsesFallbackFileSize()
     {
         _mockMetadataService
-            .Setup(x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExtractMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<string>()))
             .ReturnsAsync((VideoMetadata?)null);
 
         var mockFile = CreateMockFormFile("video.mp4", "test content");
