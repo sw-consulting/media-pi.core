@@ -467,9 +467,246 @@ public class DeviceSyncControllerTests
         Assert.That(result, Is.TypeOf<FileContentResult>());
         var fileResult = (FileContentResult)result;
         var content = System.Text.Encoding.UTF8.GetString(fileResult.FileContents);
-        
+
         Assert.That(content, Does.StartWith("#EXTM3U"));
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.That(lines.Length, Is.EqualTo(1)); // Only #EXTM3U line
     }
+
+    #region SHA256 On-The-Fly Calculation Tests
+
+    [Test]
+    public async Task GetManifest_MissingSha256_CalculatesOnTheFly_AndSavesToDatabase()
+    {
+        var playlist = new Playlist { Id = 20, Title = "Playlist 20", Filename = "playlist20.json", AccountId = _account.Id, Account = _account };
+        var video = new Video
+        {
+            Id = 100,
+            Title = "Video 100",
+            Filename = "0001/video100.mp4",
+            OriginalFilename = "video100.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = null
+        };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.Add(video);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, Video = video, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
+        _dbContext.SaveChanges();
+
+        // Setup video storage service to return a valid file path
+        var tempFile = System.IO.Path.GetTempFileName();
+        System.IO.File.WriteAllText(tempFile, "test video content");
+        try
+        {
+            _mockVideoStorageService.Setup(s => s.GetAbsolutePath(video.Filename)).Returns(tempFile);
+
+            SetDeviceContext(_device.Id);
+
+            var result = await _controller.GetManifest();
+
+            // Verify manifest was returned successfully
+            Assert.That(result.Value, Is.Not.Null);
+            var manifest = result.Value!.ToList();
+            Assert.That(manifest, Has.Count.EqualTo(1));
+            Assert.That(manifest[0].Id, Is.EqualTo(video.Id));
+            Assert.That(manifest[0].Sha256, Is.Not.Null.And.Not.Empty, "SHA256 should be calculated on-the-fly");
+            Assert.That(manifest[0].Sha256, Has.Length.EqualTo(64), "SHA256 should be 64 hex characters");
+
+            // Verify SHA256 was saved to database
+            var savedVideo = await _dbContext.Videos.FindAsync(video.Id);
+            Assert.That(savedVideo, Is.Not.Null);
+            Assert.That(savedVideo!.Sha256, Is.EqualTo(manifest[0].Sha256), "SHA256 should be persisted to database");
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempFile))
+            {
+                System.IO.File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task GetManifest_MultipleMissingSha256_CalculatesAllAndSavesToDatabase()
+    {
+        var playlist = new Playlist { Id = 21, Title = "Playlist 21", Filename = "playlist21.json", AccountId = _account.Id, Account = _account };
+        var video1 = new Video
+        {
+            Id = 101,
+            Title = "Video 101",
+            Filename = "0001/video101.mp4",
+            OriginalFilename = "video101.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = null
+        };
+        var video2 = new Video
+        {
+            Id = 102,
+            Title = "Video 102",
+            Filename = "0001/video102.mp4",
+            OriginalFilename = "video102.mp4",
+            FileSizeBytes = 2048,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = null
+        };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.AddRange(video1, video2);
+        _dbContext.VideoPlaylists.AddRange(
+            new VideoPlaylist { VideoId = video1.Id, Video = video1, PlaylistId = playlist.Id, Playlist = playlist },
+            new VideoPlaylist { VideoId = video2.Id, Video = video2, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
+        _dbContext.SaveChanges();
+
+        // Setup video storage service for both files
+        var tempFile1 = System.IO.Path.GetTempFileName();
+        var tempFile2 = System.IO.Path.GetTempFileName();
+        System.IO.File.WriteAllText(tempFile1, "content1");
+        System.IO.File.WriteAllText(tempFile2, "content2");
+        try
+        {
+            _mockVideoStorageService.Setup(s => s.GetAbsolutePath(video1.Filename)).Returns(tempFile1);
+            _mockVideoStorageService.Setup(s => s.GetAbsolutePath(video2.Filename)).Returns(tempFile2);
+
+            SetDeviceContext(_device.Id);
+
+            var result = await _controller.GetManifest();
+
+            // Verify both manifests have SHA256
+            Assert.That(result.Value, Is.Not.Null);
+            var manifest = result.Value!.ToList();
+            Assert.That(manifest, Has.Count.EqualTo(2));
+
+            foreach (var item in manifest)
+            {
+                Assert.That(item.Sha256, Is.Not.Null.And.Not.Empty);
+                Assert.That(item.Sha256, Has.Length.EqualTo(64));
+            }
+
+            // Verify both were saved
+            var saved1 = await _dbContext.Videos.FindAsync(video1.Id);
+            var saved2 = await _dbContext.Videos.FindAsync(video2.Id);
+            Assert.That(saved1!.Sha256, Is.Not.Null);
+            Assert.That(saved2!.Sha256, Is.Not.Null);
+            Assert.That(saved1.Sha256, Is.Not.EqualTo(saved2.Sha256), "Different files should have different SHA256");
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempFile1))
+                System.IO.File.Delete(tempFile1);
+            if (System.IO.File.Exists(tempFile2))
+                System.IO.File.Delete(tempFile2);
+        }
+    }
+
+    [Test]
+    public async Task GetManifest_FileNotFoundForSha256Calc_Returns500()
+    {
+        var playlist = new Playlist { Id = 22, Title = "Playlist 22", Filename = "playlist22.json", AccountId = _account.Id, Account = _account };
+        var video = new Video
+        {
+            Id = 103,
+            Title = "Video 103",
+            Filename = "0001/nonexistent.mp4",
+            OriginalFilename = "nonexistent.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = null
+        };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.Add(video);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, Video = video, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
+        _dbContext.SaveChanges();
+
+        // Setup to return a path that doesn't exist
+        _mockVideoStorageService.Setup(s => s.GetAbsolutePath(video.Filename)).Returns("/nonexistent/path/video.mp4");
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.GetManifest();
+
+        // Should return 500 when file not found
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+    }
+
+    [Test]
+    public async Task GetManifest_MixedSha256_CalculatesOnlyMissing()
+    {
+        var playlist = new Playlist { Id = 23, Title = "Playlist 23", Filename = "playlist23.json", AccountId = _account.Id, Account = _account };
+        var video1 = new Video
+        {
+            Id = 104,
+            Title = "Video 104",
+            Filename = "0001/video104.mp4",
+            OriginalFilename = "video104.mp4",
+            FileSizeBytes = 1024,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = "abc123def456abc123def456abc123def456abc123def456abc123def456abc1" // Existing SHA256
+        };
+        var video2 = new Video
+        {
+            Id = 105,
+            Title = "Video 105",
+            Filename = "0001/video105.mp4",
+            OriginalFilename = "video105.mp4",
+            FileSizeBytes = 2048,
+            AccountId = _account.Id,
+            Account = _account,
+            Sha256 = null // Missing SHA256
+        };
+
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.AddRange(video1, video2);
+        _dbContext.VideoPlaylists.AddRange(
+            new VideoPlaylist { VideoId = video1.Id, Video = video1, PlaylistId = playlist.Id, Playlist = playlist },
+            new VideoPlaylist { VideoId = video2.Id, Video = video2, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
+        _dbContext.SaveChanges();
+
+        var tempFile = System.IO.Path.GetTempFileName();
+        System.IO.File.WriteAllText(tempFile, "new content");
+        try
+        {
+            _mockVideoStorageService.Setup(s => s.GetAbsolutePath(video2.Filename)).Returns(tempFile);
+
+            SetDeviceContext(_device.Id);
+
+            var result = await _controller.GetManifest();
+
+            Assert.That(result.Value, Is.Not.Null);
+            var manifest = result.Value!.ToList();
+            Assert.That(manifest, Has.Count.EqualTo(2));
+
+            var video1Item = manifest.Single(m => m.Id == video1.Id);
+            var video2Item = manifest.Single(m => m.Id == video2.Id);
+
+            // Video1 should keep existing SHA256
+            Assert.That(video1Item.Sha256, Is.EqualTo(video1.Sha256));
+
+            // Video2 should have calculated SHA256
+            Assert.That(video2Item.Sha256, Is.Not.EqualTo(video1Item.Sha256));
+            Assert.That(video2Item.Sha256, Is.Not.Null.And.Not.Empty);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempFile))
+                System.IO.File.Delete(tempFile);
+        }
+    }
+
+    #endregion
 }
+

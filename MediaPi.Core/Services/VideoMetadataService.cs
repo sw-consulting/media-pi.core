@@ -14,7 +14,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
     private const string MediaInfoCommand = "mediainfo";
     private const int MediaInfoTimeoutSeconds = 30;
 
-    public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default, string? precomputedSha256 = null)
     {
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
         {
@@ -38,8 +38,8 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             // Extract metadata using MediaInfo command line tool
             res.DurationSeconds = await ExtractVideoMetadataAsync(filePath, cancellationToken);
 
-            // Calculate SHA256 hash
-            res.Sha256 = await CalculateSha256Async(filePath, cancellationToken);
+            // Calculate SHA256 hash (or use precomputed value if provided)
+            res.Sha256 = precomputedSha256 ?? await CalculateSha256Async(filePath, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -71,7 +71,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
                 return Convert.ToHexString(sha256.Hash ?? Array.Empty<byte>()).ToLowerInvariant();
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new InvalidOperationException($"Failed to calculate SHA256 for file: {filePath}", ex);
         }

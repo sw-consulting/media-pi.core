@@ -70,6 +70,8 @@ public class DeviceSyncController(
 
         // If SHA256 is missing, calculate it on-the-fly (graceful fallback)
         var manifestItems = new List<DeviceSyncManifestItem>();
+        var videosNeedingSha256Update = new List<(int VideoId, string CalculatedSha256)>();
+
         foreach (var video in videos)
         {
             var sha256 = video.Sha256;
@@ -80,6 +82,9 @@ public class DeviceSyncController(
                 {
                     return _500VideoManifestFieldMissing(video.Id, "sha256 (on-the-fly calculation failed)");
                 }
+
+                // Track videos that need their SHA256 saved to the database
+                videosNeedingSha256Update.Add((video.Id, sha256));
             }
 
             manifestItems.Add(new DeviceSyncManifestItem
@@ -91,7 +96,43 @@ public class DeviceSyncController(
             });
         }
 
+        // Save calculated SHA256 values to the database
+        if (videosNeedingSha256Update.Count > 0)
+        {
+            await SaveSha256ToDatabaseAsync(videosNeedingSha256Update, ct);
+        }
+
         return manifestItems;
+    }
+
+    /// <summary>
+    /// Persists calculated SHA256 values to the database for videos that were missing them.
+    /// </summary>
+    private async Task SaveSha256ToDatabaseAsync(List<(int VideoId, string Sha256)> videoUpdates, CancellationToken ct)
+    {
+        try
+        {
+            foreach (var (videoId, sha256) in videoUpdates)
+            {
+                var video = await _db.Videos.FindAsync(new object[] { videoId }, cancellationToken: ct);
+                if (video != null)
+                {
+                    video.Sha256 = sha256;
+                    _logger.LogInformation("Updated SHA256 for Video ID: {VideoId}", videoId);
+                }
+            }
+
+            if (videoUpdates.Count > 0)
+            {
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("Saved SHA256 values for {Count} videos to the database", videoUpdates.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't throw - the manifest was already generated successfully
+            _logger.LogError(ex, "Failed to save calculated SHA256 values to the database for {Count} videos", videoUpdates.Count);
+        }
     }
 
     /// <summary>
@@ -124,6 +165,10 @@ public class DeviceSyncController(
                 _logger.LogInformation("Calculated SHA256 on-the-fly for Video ID: {VideoId}: {Sha256}", videoId, hash);
                 return hash;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

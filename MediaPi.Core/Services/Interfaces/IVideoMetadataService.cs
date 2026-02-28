@@ -10,8 +10,9 @@ public interface IVideoMetadataService
     /// </summary>
     /// <param name="filePath">Full path to the video file</param>
     /// <param name="cancellationToken">Cancellation token</param>
+    /// <param name="precomputedSha256">Optional precomputed SHA256 hash to avoid re-reading the file</param>
     /// <returns>Video metadata or null if extraction fails</returns>
-    Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default);
+    Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default, string? precomputedSha256 = null);
 }
 
 public class VideoMetadata
