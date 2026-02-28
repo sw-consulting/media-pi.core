@@ -71,7 +71,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
                 return Convert.ToHexString(sha256.Hash ?? Array.Empty<byte>()).ToLowerInvariant();
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new InvalidOperationException($"Failed to calculate SHA256 for file: {filePath}", ex);
         }
