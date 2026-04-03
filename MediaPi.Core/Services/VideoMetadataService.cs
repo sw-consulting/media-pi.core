@@ -15,6 +15,8 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
     private const string FfprobeCommand = "ffprobe";
     private const int FfprobeTimeoutSeconds = 30;
 
+    protected virtual string FfprobeExecutable => FfprobeCommand;
+
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default, string? precomputedSha256 = null)
     {
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
@@ -88,7 +90,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             // Use ArgumentList for proper escaping to prevent command injection
             var processInfo = new ProcessStartInfo
             {
-                FileName = FfprobeCommand,
+                FileName = FfprobeExecutable,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

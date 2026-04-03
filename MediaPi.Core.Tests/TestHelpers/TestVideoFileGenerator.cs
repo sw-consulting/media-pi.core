@@ -1,6 +1,7 @@
 // Copyright (c) 2025 sw.consulting
 // This file is a part of Media Pi backend
 
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -63,6 +64,57 @@ public static class TestVideoFileGenerator
         }
         
         return targetFile;
+    }
+}
+
+/// <summary>
+/// Helper for creating real (playable) video files using ffmpeg
+/// </summary>
+public static class RealVideoFileGenerator
+{
+    /// <summary>
+    /// Creates a real video file using ffmpeg. Returns null if ffmpeg is not available.
+    /// </summary>
+    public static async Task<string?> TryCreateRealVideoFileAsync(double durationSeconds = 1.0)
+    {
+        var targetFile = Path.Combine(Path.GetTempPath(), $"real_video_{Guid.NewGuid()}.mp4");
+        try
+        {
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            processInfo.ArgumentList.Add("-f");
+            processInfo.ArgumentList.Add("lavfi");
+            processInfo.ArgumentList.Add("-i");
+            processInfo.ArgumentList.Add($"sine=frequency=440:duration={durationSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            processInfo.ArgumentList.Add("-f");
+            processInfo.ArgumentList.Add("lavfi");
+            processInfo.ArgumentList.Add("-i");
+            processInfo.ArgumentList.Add($"color=red:size=160x120:duration={durationSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            processInfo.ArgumentList.Add("-y");
+            processInfo.ArgumentList.Add(targetFile);
+
+            using var process = new Process { StartInfo = processInfo };
+            process.Start();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0 && File.Exists(targetFile))
+                return targetFile;
+        }
+        catch
+        {
+            // ffmpeg not available
+        }
+
+        if (File.Exists(targetFile))
+            File.Delete(targetFile);
+
+        return null;
     }
 }
 

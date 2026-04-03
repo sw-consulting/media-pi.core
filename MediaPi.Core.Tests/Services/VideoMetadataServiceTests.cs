@@ -583,6 +583,209 @@ public class VideoMetadataServiceTests
 
     #endregion
 
+    #region Precomputed SHA256 Tests
+
+    [Test]
+    public async Task ExtractMetadataAsync_WithPrecomputedSha256_UsesProvidedHash()
+    {
+        const string precomputedHash = "aabbccdd00112233445566778899aabbccddeeff00112233445566778899aabb";
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", "some content");
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None, precomputedHash);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Sha256, Is.EqualTo(precomputedHash));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_WithPrecomputedSha256_DoesNotOverrideWithComputed()
+    {
+        const string precomputedHash = "0000000000000000000000000000000000000000000000000000000000000000";
+        var content = "specific content";
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", content);
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None, precomputedHash);
+
+            Assert.That(result, Is.Not.Null);
+            // Should use precomputed hash, not compute from file content
+            Assert.That(result!.Sha256, Is.EqualTo(precomputedHash));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_WithNullPrecomputedSha256_ComputesHash()
+    {
+        var content = "content for null precomputed sha256 test";
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", content);
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None, null);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Sha256, Is.Not.Null.And.Not.Empty);
+            Assert.That(result.Sha256, Has.Length.EqualTo(64));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    #endregion
+
+    #region ParseFfprobeDurationOutput Tests
+
+    [Test]
+    public void ParseFfprobeDurationOutput_NullOutput_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var result = method!.Invoke(_service, new object?[] { null });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_EmptyOutput_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var result = method!.Invoke(_service, new object?[] { "" });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_WhitespaceOutput_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var result = method!.Invoke(_service, new object?[] { "   " });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_ValidJsonWithDuration_ReturnsDuration()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""format"": { ""duration"": ""123.456"" } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.EqualTo(123u)); // 123.456 rounds to 123
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_ValidJsonDurationRoundsUp_ReturnsDuration()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""format"": { ""duration"": ""99.7"" } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.EqualTo(100u)); // 99.7 rounds to 100
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_ValidJsonWithZeroDuration_ReturnsZero()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""format"": { ""duration"": ""0.000"" } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.EqualTo(0u));
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_JsonWithoutFormatKey_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""streams"": [] }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_JsonWithFormatButNoDurationKey_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""format"": { ""filename"": ""test.mp4"", ""size"": ""1024"" } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_JsonWithNonNumericDuration_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""format"": { ""duration"": ""N/A"" } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_InvalidJson_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var result = method!.Invoke(_service, new object?[] { "this is not json {{{" });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_JsonWithNullDurationValue_ReturnsNull()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        var json = @"{ ""format"": { ""duration"": null } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void ParseFfprobeDurationOutput_ValidJsonWithLargeDuration_ReturnsDuration()
+    {
+        var method = GetPrivateMethod("ParseFfprobeDurationOutput");
+        Assert.That(method, Is.Not.Null);
+
+        // A 2-hour video (7200 seconds)
+        var json = @"{ ""format"": { ""duration"": ""7200.000"" } }";
+        var result = method!.Invoke(_service, new object?[] { json });
+        Assert.That(result, Is.EqualTo(7200u));
+    }
+
+    #endregion
+
     #region SHA256 Calculation Tests
 
     [Test]
@@ -738,6 +941,141 @@ public class VideoMetadataServiceTests
             {
                 File.Delete(tempFile);
             }
+        }
+    }
+
+    #endregion
+
+    #region Real Video File Tests
+
+    [Test]
+    public async Task ExtractMetadataAsync_RealVideoFile_ExtractsDuration()
+    {
+        var realVideoFile = await RealVideoFileGenerator.TryCreateRealVideoFileAsync(5.0);
+        if (realVideoFile == null)
+        {
+            Assert.Ignore("ffmpeg not available; skipping real video test");
+            return;
+        }
+
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(realVideoFile, CancellationToken.None);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.FileSizeBytes, Is.GreaterThan(0));
+            Assert.That(result.DurationSeconds, Is.Not.Null, "Duration should be extracted from a real video file");
+            Assert.That(result.DurationSeconds, Is.GreaterThan(0u));
+        }
+        finally
+        {
+            if (File.Exists(realVideoFile))
+                File.Delete(realVideoFile);
+        }
+    }
+
+    [Test]
+    public async Task ExtractMetadataAsync_RealVideoFile_Sha256IsNotNull()
+    {
+        var realVideoFile = await RealVideoFileGenerator.TryCreateRealVideoFileAsync(1.0);
+        if (realVideoFile == null)
+        {
+            Assert.Ignore("ffmpeg not available; skipping real video test");
+            return;
+        }
+
+        try
+        {
+            var result = await _service.ExtractMetadataAsync(realVideoFile, CancellationToken.None);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Sha256, Is.Not.Null.And.Not.Empty);
+            Assert.That(result.Sha256, Has.Length.EqualTo(64));
+            Assert.That(result.DurationSeconds, Is.Not.Null);
+        }
+        finally
+        {
+            if (File.Exists(realVideoFile))
+                File.Delete(realVideoFile);
+        }
+    }
+
+    #endregion
+
+    #region File Permission Tests
+
+    [Test]
+    [Platform(Include = "Linux,MacOsX,Unix")]
+    public async Task ExtractMetadataAsync_FileWithNoReadPermission_ReturnsPartialMetadata()
+    {
+        // Skip if running as root (root can always read files regardless of permissions)
+        if (Environment.IsPrivilegedProcess)
+        {
+            Assert.Ignore("Skipping permission test when running as root");
+            return;
+        }
+
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", "content for permission test");
+
+        try
+        {
+            // Remove read permissions (write-only)
+            File.SetUnixFileMode(tempFile, UnixFileMode.UserWrite);
+
+            var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+
+            // File exists (stat works without read permission), so result is not null
+            Assert.That(result, Is.Not.Null);
+            // SHA256 computation will fail since the file cannot be read
+            Assert.That(result!.Sha256, Is.Null, "SHA256 should be null when file cannot be read");
+            // Error should be logged
+            VerifyLoggerCalled(LogLevel.Error, "Failed to extract metadata");
+        }
+        finally
+        {
+            // Restore permissions so the file can be deleted
+            if (File.Exists(tempFile))
+            {
+                File.SetUnixFileMode(tempFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    #endregion
+
+    #region ffprobe Exception Path Tests
+
+    /// <summary>
+    /// Subclass that points to a non-existent ffprobe executable to trigger the general exception path.
+    /// </summary>
+    private class FfprobeUnavailableService : VideoMetadataService
+    {
+        public FfprobeUnavailableService(ILogger<VideoMetadataService> logger) : base(logger) { }
+        protected override string FfprobeExecutable => "/nonexistent/ffprobe_that_does_not_exist";
+    }
+
+    [Test]
+    public async Task ExtractVideoMetadataAsync_FfprobeNotFound_ReturnsNullDuration()
+    {
+        var mockLogger = new Mock<ILogger<VideoMetadataService>>();
+        var service = new FfprobeUnavailableService(mockLogger.Object);
+        var tempFile = await TestVideoFileGenerator.CreateTestFileWithExtensionAsync(".mp4", "test content");
+
+        try
+        {
+            var result = await service.ExtractMetadataAsync(tempFile, CancellationToken.None);
+
+            Assert.That(result, Is.Not.Null);
+            // File size should still be available
+            Assert.That(result!.FileSizeBytes, Is.GreaterThan(0));
+            // Duration should be null because ffprobe could not be started
+            Assert.That(result.DurationSeconds, Is.Null);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
         }
     }
 
