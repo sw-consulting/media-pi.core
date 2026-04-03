@@ -1020,7 +1020,8 @@ public class VideoMetadataServiceTests
         try
         {
             // Remove read permissions (write-only)
-            File.SetUnixFileMode(tempFile, UnixFileMode.UserWrite);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(tempFile, UnixFileMode.UserWrite);
 
             var result = await _service.ExtractMetadataAsync(tempFile, CancellationToken.None);
 
@@ -1036,7 +1037,8 @@ public class VideoMetadataServiceTests
             // Restore permissions so the file can be deleted
             if (File.Exists(tempFile))
             {
-                File.SetUnixFileMode(tempFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                if (!OperatingSystem.IsWindows())
+                    File.SetUnixFileMode(tempFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 File.Delete(tempFile);
             }
         }
