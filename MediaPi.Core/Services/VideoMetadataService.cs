@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.Json;
 using MediaPi.Core.Services.Interfaces;
 
 namespace MediaPi.Core.Services;
@@ -11,8 +12,10 @@ namespace MediaPi.Core.Services;
 public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideoMetadataService
 {
     private readonly ILogger<VideoMetadataService> _logger = logger;
-    private const string MediaInfoCommand = "mediainfo";
-    private const int MediaInfoTimeoutSeconds = 30;
+    private const string FfprobeCommand = "ffprobe";
+    private const int FfprobeTimeoutSeconds = 30;
+
+    protected virtual string FfprobeExecutable => FfprobeCommand;
 
     public async Task<VideoMetadata?> ExtractMetadataAsync(string filePath, CancellationToken cancellationToken = default, string? precomputedSha256 = null)
     {
@@ -35,7 +38,7 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
             var fileInfo = new FileInfo(filePath);
             res.FileSizeBytes = ConvertFileSizeToUInt(fileInfo.Length);
 
-            // Extract metadata using MediaInfo command line tool
+            // Extract duration using ffprobe
             res.DurationSeconds = await ExtractVideoMetadataAsync(filePath, cancellationToken);
 
             // Calculate SHA256 hash (or use precomputed value if provided)
@@ -82,43 +85,48 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         Process? process = null;
         try
         {
-            // Use mediainfo command to get duration in seconds
+            // ffprobe -v quiet -print_format json -show_format <filePath>
+            // Returns a JSON object with a "format" section containing "duration" in seconds
             // Use ArgumentList for proper escaping to prevent command injection
             var processInfo = new ProcessStartInfo
             {
-                FileName = MediaInfoCommand,
+                FileName = FfprobeExecutable,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            processInfo.ArgumentList.Add("--Output=General;%Duration/String3%");
+            processInfo.ArgumentList.Add("-v");
+            processInfo.ArgumentList.Add("quiet");
+            processInfo.ArgumentList.Add("-print_format");
+            processInfo.ArgumentList.Add("json");
+            processInfo.ArgumentList.Add("-show_format");
             processInfo.ArgumentList.Add(filePath);
 
             process = new Process { StartInfo = processInfo };
-            
+
             process.Start();
-            
+
             // Add timeout to prevent hung processes
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(MediaInfoTimeoutSeconds));
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(FfprobeTimeoutSeconds));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-            
+
             var outputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
             var errorTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
-            
+
             await process.WaitForExitAsync(linkedCts.Token);
-            
+
             var output = await outputTask;
             var error = await errorTask;
 
             if (process.ExitCode != 0)
             {
-                _logger.LogDebug("MediaInfo process exited with code {ExitCode}. Error: {Error}", 
+                _logger.LogDebug("ffprobe process exited with code {ExitCode}. Error: {Error}",
                     process.ExitCode, error);
                 return null;
             }
 
-            return ParseDurationOutput(output?.Trim());
+            return ParseFfprobeDurationOutput(output);
         }
         catch (OperationCanceledException)
         {
@@ -130,19 +138,19 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
                     if (!process.HasExited)
                     {
                         process.Kill(entireProcessTree: true);
-                        _logger.LogDebug("MediaInfo process killed due to cancellation for file: {FilePath}", filePath);
+                        _logger.LogDebug("ffprobe process killed due to cancellation for file: {FilePath}", filePath);
                     }
                 }
                 catch (Exception killEx)
                 {
-                    _logger.LogDebug(killEx, "Failed to kill MediaInfo process for file: {FilePath}", filePath);
+                    _logger.LogDebug(killEx, "Failed to kill ffprobe process for file: {FilePath}", filePath);
                 }
             }
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "MediaInfo extraction failed for file: {FilePath}", filePath);
+            _logger.LogDebug(ex, "ffprobe extraction failed for file: {FilePath}", filePath);
             return null;
         }
         finally
@@ -151,33 +159,31 @@ public class VideoMetadataService(ILogger<VideoMetadataService> logger) : IVideo
         }
     }
 
-    private uint? ParseDurationOutput(string? output)
+    private uint? ParseFfprobeDurationOutput(string? output)
     {
         if (string.IsNullOrWhiteSpace(output))
-        {
             return null;
-        }
 
         try
         {
-            // MediaInfo returns duration in format "HH:MM:SS.mmm" or "MM:SS.mmm"
-            if (TimeSpan.TryParse(output, CultureInfo.InvariantCulture, out var timeSpan))
+            // ffprobe JSON output: { "format": { "duration": "123.456000", ... } }
+            using var doc = JsonDocument.Parse(output);
+            if (doc.RootElement.TryGetProperty("format", out var format) &&
+                format.TryGetProperty("duration", out var durationProp))
             {
-                return ConvertDurationToUInt(timeSpan.TotalSeconds);
+                var durationStr = durationProp.GetString();
+                if (double.TryParse(durationStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var seconds))
+                {
+                    return ConvertDurationToUInt(seconds);
+                }
             }
 
-            // Fallback: try to parse as decimal seconds
-            if (double.TryParse(output, CultureInfo.InvariantCulture, out var seconds))
-            {
-                return ConvertDurationToUInt(seconds);
-            }
-
-            _logger.LogDebug("Unable to parse duration output: {Output}", output);
+            _logger.LogDebug("Unable to parse ffprobe duration output: {Output}", output);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to parse MediaInfo duration output: {Output}", output);
+            _logger.LogDebug(ex, "Failed to parse ffprobe output: {Output}", output);
             return null;
         }
     }

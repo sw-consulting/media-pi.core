@@ -5,7 +5,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 USER root
 RUN apt-get update && apt-get install -y \
     curl \
-    mediainfo \
+    ffmpeg \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 USER $APP_UID
