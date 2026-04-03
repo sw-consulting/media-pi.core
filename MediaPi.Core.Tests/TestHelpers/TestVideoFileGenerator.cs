@@ -105,16 +105,19 @@ public static class RealVideoFileGenerator
 
             if (process.ExitCode == 0 && File.Exists(targetFile))
                 return targetFile;
+
+            // ffmpeg ran but didn't produce the expected file
+            if (File.Exists(targetFile))
+                File.Delete(targetFile);
+            return null;
         }
         catch
         {
-            // ffmpeg not available
+            // ffmpeg not available or failed unexpectedly
+            if (File.Exists(targetFile))
+                File.Delete(targetFile);
+            return null;
         }
-
-        if (File.Exists(targetFile))
-            File.Delete(targetFile);
-
-        return null;
     }
 }
 
