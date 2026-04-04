@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System.Globalization;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 
 using MediaPi.Core.Services.Interfaces;
@@ -31,7 +32,7 @@ public class FileStorageService : IFileStorageService
         Directory.CreateDirectory(_rootFullPath);
     }
 
-    public virtual async Task<FileSaveResult> SaveFileAsync(IFormFile file, string title, CancellationToken ct = default)
+    public virtual async Task<FileSaveResult> SaveFileAsync(IFormFile file, string title, bool computeSha256 = false, CancellationToken ct = default)
     {
         if (file.Length == 0) throw new ArgumentException("File is empty", nameof(file));
 
@@ -42,7 +43,7 @@ public class FileStorageService : IFileStorageService
         }
 
         var extension = Path.GetExtension(file.FileName);
-        if (string.IsNullOrWhiteSpace(extension))
+        if (string.IsNullOrWhiteSpace(extension) || extension == ".")
         {
             extension = ".bin";
         }
@@ -53,8 +54,28 @@ public class FileStorageService : IFileStorageService
         var targetDirectory = GetOrCreateTargetDirectory();
         var filePath = Path.Combine(targetDirectory, uniqueName);
 
-        await using (var fs = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        string? sha256Hash = null;
+        if (computeSha256)
         {
+            using var sha256 = SHA256.Create();
+            await using var fs = new FileStream(filePath, new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+                Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+            });
+            await using (var cs = new CryptoStream(fs, sha256, CryptoStreamMode.Write, leaveOpen: true))
+            {
+                await file.CopyToAsync(cs, ct);
+                await cs.FlushFinalBlockAsync(ct);
+            }
+            await fs.FlushAsync(ct);
+            sha256Hash = BitConverter.ToString(sha256.Hash!).Replace("-", "").ToLowerInvariant();
+        }
+        else
+        {
+            await using var fs = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             await file.CopyToAsync(fs, ct);
             await fs.FlushAsync(ct);
         }
@@ -65,7 +86,8 @@ public class FileStorageService : IFileStorageService
         {
             Filename = relative,
             OriginalFilename = file.FileName,
-            FileSizeBytes = (uint)file.Length
+            FileSizeBytes = (uint)file.Length,
+            Sha256 = sha256Hash
         };
     }
 

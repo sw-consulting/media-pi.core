@@ -14,5 +14,4 @@ public interface IVideoStorageService : IFileStorageService
 public class VideoSaveResult : FileSaveResult
 {
     public uint? DurationSeconds { get; init; }
-    public string? Sha256 { get; init; }
 }

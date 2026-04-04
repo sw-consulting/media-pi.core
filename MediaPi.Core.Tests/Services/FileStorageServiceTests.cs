@@ -130,4 +130,30 @@ public class FileStorageServiceTests
     {
         Assert.Throws<InvalidOperationException>(() => _service.GetAbsolutePath("../../../etc/passwd"));
     }
+
+    [Test]
+    public async Task SaveFileAsync_WithComputeSha256_ReturnsCorrectHash()
+    {
+        var content = "hello world";
+        var mockFile = CreateMockFormFile("image.png", content);
+
+        var result = await _service.SaveFileAsync(mockFile.Object, "Image", computeSha256: true);
+
+        Assert.That(result.Sha256, Is.Not.Null.And.Not.Empty);
+
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var expectedHash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+        Assert.That(result.Sha256, Is.EqualTo(expectedHash));
+    }
+
+    [Test]
+    public async Task SaveFileAsync_WithoutComputeSha256_ReturnsNullHash()
+    {
+        var mockFile = CreateMockFormFile("image.png", "content");
+
+        var result = await _service.SaveFileAsync(mockFile.Object, "Image");
+
+        Assert.That(result.Sha256, Is.Null);
+    }
 }

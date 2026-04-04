@@ -1,7 +1,6 @@
 // Copyright (c) 2025-2026 sw.consulting
 // This file is a part of Media Pi backend
 
-using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 
 using MediaPi.Core.Services.Interfaces;
@@ -23,10 +22,9 @@ public class VideoStorageService : FileStorageService, IVideoStorageService
 
     public async Task<VideoSaveResult> SaveVideoAsync(IFormFile file, string title, CancellationToken ct = default)
     {
-        var fileResult = await SaveFileAsync(file, title, ct);
+        var fileResult = await SaveFileAsync(file, title, computeSha256: true, ct);
         var fullPath = GetAbsolutePath(fileResult.Filename);
-        var sha256Hash = await CalculateSha256Async(fullPath, ct);
-        var metadata = await _metadataService.ExtractMetadataAsync(fullPath, ct, sha256Hash);
+        var metadata = await _metadataService.ExtractMetadataAsync(fullPath, ct, fileResult.Sha256);
 
         return new VideoSaveResult
         {
@@ -34,26 +32,12 @@ public class VideoStorageService : FileStorageService, IVideoStorageService
             OriginalFilename = fileResult.OriginalFilename,
             FileSizeBytes = metadata?.FileSizeBytes ?? fileResult.FileSizeBytes,
             DurationSeconds = metadata?.DurationSeconds,
-            Sha256 = sha256Hash
+            Sha256 = fileResult.Sha256
         };
     }
 
     public Task DeleteVideoAsync(string storedFilename, CancellationToken ct = default)
     {
         return DeleteFileAsync(storedFilename, ct);
-    }
-
-    private static async Task<string> CalculateSha256Async(string filePath, CancellationToken ct)
-    {
-        await using var fs = new FileStream(filePath, new FileStreamOptions
-        {
-            Mode = FileMode.Open,
-            Access = FileAccess.Read,
-            Share = FileShare.Read,
-            Options = FileOptions.Asynchronous | FileOptions.SequentialScan
-        });
-        using var sha256 = SHA256.Create();
-        var hashBytes = await sha256.ComputeHashAsync(fs, ct);
-        return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
     }
 }
