@@ -15,6 +15,15 @@ services:
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.myresolver.acme.email=sterlev_alex@mail.ru"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.transport.respondingTimeouts.readTimeout=300s"
+      - "--entrypoints.web.transport.respondingTimeouts.writeTimeout=300s"
+      - "--entrypoints.web.transport.respondingTimeouts.idleTimeout=300s"
+      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=300s"
+      - "--entrypoints.websecure.transport.respondingTimeouts.writeTimeout=300s"
+      - "--entrypoints.websecure.transport.respondingTimeouts.idleTimeout=300s"
+      - "--serversTransport.forwardingTimeouts.dialTimeout=30s"
+      - "--serversTransport.forwardingTimeouts.responseHeaderTimeout=300s"
+      - "--serversTransport.forwardingTimeouts.idleConnTimeout=300s"      
     ports:
       - "80:80"
       - "443:443"
@@ -39,7 +48,7 @@ services:
       retries: 3
       start_period: 5s
     volumes:
-      - /var/media-pi/data:/var/lib/postgresql/data # полный путь к корневому каталогу БД
+      - /var/media-pi/data:/var/lib/postgresql/data # ГЇГ®Г«Г­Г»Г© ГЇГіГІГј ГЄ ГЄГ®Г°Г­ГҐГўГ®Г¬Гі ГЄГ ГІГ Г«Г®ГЈГі ГЃГ„
     restart: always
 
   api:
