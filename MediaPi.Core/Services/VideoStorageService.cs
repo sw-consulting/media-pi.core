@@ -45,7 +45,13 @@ public class VideoStorageService : FileStorageService, IVideoStorageService
 
     private static async Task<string> CalculateSha256Async(string filePath, CancellationToken ct)
     {
-        await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using var fs = new FileStream(filePath, new FileStreamOptions
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.Read,
+            Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+        });
         using var sha256 = SHA256.Create();
         var hashBytes = await sha256.ComputeHashAsync(fs, ct);
         return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
