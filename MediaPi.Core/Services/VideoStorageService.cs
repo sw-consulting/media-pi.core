@@ -1,11 +1,8 @@
-// Copyright (c) 2025 sw.consulting
+// Copyright (c) 2025-2026 sw.consulting
 // This file is a part of Media Pi backend
 
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
 using MediaPi.Core.Services.Interfaces;
