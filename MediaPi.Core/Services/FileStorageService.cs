@@ -104,7 +104,15 @@ public class FileStorageService : IFileStorageService
 
         foreach (var directory in directories)
         {
-            var fileCount = Directory.GetFiles(directory).Length;
+            var fileCount = 0;
+            foreach (var _ in Directory.EnumerateFiles(directory))
+            {
+                fileCount++;
+                if (fileCount >= _settings.MaxFilesPerDirectory)
+                {
+                    break;
+                }
+            }
             if (fileCount < _settings.MaxFilesPerDirectory)
             {
                 return directory;
