@@ -65,12 +65,11 @@ public class FileStorageService : IFileStorageService
                 Share = FileShare.None,
                 Options = FileOptions.Asynchronous | FileOptions.SequentialScan
             });
-            await using (var cs = new CryptoStream(fs, sha256, CryptoStreamMode.Write, leaveOpen: true))
+            await using (var cs = new CryptoStream(fs, sha256, CryptoStreamMode.Write))
             {
                 await file.CopyToAsync(cs, ct);
                 await cs.FlushFinalBlockAsync(ct);
             }
-            await fs.FlushAsync(ct);
             sha256Hash = BitConverter.ToString(sha256.Hash!).Replace("-", "").ToLowerInvariant();
         }
         else
