@@ -98,6 +98,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringSe
 builder.Services.AddSingleton<IVideoMetadataService, VideoMetadataService>();
 builder.Services.AddSingleton<IFileStorageService, FileStorageService>();
 builder.Services.AddSingleton<IVideoStorageService, VideoStorageService>();
+builder.Services.AddSingleton<IScreenshotStorageService, ScreenshotStorageService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
