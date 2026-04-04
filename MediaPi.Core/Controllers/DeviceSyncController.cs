@@ -150,21 +150,19 @@ public class DeviceSyncController(
                 return null;
             }
 
-            using (var fileStream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
-            using (var sha256 = SHA256.Create())
+            using var fileStream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+            using var sha256 = SHA256.Create();
+            var buffer = new byte[81920];
+            int bytesRead;
+            while ((bytesRead = await fileStream.ReadAsync(buffer, ct)) > 0)
             {
-                var buffer = new byte[81920];
-                int bytesRead;
-                while ((bytesRead = await fileStream.ReadAsync(buffer, ct)) > 0)
-                {
-                    sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
-                }
-                sha256.TransformFinalBlock(buffer, 0, 0);
-
-                var hash = Convert.ToHexString(sha256.Hash ?? Array.Empty<byte>()).ToLowerInvariant();
-                _logger.LogInformation("Calculated SHA256 on-the-fly for Video ID: {VideoId}: {Sha256}", videoId, hash);
-                return hash;
+                sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
             }
+            sha256.TransformFinalBlock(buffer, 0, 0);
+
+            var hash = Convert.ToHexString(sha256.Hash ?? Array.Empty<byte>()).ToLowerInvariant();
+            _logger.LogInformation("Calculated SHA256 on-the-fly for Video ID: {VideoId}: {Sha256}", videoId, hash);
+            return hash;
         }
         catch (OperationCanceledException)
         {
@@ -265,7 +263,7 @@ public class DeviceSyncController(
         return File(bytes, "text/plain", "playlist.m3u");
     }
 
-    private string GenerateM3uContent(List<string> videoFilenames)
+    private static string GenerateM3uContent(List<string> videoFilenames)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("#EXTM3U");
