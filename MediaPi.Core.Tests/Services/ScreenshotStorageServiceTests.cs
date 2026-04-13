@@ -84,7 +84,18 @@ public class ScreenshotStorageServiceTests
 
         var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");
 
-        Assert.That(result.TimeCreated, Is.EqualTo(new DateTime(2026, 3, 11, 15, 23, 59)));
+        Assert.That(result.TimeCreated, Is.EqualTo(new DateTime(2026, 3, 11, 15, 23, 59, DateTimeKind.Utc)));
+        Assert.That(result.Sha256, Is.Null);
+    }
+
+    [Test]
+    public async Task SaveScreenshotAsync_WithMatchingCameraBasename_ExtractsTimeCreatedFromFilename()
+    {
+        var file = CreateMockFormFile("cam_2026-03-11_15-23-59.jpg", "image-content");
+
+        var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");
+
+        Assert.That(result.TimeCreated, Is.EqualTo(new DateTime(2026, 3, 11, 15, 23, 59, DateTimeKind.Utc)));
         Assert.That(result.Sha256, Is.Null);
     }
 
@@ -103,7 +114,7 @@ public class ScreenshotStorageServiceTests
     [Test]
     public async Task SaveScreenshotAsync_WithInvalidTimestamp_UsesCurrentUtcTime()
     {
-        var file = CreateMockFormFile("/home/pi/Pictures/cam_2026-13-99_99-99-99.jpg", "image-content");
+        var file = CreateMockFormFile("cam_2026-13-99_99-99-99.jpg", "image-content");
         var before = DateTime.UtcNow;
 
         var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");

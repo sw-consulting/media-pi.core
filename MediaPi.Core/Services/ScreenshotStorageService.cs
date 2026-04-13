@@ -40,7 +40,8 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
 
     private static DateTime ExtractTimeCreated(string originalFilename)
     {
-        var match = CamScreenshotPattern().Match(originalFilename);
+        var basename = Path.GetFileName(originalFilename);
+        var match = CamScreenshotPattern().Match(basename);
         if (!match.Success)
         {
             return DateTime.UtcNow;
@@ -55,6 +56,6 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
         return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
     }
 
-    [GeneratedRegex("^/home/pi/Pictures/cam_(?<timestamp>\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.jpg$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^cam_(?<timestamp>\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.jpg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CamScreenshotPattern();
 }
