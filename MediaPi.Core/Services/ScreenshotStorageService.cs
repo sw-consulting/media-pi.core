@@ -52,7 +52,7 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
             return DateTime.UtcNow;
         }
 
-        return parsed;
+        return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
     }
 
     [GeneratedRegex("^/home/pi/Pictures/cam_(?<timestamp>\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.jpg$", RegexOptions.CultureInvariant)]
