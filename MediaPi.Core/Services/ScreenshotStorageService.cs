@@ -21,7 +21,7 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
 
     public async Task<ScreenshotSaveResult> SaveScreenshotAsync(IFormFile file, string title, CancellationToken ct = default)
     {
-        var fileResult = await SaveFileAsync(file, title, computeSha256: false, ct);
+        var fileResult = await SaveFileAsync(file, title, false, ct);
 
         return new ScreenshotSaveResult
         {
