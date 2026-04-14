@@ -27,7 +27,8 @@ public partial class DevicesController
         try
         {
             var snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
-            var formFile = new FormFile(new MemoryStream(snapshot.Content), 0, snapshot.Content.Length, "file", snapshot.Filename)
+            await using var stream = new MemoryStream(snapshot.Content);
+            var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", snapshot.Filename)
             {
                 Headers = new HeaderDictionary(),
                 ContentType = snapshot.ContentType

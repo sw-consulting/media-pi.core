@@ -105,11 +105,10 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             throw new InvalidOperationException("Snapshot endpoint returned an empty response body.");
         }
 
-        var contentType = response.Content.Headers.ContentType?.MediaType;
-        if (string.IsNullOrWhiteSpace(contentType))
-        {
-            contentType = "image/jpeg";
-        }
+        var rawContentType = response.Content.Headers.ContentType?.MediaType;
+        var contentType = (!string.IsNullOrWhiteSpace(rawContentType) && rawContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            ? rawContentType
+            : "image/jpeg";
 
         var filename = ResolveSnapshotFilename(response, contentType);
         return new DeviceSnapshotResult
@@ -259,13 +258,28 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
 
         if (!string.IsNullOrWhiteSpace(fromHeader))
         {
-            return fromHeader.Trim('"');
+            var safe = NormalizeSafeFilename(fromHeader.Trim('"'));
+            if (!string.IsNullOrWhiteSpace(safe))
+                return safe;
         }
 
         var extension = ContentTypeProvider.Mappings
             .FirstOrDefault(m => string.Equals(m.Value, contentType, StringComparison.OrdinalIgnoreCase))
             .Key ?? ".jpg";
         return $"snapshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
+    }
+
+    private static readonly HashSet<char> UnsafeFileNameChars = new(
+        Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
+
+    private static string NormalizeSafeFilename(string input)
+    {
+        // Replace backslashes so Path.GetFileName also strips Windows-style path segments
+        var name = Path.GetFileName(input.Replace('\\', '/'));
+        var result = new System.Text.StringBuilder(name.Length);
+        foreach (var c in name)
+            result.Append(UnsafeFileNameChars.Contains(c) ? '_' : c);
+        return result.ToString().Trim();
     }
 
     private Uri BuildUri(Device device, string path, string? query)

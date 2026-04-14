@@ -437,6 +437,77 @@ public class DeviceAgentRestClientTests
         Assert.ThrowsAsync<InvalidOperationException>(() => client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
     }
 
+    [Test]
+    public async Task CreateSnapshotAsync_NonImageContentType_FallsBackToJpeg()
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/html");
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+
+        Assert.That(result.ContentType, Is.EqualTo("image/jpeg"));
+    }
+
+    [Test]
+    public async Task CreateSnapshotAsync_FilenameWithPathTraversal_IsNormalized()
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            response.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+            {
+                FileName = "\"../../etc/passwd\""
+            };
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+
+        Assert.That(result.Filename, Is.EqualTo("passwd"));
+    }
+
+    [Test]
+    public async Task CreateSnapshotAsync_FilenameWithInvalidChars_AreReplaced()
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            response.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+            {
+                FileName = "\"snap|shot<name>.png\""
+            };
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+
+        Assert.That(result.Filename, Does.Not.Contain("|"));
+        Assert.That(result.Filename, Does.Not.Contain("<"));
+        Assert.That(result.Filename, Does.Not.Contain(">"));
+        Assert.That(result.Filename, Does.EndWith(".png"));
+    }
+
     private static DeviceAgentRestClient CreateClient(HttpMessageHandler handler, TestLogger<DeviceAgentRestClient>? logger = null)
     {
         var httpClient = new HttpClient(handler);
