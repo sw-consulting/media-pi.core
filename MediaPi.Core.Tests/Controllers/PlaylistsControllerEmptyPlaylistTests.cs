@@ -1,4 +1,4 @@
-// Copyright (c) 2025 sw.consulting
+// Copyright (C) 2025-2026 sw.consulting
 
 using System;
 using System.Threading.Tasks;
