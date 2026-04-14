@@ -478,7 +478,7 @@ public class DeviceAgentRestClientTests
         var client = CreateClient(handler);
         var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
 
-        Assert.That(result.Filename, Is.EqualTo("passwd"));
+        Assert.That(result.Filename, Is.EqualTo("passwd.jpg"));
     }
 
     [Test]
@@ -506,6 +506,30 @@ public class DeviceAgentRestClientTests
         Assert.That(result.Filename, Does.Not.Contain("<"));
         Assert.That(result.Filename, Does.Not.Contain(">"));
         Assert.That(result.Filename, Does.EndWith(".png"));
+    }
+
+    [Test]
+    public async Task CreateSnapshotAsync_FilenameWithoutExtension_AppendsTypeBasedExtension()
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            response.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+            {
+                FileName = "\"snapshot\""
+            };
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+
+        Assert.That(result.Filename, Is.EqualTo("snapshot.png"));
     }
 
     [Test]

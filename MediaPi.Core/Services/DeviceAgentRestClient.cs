@@ -288,13 +288,34 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         {
             var safe = NormalizeSafeFilename(fromHeader.Trim('"'));
             if (!string.IsNullOrWhiteSpace(safe))
-                return safe;
+                return EnsureFilenameHasExtension(safe, contentType);
         }
 
-        var extension = ContentTypeProvider.Mappings
+        var extension = GetExtensionForContentType(contentType);
+        return $"snapshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
+    }
+
+    private static string EnsureFilenameHasExtension(string filename, string contentType)
+    {
+        return string.IsNullOrEmpty(Path.GetExtension(filename))
+            ? $"{filename}{GetExtensionForContentType(contentType)}"
+            : filename;
+    }
+
+    private static string GetExtensionForContentType(string contentType)
+    {
+        if (string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase))
+            return ".jpg";
+        if (string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase))
+            return ".png";
+        if (string.Equals(contentType, "image/gif", StringComparison.OrdinalIgnoreCase))
+            return ".gif";
+        if (string.Equals(contentType, "image/webp", StringComparison.OrdinalIgnoreCase))
+            return ".webp";
+
+        return ContentTypeProvider.Mappings
             .FirstOrDefault(m => string.Equals(m.Value, contentType, StringComparison.OrdinalIgnoreCase))
             .Key ?? ".jpg";
-        return $"snapshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
     }
 
     // Explicit chars ensure the set is safe cross-platform: Path.GetInvalidFileNameChars() on Linux
