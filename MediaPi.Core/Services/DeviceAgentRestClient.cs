@@ -92,6 +92,9 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
     // Maximum permitted size for a snapshot response body (20 MB).
     internal const int MaxSnapshotBytes = 20 * 1024 * 1024;
 
+    // 80 KB read buffer – matches the default buffer size used by Stream.CopyToAsync.
+    private const int StreamBufferSize = 80 * 1024;
+
     public async Task<DeviceSnapshotResult> CreateSnapshotAsync(Device device, CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(device, HttpMethod.Post, "/api/snapshot");
@@ -112,7 +115,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         await using (var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
         await using (var buffer = new MemoryStream())
         {
-            var chunk = new byte[81920];
+            var chunk = new byte[StreamBufferSize];
             int bytesRead;
             while ((bytesRead = await responseStream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
             {
