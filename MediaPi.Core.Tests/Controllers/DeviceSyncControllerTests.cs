@@ -726,7 +726,7 @@ public class DeviceSyncControllerTests
         var createdAt = new DateTime(2026, 4, 14, 12, 0, 0, DateTimeKind.Utc);
 
         _mockScreenshotStorageService
-            .Setup(s => s.SaveScreenshotAsync(file, file.FileName, It.IsAny<CancellationToken>()))
+            .Setup(s => s.SaveScreenshotAsync(file, Path.GetFileNameWithoutExtension(file.FileName), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScreenshotSaveResult
             {
                 Filename = "0001/cam_2026-04-14_12-00-00.jpg",
@@ -754,7 +754,7 @@ public class DeviceSyncControllerTests
     }
 
     [Test]
-    public async Task UploadScreenshot_UsesFileNameAsIs()
+    public async Task UploadScreenshot_UsesFileNameWithoutExtensionAsTitle()
     {
         SetDeviceContext(_device.Id);
 
@@ -762,7 +762,7 @@ public class DeviceSyncControllerTests
         var file = new FormFile(stream, 0, stream.Length, "file", "camera-shot.jpg");
 
         _mockScreenshotStorageService
-            .Setup(s => s.SaveScreenshotAsync(file, "camera-shot.jpg", It.IsAny<CancellationToken>()))
+            .Setup(s => s.SaveScreenshotAsync(file, "camera-shot", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScreenshotSaveResult
             {
                 Filename = "0001/camera-shot.jpg",
@@ -775,7 +775,7 @@ public class DeviceSyncControllerTests
         await _controller.UploadScreenshot(file);
 
         _mockScreenshotStorageService.Verify(
-            s => s.SaveScreenshotAsync(file, "camera-shot.jpg", It.IsAny<CancellationToken>()),
+            s => s.SaveScreenshotAsync(file, "camera-shot", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

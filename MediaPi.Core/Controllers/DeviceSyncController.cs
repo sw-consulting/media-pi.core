@@ -303,7 +303,7 @@ public class DeviceSyncController(
             return _400ScreenshotFileMissing();
         }
 
-        var saveResult = await _screenshotStorageService.SaveScreenshotAsync(file, file.FileName, ct);
+        var saveResult = await _screenshotStorageService.SaveScreenshotAsync(file, Path.GetFileNameWithoutExtension(file.FileName), ct);
 
         var screenshot = new Screenshot
         {
