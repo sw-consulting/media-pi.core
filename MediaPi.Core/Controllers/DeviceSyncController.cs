@@ -292,8 +292,8 @@ public class DeviceSyncController(
             return _500DeviceIdMissing();
         }
 
-        var device = await _db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct);
-        if (device == null)
+        var deviceExists = await _db.Devices.AnyAsync(d => d.Id == deviceId, ct);
+        if (!deviceExists)
         {
             return _404Device(deviceId);
         }
