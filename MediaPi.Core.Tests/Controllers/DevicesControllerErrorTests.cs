@@ -10,6 +10,7 @@ using Moq;
 using NUnit.Framework;
 
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
@@ -48,20 +49,24 @@ public class DevicesControllerErrorTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
+    private Mock<IScreenshotStorageService> _screenshotStorageServiceMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
     private Mock<IMediaPiAgentClient2> _agentClient2Mock;
+    private string _dbName = string.Empty;
 #pragma warning restore CS8618
 
     [SetUp]
     public void Setup()
     {
+        _dbName = $"device_controller_error_test_db_{Guid.NewGuid()}";
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase($"device_controller_error_test_db_{System.Guid.NewGuid()}")
+            .UseInMemoryDatabase(_dbName)
             .Options;
 
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
+        _screenshotStorageServiceMock = new Mock<IScreenshotStorageService>();
         _agentClientMock = new Mock<IMediaPiAgentClient>();
         _agentClient2Mock = new Mock<IMediaPiAgentClient2>();
 
@@ -135,6 +140,7 @@ public class DevicesControllerErrorTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
+            _screenshotStorageServiceMock.Object,
             _agentClientMock.Object,
             _agentClient2Mock.Object
         )
@@ -532,5 +538,120 @@ public class DevicesControllerErrorTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_EngineerAssignedDevice_ReturnsForbidden()
+    {
+        SetCurrentUser(_engineer.Id);
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClientMock.Verify(c => c.CreateSnapshotAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task CreateSnapshot_AgentThrows_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("snapshot failed"));
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+
+    [Test]
+    public async Task CreateSnapshot_StorageThrows_ReturnsInternalServerError()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = [1, 2],
+                ContentType = "image/jpeg",
+                Filename = "snapshot.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("disk full"));
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_DbSaveThrows_DeletesOrphanedFileAndReturnsInternalServerError()
+    {
+        // Use a separate context that throws on SaveChangesAsync, but with the same DB data
+        var throwingOptions = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(_dbName)
+            .Options;
+        await using var throwingDb = new ThrowingOnSaveDbContext(throwingOptions);
+
+        SetCurrentUser(_admin.Id);
+        var savedFilename = "0001/snapshot.jpg";
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = [1, 2],
+                ContentType = "image/jpeg",
+                Filename = "snapshot.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = savedFilename,
+                OriginalFilename = "snapshot.jpg",
+                FileSizeBytes = 2,
+                Sha256 = "abc",
+                TimeCreated = DateTime.UtcNow
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.DeleteScreenshotAsync(savedFilename, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var throwingController = new DevicesController(
+            _mockHttpContextAccessor.Object,
+            _userInformationService,
+            throwingDb,
+            _mockLogger.Object,
+            _deviceEventsService,
+            _monitoringServiceMock.Object,
+            _screenshotStorageServiceMock.Object,
+            _agentClientMock.Object,
+            _agentClient2Mock.Object
+        )
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = _mockHttpContextAccessor.Object.HttpContext!
+            }
+        };
+
+        var result = await throwingController.CreateSnapshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        _screenshotStorageServiceMock.Verify(
+            s => s.DeleteScreenshotAsync(savedFilename, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private sealed class ThrowingOnSaveDbContext(DbContextOptions<AppDbContext> options) : AppDbContext(options)
+    {
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+            => throw new DbUpdateException("Simulated DB failure");
     }
 }

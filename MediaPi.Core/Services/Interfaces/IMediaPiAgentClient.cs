@@ -8,6 +8,7 @@ namespace MediaPi.Core.Services.Interfaces;
 
 public interface IMediaPiAgentClient
 {
+    Task<DeviceSnapshotResult> CreateSnapshotAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiAgentListResponse> ListUnitsAsync(Device device, CancellationToken cancellationToken = default);
     Task<MediaPiAgentStatusResponse> GetStatusAsync(Device device, string unit, CancellationToken cancellationToken = default);
     Task<MediaPiAgentUnitResultResponse> StartUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
@@ -16,4 +17,11 @@ public interface IMediaPiAgentClient
     Task<MediaPiAgentEnableResponse> EnableUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
     Task<MediaPiAgentEnableResponse> DisableUnitAsync(Device device, string unit, CancellationToken cancellationToken = default);
     Task<MediaPiAgentHealthResponse> CheckHealthAsync(Device device, CancellationToken cancellationToken = default);
+}
+
+public sealed class DeviceSnapshotResult
+{
+    public required byte[] Content { get; init; }
+    public required string ContentType { get; init; }
+    public required string Filename { get; init; }
 }

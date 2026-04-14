@@ -216,6 +216,12 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage { Msg = "Middleware авторизации устройства не установил DeviceId" });
     }
 
+    protected ObjectResult _500SnapshotPersistence()
+    {
+        return StatusCode(StatusCodes.Status500InternalServerError,
+                          new ErrMessage { Msg = "Внутренняя ошибка при сохранении снимка экрана" });
+    }
+
     protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
     {
         return StatusCode(StatusCodes.Status403Forbidden,
