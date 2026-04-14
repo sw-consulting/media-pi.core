@@ -11,6 +11,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services;
 using MediaPi.Core.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -29,8 +30,11 @@ public class ScreenshotsControllerTests
     private Mock<IHttpContextAccessor> _mockHttpContextAccessor;
     private Mock<IScreenshotStorageService> _mockStorageService;
     private Mock<ILogger<ScreenshotsController>> _mockLogger;
+    private UserInformationService _userInformationService;
     private ScreenshotsController _controller;
     private Device _device;
+    private User _admin;
+    private User _unauthorizedUser;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -45,9 +49,32 @@ public class ScreenshotsControllerTests
         _mockStorageService = new Mock<IScreenshotStorageService>();
         _mockLogger = new Mock<ILogger<ScreenshotsController>>();
 
+        var adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
+        _dbContext.Roles.Add(adminRole);
+
+        _admin = new User
+        {
+            Id = 1,
+            Email = "admin@example.com",
+            Password = "test_pwd",
+            UserRoles = [new UserRole { UserId = 1, RoleId = adminRole.Id, Role = adminRole }]
+        };
+
+        _unauthorizedUser = new User
+        {
+            Id = 2,
+            Email = "nobody@example.com",
+            Password = "test_pwd",
+            UserRoles = []
+        };
+
+        _dbContext.Users.AddRange(_admin, _unauthorizedUser);
+
         _device = new Device { Id = 1, Name = "Cam", IpAddress = "10.0.0.1", Port = 8080 };
         _dbContext.Devices.Add(_device);
         _dbContext.SaveChanges();
+
+        _userInformationService = new UserInformationService(_dbContext);
     }
 
     [TearDown]
@@ -66,7 +93,8 @@ public class ScreenshotsControllerTests
             _mockHttpContextAccessor.Object,
             _dbContext,
             _mockLogger.Object,
-            _mockStorageService.Object)
+            _mockStorageService.Object,
+            _userInformationService)
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
@@ -97,7 +125,7 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task GetScreenshot_NotFound_Returns404()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshot(999, CancellationToken.None);
 
@@ -105,6 +133,21 @@ public class ScreenshotsControllerTests
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
         Assert.That((obj.Value as ErrMessage)?.Msg, Does.Contain("999"));
+    }
+
+    [Test]
+    public async Task GetScreenshot_UnauthorizedUser_Returns403()
+    {
+        var screenshot = MakeScreenshot(1, "0001/shot.jpg", "shot.jpg");
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        SetCurrentUser(_unauthorizedUser.Id);
+
+        var result = await _controller.GetScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
     [TestCase("0001/shot.jpg",  "image/jpeg")]
@@ -120,7 +163,7 @@ public class ScreenshotsControllerTests
         _dbContext.SaveChanges();
 
         _mockStorageService.Setup(s => s.GetAbsolutePath(filename)).Returns($"/storage/{filename}");
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshot(1, CancellationToken.None);
 
@@ -137,7 +180,7 @@ public class ScreenshotsControllerTests
 
         var expectedPath = "/storage/0001/cam_2025-06-01_10-00-00.jpg";
         _mockStorageService.Setup(s => s.GetAbsolutePath(screenshot.Filename)).Returns(expectedPath);
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshot(2, CancellationToken.None);
 
@@ -154,7 +197,7 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task DeleteScreenshot_NotFound_Returns404()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.DeleteScreenshot(999, CancellationToken.None);
 
@@ -162,6 +205,21 @@ public class ScreenshotsControllerTests
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
         Assert.That((obj.Value as ErrMessage)?.Msg, Does.Contain("999"));
+    }
+
+    [Test]
+    public async Task DeleteScreenshot_UnauthorizedUser_Returns403()
+    {
+        var screenshot = MakeScreenshot(3, "0001/cam_delete.jpg", "cam_delete.jpg");
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        SetCurrentUser(_unauthorizedUser.Id);
+
+        var result = await _controller.DeleteScreenshot(3, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
     [Test]
@@ -174,7 +232,7 @@ public class ScreenshotsControllerTests
         _mockStorageService
             .Setup(s => s.DeleteScreenshotAsync(screenshot.Filename, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.DeleteScreenshot(3, CancellationToken.None);
 
@@ -191,7 +249,7 @@ public class ScreenshotsControllerTests
         _mockStorageService
             .Setup(s => s.DeleteScreenshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         await _controller.DeleteScreenshot(4, CancellationToken.None);
 
@@ -210,7 +268,7 @@ public class ScreenshotsControllerTests
         _mockStorageService
             .Setup(s => s.DeleteScreenshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         await _controller.DeleteScreenshot(5, CancellationToken.None);
 
@@ -238,7 +296,7 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task GetScreenshots_DeviceNotFound_Returns404()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: 999, ct: CancellationToken.None);
 
@@ -247,9 +305,20 @@ public class ScreenshotsControllerTests
     }
 
     [Test]
+    public async Task GetScreenshots_UnauthorizedUser_Returns403()
+    {
+        SetCurrentUser(_unauthorizedUser.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
     public async Task GetScreenshots_InvalidPage_Returns400()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, page: 0, ct: CancellationToken.None);
 
@@ -262,7 +331,7 @@ public class ScreenshotsControllerTests
     [TestCase(1001)]
     public async Task GetScreenshots_InvalidPageSize_Returns400(int badPageSize)
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, pageSize: badPageSize, ct: CancellationToken.None);
 
@@ -273,9 +342,22 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task GetScreenshots_InvalidSortBy_Returns400()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, sortBy: "invalid_field", ct: CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [TestCase("invalid")]
+    [TestCase("ascending")]
+    [TestCase("descending")]
+    public async Task GetScreenshots_InvalidSortOrder_Returns400(string badSortOrder)
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _device.Id, sortOrder: badSortOrder, ct: CancellationToken.None);
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
@@ -284,7 +366,7 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task GetScreenshots_NoScreenshots_ReturnsEmptyPage()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
 
@@ -306,7 +388,7 @@ public class ScreenshotsControllerTests
             DeviceId = otherDevice.Id, Device = otherDevice
         });
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
 
@@ -321,7 +403,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 3, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
 
@@ -335,7 +417,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 3, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, sortBy: "id", sortOrder: "desc", ct: CancellationToken.None);
 
@@ -349,7 +431,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 3, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, sortBy: "time_created", sortOrder: "asc", ct: CancellationToken.None);
 
@@ -363,7 +445,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 3, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, sortBy: "time_created", sortOrder: "desc", ct: CancellationToken.None);
 
@@ -377,7 +459,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 5, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         // baseTime + 3 minutes → items 3, 4, 5
         var result = await _controller.GetScreenshots(deviceId: _device.Id, from: baseTime.AddMinutes(3), ct: CancellationToken.None);
@@ -393,7 +475,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 5, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         // baseTime + 3 minutes → items 1, 2, 3
         var result = await _controller.GetScreenshots(deviceId: _device.Id, to: baseTime.AddMinutes(3), ct: CancellationToken.None);
@@ -409,7 +491,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 5, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         // items 2 and 3 fall within [+2min, +3min]
         var result = await _controller.GetScreenshots(
@@ -427,7 +509,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 5, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var page1 = UnwrapPagedResult(await _controller.GetScreenshots(deviceId: _device.Id, page: 1, pageSize: 2, ct: CancellationToken.None));
         var page2 = UnwrapPagedResult(await _controller.GetScreenshots(deviceId: _device.Id, page: 2, pageSize: 2, ct: CancellationToken.None));
@@ -443,7 +525,7 @@ public class ScreenshotsControllerTests
         var baseTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc);
         _dbContext.Screenshots.AddRange(MakeSeedScreenshots(_device.Id, 5, baseTime));
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, page: 1, pageSize: 2, ct: CancellationToken.None);
 
@@ -458,7 +540,7 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task GetScreenshots_SortingInfo_ReflectsRequestedParameters()
     {
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, sortBy: "time_created", sortOrder: "desc", ct: CancellationToken.None);
 
@@ -473,7 +555,7 @@ public class ScreenshotsControllerTests
         var expected = MakeScreenshot(20, "0001/cam_shot.jpg", "cam_shot.jpg");
         _dbContext.Screenshots.Add(expected);
         _dbContext.SaveChanges();
-        SetCurrentUser(1);
+        SetCurrentUser(_admin.Id);
 
         var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
 

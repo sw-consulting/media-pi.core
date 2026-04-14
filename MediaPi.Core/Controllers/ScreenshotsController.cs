@@ -19,17 +19,21 @@ public class ScreenshotsController(
     IHttpContextAccessor httpContextAccessor,
     AppDbContext db,
     ILogger<ScreenshotsController> logger,
-    IScreenshotStorageService screenshotStorageService) : MediaPiControllerBase(httpContextAccessor, db, logger)
+    IScreenshotStorageService screenshotStorageService,
+    IUserInformationService userInformationService) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     private readonly IScreenshotStorageService _screenshotStorageService = screenshotStorageService;
+    private readonly IUserInformationService _userInformationService = userInformationService;
 
     private const int MaxPageSize = 1000;
     private static readonly string[] ValidSortFields = ["id", "time_created"];
+    private static readonly string[] ValidSortOrders = ["asc", "desc"];
 
     // GET: api/screenshots?deviceId={id}&from=...&to=...&page=1&pageSize=100&sortBy=id&sortOrder=asc
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResult<ScreenshotViewItem>))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<ActionResult<PagedResult<ScreenshotViewItem>>> GetScreenshots(
         int deviceId,
@@ -44,11 +48,22 @@ public class ScreenshotsController(
         if (page <= 0 || pageSize <= 0 || pageSize > MaxPageSize)
             return _400();
 
-        if (!ValidSortFields.Contains(sortBy.ToLowerInvariant()))
+        var normalizedSortBy = sortBy.ToLowerInvariant();
+        var normalizedSortOrder = sortOrder.ToLowerInvariant();
+
+        if (!ValidSortFields.Contains(normalizedSortBy))
             return _400();
 
-        if (!await _db.Devices.AnyAsync(d => d.Id == deviceId, ct))
-            return _404Device(deviceId);
+        if (!ValidSortOrders.Contains(normalizedSortOrder))
+            return _400();
+
+        var device = await _db.Devices.FindAsync([deviceId], ct);
+        if (device == null) return _404Device(deviceId);
+
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (!_userInformationService.UserCanViewDevice(user, device)) return _403();
 
         var query = _db.Screenshots
             .AsNoTracking()
@@ -60,7 +75,7 @@ public class ScreenshotsController(
         if (to.HasValue)
             query = query.Where(s => s.TimeCreated <= to.Value);
 
-        query = (sortBy.ToLowerInvariant(), sortOrder.ToLowerInvariant()) switch
+        query = (normalizedSortBy, normalizedSortOrder) switch
         {
             ("time_created", "desc") => query.OrderByDescending(s => s.TimeCreated).ThenByDescending(s => s.Id),
             ("time_created", _)      => query.OrderBy(s => s.TimeCreated).ThenBy(s => s.Id),
@@ -80,18 +95,27 @@ public class ScreenshotsController(
         {
             Items = screenshots.Select(s => new ScreenshotViewItem(s)).ToList(),
             Pagination = CreatePaginationInfo(page, pageSize, totalCount),
-            Sorting = new SortingInfo { SortBy = sortBy, SortOrder = sortOrder.ToLowerInvariant() }
+            Sorting = new SortingInfo { SortBy = normalizedSortBy, SortOrder = normalizedSortOrder }
         });
     }
 
     // GET: api/screenshots/{id}
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<IActionResult> GetScreenshot(int id, CancellationToken ct = default)
     {
-        var screenshot = await _db.Screenshots.FindAsync([id], ct);
+        var screenshot = await _db.Screenshots
+            .Include(s => s.Device)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == id, ct);
         if (screenshot == null) return _404Screenshot(id);
+
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (!_userInformationService.UserCanViewDevice(user, screenshot.Device)) return _403();
 
         var path = _screenshotStorageService.GetAbsolutePath(screenshot.Filename);
         var contentType = ResolveContentType(screenshot.Filename);
@@ -101,11 +125,19 @@ public class ScreenshotsController(
     // DELETE: api/screenshots/{id}
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<IActionResult> DeleteScreenshot(int id, CancellationToken ct = default)
     {
-        var screenshot = await _db.Screenshots.FindAsync([id], ct);
+        var screenshot = await _db.Screenshots
+            .Include(s => s.Device)
+            .FirstOrDefaultAsync(s => s.Id == id, ct);
         if (screenshot == null) return _404Screenshot(id);
+
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (!_userInformationService.UserCanManageDeviceServices(user, screenshot.Device)) return _403();
 
         await _screenshotStorageService.DeleteScreenshotAsync(screenshot.Filename, ct);
         _db.Screenshots.Remove(screenshot);

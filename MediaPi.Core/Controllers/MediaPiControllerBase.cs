@@ -239,11 +239,11 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     /// </summary>
     protected static PaginationInfo CreatePaginationInfo(int page, int pageSize, int totalCount)
     {
-        var (actualPage, _, totalPages) = ComputePagination(page, pageSize, totalCount);
+        var (actualPage, actualPageSize, totalPages) = ComputePagination(page, pageSize, totalCount);
         return new PaginationInfo
         {
             CurrentPage = actualPage,
-            PageSize = pageSize,
+            PageSize = actualPageSize,
             TotalCount = totalCount,
             TotalPages = totalPages,
             HasNextPage = actualPage < totalPages,
