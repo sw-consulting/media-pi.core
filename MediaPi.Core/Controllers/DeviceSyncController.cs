@@ -3,6 +3,7 @@
 
 using MediaPi.Core.Authorization;
 using MediaPi.Core.Data;
+using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -19,11 +20,13 @@ namespace MediaPi.Core.Controllers;
 public class DeviceSyncController(
     IHttpContextAccessor httpContextAccessor,
     IVideoStorageService videoStorageService,
+    IScreenshotStorageService screenshotStorageService,
     AppDbContext db,
     ILogger<DeviceSyncController> logger) : MediaPiControllerPreBase(db, logger)
 {
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
     private readonly IVideoStorageService _videoStorageService = videoStorageService;
+    private readonly IScreenshotStorageService _screenshotStorageService = screenshotStorageService;
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceSyncManifestItem>))]
@@ -274,5 +277,46 @@ public class DeviceSyncController(
         }
 
         return sb.ToString();
+    }
+
+    [HttpPost("screenshot")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<Reference>> UploadScreenshot([FromForm] IFormFile file, CancellationToken ct = default)
+    {
+        if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
+        {
+            return _500DeviceIdMissing();
+        }
+
+        var device = await _db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct);
+        if (device == null)
+        {
+            return _404Device(deviceId);
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            return _400ScreenshotFileMissing();
+        }
+
+        var saveResult = await _screenshotStorageService.SaveScreenshotAsync(file, file.FileName, ct);
+
+        var screenshot = new Screenshot
+        {
+            Filename = saveResult.Filename,
+            OriginalFilename = saveResult.OriginalFilename,
+            FileSizeBytes = saveResult.FileSizeBytes,
+            TimeCreated = saveResult.TimeCreated,
+            DeviceId = deviceId
+        };
+
+        _db.Screenshots.Add(screenshot);
+        await _db.SaveChangesAsync(ct);
+
+        return StatusCode(StatusCodes.Status201Created, new Reference { Id = screenshot.Id });
     }
 }

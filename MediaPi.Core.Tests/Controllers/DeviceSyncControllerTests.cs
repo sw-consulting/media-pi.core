@@ -2,7 +2,9 @@
 // This file is a part of Media Pi backend
 
 using System;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 using MediaPi.Core.Controllers;
@@ -26,6 +28,7 @@ public class DeviceSyncControllerTests
     private AppDbContext _dbContext;
     private Mock<IHttpContextAccessor> _mockHttpContextAccessor;
     private Mock<IVideoStorageService> _mockVideoStorageService;
+    private Mock<IScreenshotStorageService> _mockScreenshotStorageService;
     private Mock<ILogger<DeviceSyncController>> _mockLogger;
     private DeviceSyncController _controller;
     private Account _account;
@@ -43,6 +46,7 @@ public class DeviceSyncControllerTests
         _dbContext = new AppDbContext(options);
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         _mockVideoStorageService = new Mock<IVideoStorageService>();
+        _mockScreenshotStorageService = new Mock<IScreenshotStorageService>();
         _mockLogger = new Mock<ILogger<DeviceSyncController>>();
 
         _account = new Account { Id = 1, Name = "Account" };
@@ -74,6 +78,7 @@ public class DeviceSyncControllerTests
         _controller = new DeviceSyncController(
             _mockHttpContextAccessor.Object,
             _mockVideoStorageService.Object,
+            _mockScreenshotStorageService.Object,
             _dbContext,
             _mockLogger.Object)
         {
@@ -708,5 +713,122 @@ public class DeviceSyncControllerTests
     }
 
     #endregion
-}
 
+    #region Upload Screenshot Tests
+
+    [Test]
+    public async Task UploadScreenshot_SavesFileAndCreatesDatabaseRecord()
+    {
+        SetDeviceContext(_device.Id);
+
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("fake image"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "cam_2026-04-14_12-00-00.jpg");
+        var createdAt = new DateTime(2026, 4, 14, 12, 0, 0, DateTimeKind.Utc);
+
+        _mockScreenshotStorageService
+            .Setup(s => s.SaveScreenshotAsync(file, file.FileName, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/cam_2026-04-14_12-00-00.jpg",
+                OriginalFilename = file.FileName,
+                FileSizeBytes = (uint)stream.Length,
+                Sha256 = "hash",
+                TimeCreated = createdAt
+            });
+
+        var result = await _controller.UploadScreenshot(file);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
+        Assert.That(obj.Value, Is.TypeOf<Reference>());
+
+        var reference = (Reference)obj.Value!;
+        var screenshot = await _dbContext.Screenshots.FindAsync(reference.Id);
+        Assert.That(screenshot, Is.Not.Null);
+        Assert.That(screenshot!.Filename, Is.EqualTo("0001/cam_2026-04-14_12-00-00.jpg"));
+        Assert.That(screenshot.OriginalFilename, Is.EqualTo(file.FileName));
+        Assert.That(screenshot.FileSizeBytes, Is.EqualTo((uint)stream.Length));
+        Assert.That(screenshot.TimeCreated, Is.EqualTo(createdAt));
+        Assert.That(screenshot.DeviceId, Is.EqualTo(_device.Id));
+    }
+
+    [Test]
+    public async Task UploadScreenshot_UsesFileNameAsIs()
+    {
+        SetDeviceContext(_device.Id);
+
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("fake image"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "camera-shot.jpg");
+
+        _mockScreenshotStorageService
+            .Setup(s => s.SaveScreenshotAsync(file, "camera-shot.jpg", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/camera-shot.jpg",
+                OriginalFilename = file.FileName,
+                FileSizeBytes = (uint)stream.Length,
+                Sha256 = "hash",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        await _controller.UploadScreenshot(file);
+
+        _mockScreenshotStorageService.Verify(
+            s => s.SaveScreenshotAsync(file, "camera-shot.jpg", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
+    public async Task UploadScreenshot_DeviceIdMissing_Returns500()
+    {
+        SetDeviceContext(null);
+
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("fake image"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "camera-shot.jpg");
+
+        var result = await _controller.UploadScreenshot(file);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        _mockScreenshotStorageService.Verify(
+            s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task UploadScreenshot_DeviceNotFound_Returns404()
+    {
+        SetDeviceContext(999);
+
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("fake image"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "camera-shot.jpg");
+
+        var result = await _controller.UploadScreenshot(file);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UploadScreenshot_EmptyFile_Returns400()
+    {
+        SetDeviceContext(_device.Id);
+
+        var stream = new MemoryStream(Array.Empty<byte>());
+        var file = new FormFile(stream, 0, 0, "file", "camera-shot.jpg");
+
+        var result = await _controller.UploadScreenshot(file);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        _mockScreenshotStorageService.Verify(
+            s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    #endregion
+}
