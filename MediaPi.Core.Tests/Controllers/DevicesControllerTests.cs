@@ -48,6 +48,7 @@ public class DevicesControllerTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
+    private Mock<IScreenshotStorageService> _screenshotStorageServiceMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
     private Mock<IMediaPiAgentClient2> _agentClient2Mock;
 #pragma warning restore CS8618
@@ -62,6 +63,7 @@ public class DevicesControllerTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
+        _screenshotStorageServiceMock = new Mock<IScreenshotStorageService>();
         _agentClientMock = new Mock<IMediaPiAgentClient>();
         _agentClient2Mock = new Mock<IMediaPiAgentClient2>();
 
@@ -131,6 +133,7 @@ public class DevicesControllerTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
+            _screenshotStorageServiceMock.Object,
             _agentClientMock.Object,
             _agentClient2Mock.Object
         )
@@ -1200,7 +1203,8 @@ public class DevicesControllerTests
         {
             Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
-            Audio = new AudioSettingsDto { Output = "HDMI" }
+            Audio = new AudioSettingsDto { Output = "HDMI" },
+            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
         };
         var agentResponse = new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = true, Data = dto };
         _agentClient2Mock
@@ -1237,7 +1241,8 @@ public class DevicesControllerTests
         {
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
-            Audio = new AudioSettingsDto { Output = "LINE" }
+            Audio = new AudioSettingsDto { Output = "LINE" },
+            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
         };
         var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
         _agentClient2Mock
@@ -1297,7 +1302,8 @@ public class DevicesControllerTests
         {
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
-            Audio = new AudioSettingsDto { Output = "HDMI" }
+            Audio = new AudioSettingsDto { Output = "HDMI" },
+            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
         };
 
         // Make UpdateConfiguration succeed
@@ -1312,5 +1318,135 @@ public class DevicesControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_Admin_SavesScreenshotAndReturnsFile()
+    {
+        SetCurrentUser(_admin.Id);
+        var imageContent = new byte[] { 1, 2, 3, 4, 5 };
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = imageContent,
+                ContentType = "image/jpeg",
+                Filename = "cam_2026-04-14_12-00-00.jpg"
+            });
+
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), "cam_2026-04-14_12-00-00", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/cam_2026-04-14_12-00-00.jpg",
+                OriginalFilename = "cam_2026-04-14_12-00-00.jpg",
+                FileSizeBytes = 5,
+                Sha256 = "hash",
+                TimeCreated = new DateTime(2026, 4, 14, 12, 0, 0, DateTimeKind.Utc)
+            });
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var file = (FileContentResult)result;
+        Assert.That(file.FileContents, Is.EqualTo(imageContent));
+        Assert.That(file.ContentType, Is.EqualTo("image/jpeg"));
+        Assert.That(file.FileDownloadName, Is.EqualTo("cam_2026-04-14_12-00-00.jpg"));
+
+        var screenshot = await _dbContext.Screenshots.OrderByDescending(s => s.Id).FirstOrDefaultAsync();
+        Assert.That(screenshot, Is.Not.Null);
+        Assert.That(screenshot!.DeviceId, Is.EqualTo(1));
+        Assert.That(screenshot.Filename, Is.EqualTo("0001/cam_2026-04-14_12-00-00.jpg"));
+        Assert.That(screenshot.OriginalFilename, Is.EqualTo("cam_2026-04-14_12-00-00.jpg"));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_Manager_OwnDevice_Succeeds()
+    {
+        SetCurrentUser(_manager.Id);
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = [9, 9, 9],
+                ContentType = "image/png",
+                Filename = "snapshot.png"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/snapshot.png",
+                OriginalFilename = "snapshot.png",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+    }
+
+    [Test]
+    public async Task CreateSnapshot_UnsafeFilename_IsNormalized()
+    {
+        SetCurrentUser(_admin.Id);
+        var imageContent = new byte[] { 1, 2, 3 };
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = imageContent,
+                ContentType = "image/jpeg",
+                Filename = "../../etc/passwd.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/passwd.jpg",
+                OriginalFilename = "passwd.jpg",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var file = (FileContentResult)result;
+        Assert.That(file.FileDownloadName, Does.Not.Contain(".."));
+        Assert.That(file.FileDownloadName, Does.Not.Contain("/"));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_NonImageContentType_FallsBackToJpeg()
+    {
+        SetCurrentUser(_admin.Id);
+        var imageContent = new byte[] { 1, 2, 3 };
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = imageContent,
+                ContentType = "text/html",
+                Filename = "snapshot.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/snapshot.jpg",
+                OriginalFilename = "snapshot.jpg",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var file = (FileContentResult)result;
+        Assert.That(file.ContentType, Is.EqualTo("image/jpeg"));
     }
 }

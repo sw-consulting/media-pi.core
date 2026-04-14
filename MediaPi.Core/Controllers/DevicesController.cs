@@ -27,6 +27,7 @@ public partial class DevicesController(
     ILogger<DevicesController> logger,
     DeviceEventsService deviceEventsService,
     IDeviceMonitoringService monitoringService,
+    IScreenshotStorageService screenshotStorageService,
     IMediaPiAgentClient mediaPiAgentClient,
     IMediaPiAgentClient2 mediaPiAgentClient2) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {

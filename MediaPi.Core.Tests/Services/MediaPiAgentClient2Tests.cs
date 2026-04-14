@@ -108,7 +108,8 @@ public class MediaPiAgentClient2Tests
                 {
                     playlist = new { destination = "d" },
                     schedule = new { playlist = new[] { "one" }, video = Array.Empty<string>(), rest = Array.Empty<object>() },
-                    audio = new { output = "HDMI" }
+                    audio = new { output = "HDMI" },
+                    screenshot = new { interval_minutes = 5 }
                 }
             });
             return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
@@ -139,6 +140,7 @@ public class MediaPiAgentClient2Tests
         Assert.That(model!.Audio.Output, Is.EqualTo("HDMI"));
         Assert.That(model.Playlist.Destination, Is.EqualTo("d"));
         Assert.That(model.Schedule.Playlist, Does.Contain("one"));
+        Assert.That(model.Screenshot.IntervalMinutes, Is.EqualTo(5));
     }
 
     [Test]
@@ -166,7 +168,8 @@ public class MediaPiAgentClient2Tests
         {
             Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = ["a"] },
-            Audio = new AudioSettingsDto { Output = "HDMI" }
+            Audio = new AudioSettingsDto { Output = "HDMI" },
+            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
         };
 
         MediaPiMenuCommandResponse response;
@@ -180,7 +183,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"dst\"},\"schedule\":{\"playlist\":[\"a\"],\"video\":[]},\"audio\":{\"output\":\"HDMI\"}}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"dst\"},\"schedule\":{\"playlist\":[\"a\"],\"video\":[]},\"audio\":{\"output\":\"HDMI\"},\"screenshot\":{\"interval_minutes\":0}}"));
         Assert.That(observedAuth, Is.Not.Null);
         Assert.That(observedAuth!.Scheme, Is.EqualTo("Bearer"));
         Assert.That(observedAuth.Parameter, Is.EqualTo("secret"));
@@ -380,7 +383,8 @@ public class MediaPiAgentClient2Tests
                 Video = new List<string> { "clip" },
                 Rest = [new RestTimePairDto { Stop = "10:00", Start = "09:00" }]
             },
-            Audio = new AudioSettingsDto { Output = "HDMI" }
+            Audio = new AudioSettingsDto { Output = "HDMI" },
+            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 10 }
         };
 
         MediaPiMenuCommandResponse response;
@@ -394,7 +398,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"}}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"},\"screenshot\":{\"interval_minutes\":10}}"));
     }
 
     [Test]

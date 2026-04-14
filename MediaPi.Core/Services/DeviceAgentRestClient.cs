@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Linq;
+using Microsoft.AspNetCore.StaticFiles;
 using MediaPi.Core.Models;
 using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
@@ -21,6 +22,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<DeviceAgentRestClient> _logger;
+    private static readonly FileExtensionContentTypeProvider ContentTypeProvider = new();
 
     public DeviceAgentRestClient(HttpClient httpClient, ILogger<DeviceAgentRestClient> logger)
     {
@@ -84,6 +86,64 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             Status = data?.Status,
             Uptime = data?.Uptime,
             Version = data?.Version
+        };
+    }
+
+    // Maximum permitted size for a snapshot response body (20 MB).
+    internal const int MaxSnapshotBytes = 20 * 1024 * 1024;
+
+    // 80 KB read buffer – matches the default buffer size used by Stream.CopyToAsync.
+    private const int StreamBufferSize = 80 * 1024;
+
+    public async Task<DeviceSnapshotResult> CreateSnapshotAsync(Device device, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(device, HttpMethod.Post, "/api/snapshot");
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Snapshot endpoint returned status {(int)response.StatusCode} ({response.StatusCode}).");
+        }
+
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > MaxSnapshotBytes)
+        {
+            throw new InvalidOperationException($"Snapshot response body ({contentLength.Value} bytes) exceeds the maximum allowed size of {MaxSnapshotBytes / (1024 * 1024)} MB.");
+        }
+
+        byte[] content;
+        await using (var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+        await using (var buffer = new MemoryStream())
+        {
+            var chunk = new byte[StreamBufferSize];
+            int bytesRead;
+            while ((bytesRead = await responseStream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                if (buffer.Length + bytesRead > MaxSnapshotBytes)
+                {
+                    throw new InvalidOperationException($"Snapshot response body exceeds the maximum allowed size of {MaxSnapshotBytes / (1024 * 1024)} MB.");
+                }
+                buffer.Write(chunk, 0, bytesRead);
+            }
+            content = buffer.ToArray();
+        }
+
+        if (content.Length == 0)
+        {
+            throw new InvalidOperationException("Snapshot endpoint returned an empty response body.");
+        }
+
+        var rawContentType = response.Content.Headers.ContentType?.MediaType;
+        var contentType = (!string.IsNullOrWhiteSpace(rawContentType) && rawContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            ? rawContentType
+            : "image/jpeg";
+
+        var filename = ResolveSnapshotFilename(response, contentType);
+        return new DeviceSnapshotResult
+        {
+            Content = content,
+            ContentType = contentType,
+            Filename = filename
         };
     }
 
@@ -217,6 +277,76 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
     {
         var json = JsonSerializer.Serialize(payload, SerializerOptions);
         return new StringContent(json, Encoding.UTF8, "application/json");
+    }
+
+    private static string ResolveSnapshotFilename(HttpResponseMessage response, string contentType)
+    {
+        var fromHeader = response.Content.Headers.ContentDisposition?.FileNameStar
+            ?? response.Content.Headers.ContentDisposition?.FileName;
+
+        if (!string.IsNullOrWhiteSpace(fromHeader))
+        {
+            var safe = NormalizeSafeFilename(fromHeader.Trim('"'));
+            if (!string.IsNullOrWhiteSpace(safe))
+                return EnsureFilenameHasExtension(safe, contentType);
+        }
+
+        var extension = GetExtensionForContentType(contentType);
+        return $"snapshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
+    }
+
+    private static string EnsureFilenameHasExtension(string filename, string contentType)
+    {
+        return string.IsNullOrEmpty(Path.GetExtension(filename))
+            ? $"{filename}{GetExtensionForContentType(contentType)}"
+            : filename;
+    }
+
+    private static string GetExtensionForContentType(string contentType)
+    {
+        if (string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase))
+            return ".jpg";
+        if (string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase))
+            return ".png";
+        if (string.Equals(contentType, "image/gif", StringComparison.OrdinalIgnoreCase))
+            return ".gif";
+        if (string.Equals(contentType, "image/webp", StringComparison.OrdinalIgnoreCase))
+            return ".webp";
+
+        return ContentTypeProvider.Mappings
+            .FirstOrDefault(m => string.Equals(m.Value, contentType, StringComparison.OrdinalIgnoreCase))
+            .Key ?? ".jpg";
+    }
+
+    // Explicit chars ensure the set is safe cross-platform: Path.GetInvalidFileNameChars() on Linux
+    // only returns '\0' and '/'; the extras (|, <, >, *, ?, ", :, \) cover Windows-invalid chars too.
+    private static readonly HashSet<char> UnsafeFileNameChars = new(
+        Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
+
+    private const int MaxSafeFilenameLength = 200;
+
+    private static string NormalizeSafeFilename(string input)
+    {
+        // Replace backslashes so Path.GetFileName also strips Windows-style path segments
+        var name = Path.GetFileName(input.Replace('\\', '/'));
+        var result = new System.Text.StringBuilder(name.Length);
+        foreach (var c in name)
+        {
+            if (char.IsControl(c) || UnsafeFileNameChars.Contains(c))
+                result.Append('_');
+            else
+                result.Append(c);
+        }
+        var normalized = result.ToString().Trim();
+        if (normalized.Length <= MaxSafeFilenameLength)
+            return normalized;
+
+        // Preserve the file extension when trimming to the length limit
+        var ext = Path.GetExtension(normalized);
+        var maxBase = MaxSafeFilenameLength - ext.Length;
+        return maxBase > 0
+            ? normalized[..maxBase] + ext
+            : normalized[..MaxSafeFilenameLength];
     }
 
     private Uri BuildUri(Device device, string path, string? query)
