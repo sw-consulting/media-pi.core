@@ -161,6 +161,12 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует файл" });
     }
 
+    protected ObjectResult _400ScreenshotFileMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не удалось загрузить скриншот: отсутствует файл" });
+    }
+
     protected ObjectResult _400VideoTitleMissing()
     {
         return StatusCode(StatusCodes.Status400BadRequest,
