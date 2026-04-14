@@ -16,6 +16,7 @@ public partial class DevicesController
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FileContentResult))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
     public async Task<IActionResult> CreateSnapshot(int id, CancellationToken ct = default)
     {
@@ -24,39 +25,40 @@ public partial class DevicesController
 
         var targetDevice = device!;
 
+        MediaPi.Core.Services.Models.SnapshotResponse snapshot;
         try
         {
-            var snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
-
-            // Stream must remain open for the duration of SaveScreenshotAsync; it is disposed
-            // at the end of this try block, after the save call has completed.
-            await using var stream = new MemoryStream(snapshot.Content);
-            var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", snapshot.Filename)
-            {
-                Headers = new HeaderDictionary(),
-                ContentType = snapshot.ContentType
-            };
-
-            var saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(snapshot.Filename), ct);
-            var screenshot = new Screenshot
-            {
-                Filename = saveResult.Filename,
-                OriginalFilename = saveResult.OriginalFilename,
-                FileSizeBytes = saveResult.FileSizeBytes,
-                TimeCreated = saveResult.TimeCreated,
-                DeviceId = id
-            };
-
-            _db.Screenshots.Add(screenshot);
-            await _db.SaveChangesAsync(ct);
-
-            return File(snapshot.Content, snapshot.ContentType, snapshot.Filename);
+            snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Ошибка при выполнении операции create snapshot для устройства {DeviceId}", id);
             return _502Agent();
         }
+
+        // Stream must remain open for the duration of SaveScreenshotAsync; it is disposed
+        // at the end of this method scope, after the save call has completed.
+        await using var stream = new MemoryStream(snapshot.Content);
+        var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", snapshot.Filename)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = snapshot.ContentType
+        };
+
+        var saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(snapshot.Filename), ct);
+        var screenshot = new Screenshot
+        {
+            Filename = saveResult.Filename,
+            OriginalFilename = saveResult.OriginalFilename,
+            FileSizeBytes = saveResult.FileSizeBytes,
+            TimeCreated = saveResult.TimeCreated,
+            DeviceId = id
+        };
+
+        _db.Screenshots.Add(screenshot);
+        await _db.SaveChangesAsync(ct);
+
+        return File(snapshot.Content, snapshot.ContentType, snapshot.Filename);
     }
 
     [HttpPost("{id}/playback/stop")]
