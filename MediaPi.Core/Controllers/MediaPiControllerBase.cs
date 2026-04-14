@@ -87,6 +87,11 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
         return StatusCode(StatusCodes.Status404NotFound,
                           new ErrMessage { Msg = $"Не удалось найти видеофайл [id={id}]" });
     }
+    protected ObjectResult _404Screenshot(int id)
+    {
+        return StatusCode(StatusCodes.Status404NotFound,
+                          new ErrMessage { Msg = $"Не удалось найти скриншот [id={id}]" });
+    }
     protected ObjectResult _409Email(string email)
     {
         return StatusCode(StatusCodes.Status409Conflict,
@@ -215,6 +220,35 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     {
         return StatusCode(StatusCodes.Status403Forbidden,
                           new ErrMessage { Msg = $"Устройство [id={deviceId}] не имеет доступа к видео [id={videoId}]" });
+    }
+
+    /// <summary>
+    /// Computes pagination parameters. Handles pageSize = -1 (all items) and out-of-range page numbers.
+    /// </summary>
+    protected static (int ActualPage, int ActualPageSize, int TotalPages) ComputePagination(
+        int page, int pageSize, int totalCount)
+    {
+        int actualPageSize = pageSize == -1 ? (totalCount == 0 ? 1 : totalCount) : pageSize;
+        int totalPages = (int)Math.Ceiling(totalCount / (double)actualPageSize);
+        int actualPage = (page > totalPages && totalPages > 0) ? 1 : (pageSize == -1 ? 1 : page);
+        return (actualPage, actualPageSize, totalPages);
+    }
+
+    /// <summary>
+    /// Creates a fully populated PaginationInfo from page/pageSize/totalCount.
+    /// </summary>
+    protected static PaginationInfo CreatePaginationInfo(int page, int pageSize, int totalCount)
+    {
+        var (actualPage, actualPageSize, totalPages) = ComputePagination(page, pageSize, totalCount);
+        return new PaginationInfo
+        {
+            CurrentPage = actualPage,
+            PageSize = actualPageSize,
+            TotalCount = totalCount,
+            TotalPages = totalPages,
+            HasNextPage = actualPage < totalPages,
+            HasPreviousPage = actualPage > 1
+        };
     }
 }
 
