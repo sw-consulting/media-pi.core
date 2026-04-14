@@ -58,7 +58,7 @@ public class DevicesControllerErrorTests
     [SetUp]
     public void Setup()
     {
-        _dbName = $"device_controller_error_test_db_{System.Guid.NewGuid()}";
+        _dbName = $"device_controller_error_test_db_{Guid.NewGuid()}";
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(_dbName)
             .Options;

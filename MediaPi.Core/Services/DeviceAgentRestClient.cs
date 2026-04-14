@@ -289,9 +289,15 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
                 result.Append(c);
         }
         var normalized = result.ToString().Trim();
-        return normalized.Length > MaxSafeFilenameLength
-            ? normalized[..MaxSafeFilenameLength]
-            : normalized;
+        if (normalized.Length <= MaxSafeFilenameLength)
+            return normalized;
+
+        // Preserve the file extension when trimming to the length limit
+        var ext = Path.GetExtension(normalized);
+        var maxBase = MaxSafeFilenameLength - ext.Length;
+        return maxBase > 0
+            ? normalized[..maxBase] + ext
+            : normalized[..MaxSafeFilenameLength];
     }
 
     private Uri BuildUri(Device device, string path, string? query)

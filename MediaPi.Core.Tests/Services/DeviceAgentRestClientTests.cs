@@ -555,6 +555,7 @@ public class DeviceAgentRestClientTests
         var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.Filename.Length, Is.LessThanOrEqualTo(200));
+        Assert.That(result.Filename, Does.EndWith(".jpg"));
     }
 
     private static DeviceAgentRestClient CreateClient(HttpMessageHandler handler, TestLogger<DeviceAgentRestClient>? logger = null)
