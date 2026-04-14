@@ -10,6 +10,7 @@ using Moq;
 using NUnit.Framework;
 
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
@@ -48,6 +49,7 @@ public class DevicesControllerErrorTests
     private UserInformationService _userInformationService;
     private DeviceEventsService _deviceEventsService;
     private Mock<IDeviceMonitoringService> _monitoringServiceMock;
+    private Mock<IScreenshotStorageService> _screenshotStorageServiceMock;
     private Mock<IMediaPiAgentClient> _agentClientMock;
     private Mock<IMediaPiAgentClient2> _agentClient2Mock;
 #pragma warning restore CS8618
@@ -62,6 +64,7 @@ public class DevicesControllerErrorTests
         _dbContext = new AppDbContext(options);
         _deviceEventsService = new DeviceEventsService();
         _monitoringServiceMock = new Mock<IDeviceMonitoringService>();
+        _screenshotStorageServiceMock = new Mock<IScreenshotStorageService>();
         _agentClientMock = new Mock<IMediaPiAgentClient>();
         _agentClient2Mock = new Mock<IMediaPiAgentClient2>();
 
@@ -135,6 +138,7 @@ public class DevicesControllerErrorTests
             _mockLogger.Object,
             _deviceEventsService,
             _monitoringServiceMock.Object,
+            _screenshotStorageServiceMock.Object,
             _agentClientMock.Object,
             _agentClient2Mock.Object
         )
@@ -531,6 +535,53 @@ public class DevicesControllerErrorTests
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_EngineerAssignedDevice_ReturnsForbidden()
+    {
+        SetCurrentUser(_engineer.Id);
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClientMock.Verify(c => c.CreateSnapshotAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task CreateSnapshot_AgentThrows_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("snapshot failed"));
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_StorageThrows_ReturnsBadGateway()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = [1, 2],
+                ContentType = "image/jpeg",
+                Filename = "snapshot.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("disk full"));
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
     }
 }

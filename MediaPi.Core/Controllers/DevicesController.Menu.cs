@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System.Text.Json;
+using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services.Models;
@@ -11,6 +12,49 @@ namespace MediaPi.Core.Controllers;
 
 public partial class DevicesController
 {
+    [HttpPost("{id}/snapshot")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FileContentResult))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
+    public async Task<IActionResult> CreateSnapshot(int id, CancellationToken ct = default)
+    {
+        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        if (error != null) return error;
+
+        var targetDevice = device!;
+
+        try
+        {
+            var snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
+            var formFile = new FormFile(new MemoryStream(snapshot.Content), 0, snapshot.Content.Length, "file", snapshot.Filename)
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = snapshot.ContentType
+            };
+
+            var saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(snapshot.Filename), ct);
+            var screenshot = new Screenshot
+            {
+                Filename = saveResult.Filename,
+                OriginalFilename = saveResult.OriginalFilename,
+                FileSizeBytes = saveResult.FileSizeBytes,
+                TimeCreated = saveResult.TimeCreated,
+                DeviceId = id
+            };
+
+            _db.Screenshots.Add(screenshot);
+            await _db.SaveChangesAsync(ct);
+
+            return File(snapshot.Content, snapshot.ContentType, snapshot.Filename);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при выполнении операции create snapshot для устройства {DeviceId}", id);
+            return _502Agent();
+        }
+    }
+
     [HttpPost("{id}/playback/stop")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]

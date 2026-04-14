@@ -394,6 +394,49 @@ public class DeviceAgentRestClientTests
         Assert.ThrowsAsync<TimeoutException>(() => client.GetStatusAsync(device, "unit", CancellationToken.None));
     }
 
+    [Test]
+    public async Task CreateSnapshotAsync_ReturnsImagePayload()
+    {
+        HttpMethod? observedMethod = null;
+        Uri? observedUri = null;
+        var bytes = new byte[] { 10, 20, 30 };
+
+        var handler = new StubHttpMessageHandler((request, _) =>
+        {
+            observedMethod = request.Method;
+            observedUri = request.RequestUri;
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            response.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+            {
+                FileName = "\"from-device.png\""
+            };
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(ip: "10.0.0.8", port: 8086), CancellationToken.None);
+
+        Assert.That(observedMethod, Is.EqualTo(HttpMethod.Post));
+        Assert.That(observedUri, Is.Not.Null);
+        Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/api/snapshot"));
+        Assert.That(result.Content, Is.EqualTo(bytes));
+        Assert.That(result.ContentType, Is.EqualTo("image/png"));
+        Assert.That(result.Filename, Is.EqualTo("from-device.png"));
+    }
+
+    [Test]
+    public void CreateSnapshotAsync_WhenEndpointFails_Throws()
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)));
+        var client = CreateClient(handler);
+        Assert.ThrowsAsync<InvalidOperationException>(() => client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
+    }
+
     private static DeviceAgentRestClient CreateClient(HttpMessageHandler handler, TestLogger<DeviceAgentRestClient>? logger = null)
     {
         var httpClient = new HttpClient(handler);
