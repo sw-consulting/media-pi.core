@@ -1386,4 +1386,67 @@ public class DevicesControllerTests
         var result = await _controller.CreateSnapshot(1, CancellationToken.None);
         Assert.That(result, Is.TypeOf<FileContentResult>());
     }
+
+    [Test]
+    public async Task CreateSnapshot_UnsafeFilename_IsNormalized()
+    {
+        SetCurrentUser(_admin.Id);
+        var imageContent = new byte[] { 1, 2, 3 };
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = imageContent,
+                ContentType = "image/jpeg",
+                Filename = "../../etc/passwd.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/passwd.jpg",
+                OriginalFilename = "passwd.jpg",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var file = (FileContentResult)result;
+        Assert.That(file.FileDownloadName, Does.Not.Contain(".."));
+        Assert.That(file.FileDownloadName, Does.Not.Contain("/"));
+    }
+
+    [Test]
+    public async Task CreateSnapshot_NonImageContentType_FallsBackToJpeg()
+    {
+        SetCurrentUser(_admin.Id);
+        var imageContent = new byte[] { 1, 2, 3 };
+        _agentClientMock
+            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceSnapshotResult
+            {
+                Content = imageContent,
+                ContentType = "text/html",
+                Filename = "snapshot.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/snapshot.jpg",
+                OriginalFilename = "snapshot.jpg",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var file = (FileContentResult)result;
+        Assert.That(file.ContentType, Is.EqualTo("image/jpeg"));
+    }
 }

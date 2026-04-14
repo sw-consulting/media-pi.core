@@ -89,17 +89,42 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         };
     }
 
+    // Maximum permitted size for a snapshot response body (20 MB).
+    internal const int MaxSnapshotBytes = 20 * 1024 * 1024;
+
     public async Task<DeviceSnapshotResult> CreateSnapshotAsync(Device device, CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(device, HttpMethod.Post, "/api/snapshot");
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Snapshot endpoint returned status {(int)response.StatusCode} ({response.StatusCode}).");
         }
 
-        var content = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > MaxSnapshotBytes)
+        {
+            throw new InvalidOperationException($"Snapshot response body ({contentLength.Value} bytes) exceeds the maximum allowed size of {MaxSnapshotBytes / (1024 * 1024)} MB.");
+        }
+
+        byte[] content;
+        await using (var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+        await using (var buffer = new MemoryStream())
+        {
+            var chunk = new byte[81920];
+            int bytesRead;
+            while ((bytesRead = await responseStream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                if (buffer.Length + bytesRead > MaxSnapshotBytes)
+                {
+                    throw new InvalidOperationException($"Snapshot response body exceeds the maximum allowed size of {MaxSnapshotBytes / (1024 * 1024)} MB.");
+                }
+                buffer.Write(chunk, 0, bytesRead);
+            }
+            content = buffer.ToArray();
+        }
+
         if (content.Length == 0)
         {
             throw new InvalidOperationException("Snapshot endpoint returned an empty response body.");

@@ -558,6 +558,50 @@ public class DeviceAgentRestClientTests
         Assert.That(result.Filename, Does.EndWith(".jpg"));
     }
 
+    [Test]
+    public void CreateSnapshotAsync_WhenContentLengthExceedsMaxSize_Throws()
+    {
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            // Simulate a Content-Length that exceeds the max allowed size
+            response.Content.Headers.ContentLength = DeviceAgentRestClient.MaxSnapshotBytes + 1L;
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
+        Assert.That(ex!.Message, Does.Contain("maximum allowed size"));
+    }
+
+    [Test]
+    public void CreateSnapshotAsync_WhenStreamedBodyExceedsMaxSize_Throws()
+    {
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            // No Content-Length header; body size exceeds the limit via streaming
+            var oversizedContent = new byte[DeviceAgentRestClient.MaxSnapshotBytes + 1];
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(oversizedContent)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            // Clear Content-Length so the check falls through to the streaming guard
+            response.Content.Headers.ContentLength = null;
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
+        Assert.That(ex!.Message, Does.Contain("maximum allowed size"));
+    }
+
     private static DeviceAgentRestClient CreateClient(HttpMessageHandler handler, TestLogger<DeviceAgentRestClient>? logger = null)
     {
         var httpClient = new HttpClient(handler);

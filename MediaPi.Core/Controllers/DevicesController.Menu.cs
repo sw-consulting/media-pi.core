@@ -37,19 +37,25 @@ public partial class DevicesController
             return _502Agent();
         }
 
+        // Normalize filename and content-type before using them in storage or response headers.
+        // IMediaPiAgentClient does not guarantee these values are sanitized, so we apply
+        // defensive normalization regardless of the underlying implementation.
+        var safeFilename = SanitizeSnapshotFilename(snapshot.Filename);
+        var safeContentType = IsAllowedImageContentType(snapshot.ContentType) ? snapshot.ContentType : "image/jpeg";
+
         // Stream must remain open for the duration of SaveScreenshotAsync; it is disposed
         // at the end of this method scope, after the save call has completed.
         await using var stream = new MemoryStream(snapshot.Content);
-        var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", snapshot.Filename)
+        var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", safeFilename)
         {
             Headers = new HeaderDictionary(),
-            ContentType = snapshot.ContentType
+            ContentType = safeContentType
         };
 
         ScreenshotSaveResult saveResult;
         try
         {
-            saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(snapshot.Filename), ct);
+            saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(safeFilename), ct);
         }
         catch (Exception ex)
         {
@@ -85,8 +91,30 @@ public partial class DevicesController
             return _500SnapshotPersistence();
         }
 
-        return File(snapshot.Content, snapshot.ContentType, snapshot.Filename);
+        return File(snapshot.Content, safeContentType, safeFilename);
     }
+
+    private static readonly HashSet<char> _unsafeFileNameChars = new(
+        Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
+
+    private static string SanitizeSnapshotFilename(string? filename)
+    {
+        if (string.IsNullOrWhiteSpace(filename))
+            return "snapshot.jpg";
+
+        var name = Path.GetFileName(filename.Replace('\\', '/'));
+        var result = new System.Text.StringBuilder(name.Length);
+        foreach (var c in name)
+        {
+            result.Append(char.IsControl(c) || _unsafeFileNameChars.Contains(c) ? '_' : c);
+        }
+        var safe = result.ToString().Trim();
+        return string.IsNullOrWhiteSpace(safe) ? "snapshot.jpg" : safe;
+    }
+
+    private static bool IsAllowedImageContentType(string? contentType) =>
+        !string.IsNullOrWhiteSpace(contentType) &&
+        contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
 
     [HttpPost("{id}/playback/stop")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MediaPiMenuCommandResponse))]
