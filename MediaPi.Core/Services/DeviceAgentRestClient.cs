@@ -269,6 +269,8 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return $"snapshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
     }
 
+    // Explicit chars ensure the set is safe cross-platform: Path.GetInvalidFileNameChars() on Linux
+    // only returns '\0' and '/'; the extras (|, <, >, *, ?, ", :, \) cover Windows-invalid chars too.
     private static readonly HashSet<char> UnsafeFileNameChars = new(
         Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
 

@@ -27,6 +27,9 @@ public partial class DevicesController
         try
         {
             var snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
+
+            // Stream must remain open for the duration of SaveScreenshotAsync; it is disposed
+            // at the end of this try block, after the save call has completed.
             await using var stream = new MemoryStream(snapshot.Content);
             var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", snapshot.Filename)
             {
