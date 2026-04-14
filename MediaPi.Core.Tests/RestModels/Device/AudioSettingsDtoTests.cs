@@ -1,4 +1,4 @@
-// Copyright (c) 2025 sw.consulting
+// Copyright (C) 2025-2026 sw.consulting
 // Test class to debug AudioSettingsDto deserialization
 
 using System.Text.Json;
