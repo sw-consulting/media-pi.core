@@ -274,14 +274,24 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
     private static readonly HashSet<char> UnsafeFileNameChars = new(
         Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
 
+    private const int MaxSafeFilenameLength = 200;
+
     private static string NormalizeSafeFilename(string input)
     {
         // Replace backslashes so Path.GetFileName also strips Windows-style path segments
         var name = Path.GetFileName(input.Replace('\\', '/'));
         var result = new System.Text.StringBuilder(name.Length);
         foreach (var c in name)
-            result.Append(UnsafeFileNameChars.Contains(c) ? '_' : c);
-        return result.ToString().Trim();
+        {
+            if (char.IsControl(c) || UnsafeFileNameChars.Contains(c))
+                result.Append('_');
+            else
+                result.Append(c);
+        }
+        var normalized = result.ToString().Trim();
+        return normalized.Length > MaxSafeFilenameLength
+            ? normalized[..MaxSafeFilenameLength]
+            : normalized;
     }
 
     private Uri BuildUri(Device device, string path, string? query)

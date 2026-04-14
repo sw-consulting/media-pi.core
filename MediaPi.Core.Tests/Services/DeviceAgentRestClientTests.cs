@@ -508,6 +508,55 @@ public class DeviceAgentRestClientTests
         Assert.That(result.Filename, Does.EndWith(".png"));
     }
 
+    [Test]
+    public async Task CreateSnapshotAsync_FilenameWithControlChars_AreReplaced()
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            // Set raw header to bypass HttpClient header validation which rejects control chars
+            response.Content.Headers.TryAddWithoutValidation(
+                "Content-Disposition", "attachment; filename=\"snap\x0Bshot.jpg\"");
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+
+        Assert.That(result.Filename, Does.Not.Contain("\x0B"));
+        Assert.That(result.Filename, Does.EndWith(".jpg"));
+    }
+
+    [Test]
+    public async Task CreateSnapshotAsync_ExcessivelyLongFilename_IsTrimmed()
+    {
+        var bytes = new byte[] { 1, 2, 3 };
+        var longName = new string('a', 300) + ".jpg";
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            response.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+            {
+                FileName = $"\"{longName}\""
+            };
+            return Task.FromResult(response);
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+
+        Assert.That(result.Filename.Length, Is.LessThanOrEqualTo(200));
+    }
+
     private static DeviceAgentRestClient CreateClient(HttpMessageHandler handler, TestLogger<DeviceAgentRestClient>? logger = null)
     {
         var httpClient = new HttpClient(handler);

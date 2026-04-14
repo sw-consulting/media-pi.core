@@ -5,6 +5,7 @@ using System.Text.Json;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.RestModels.Device;
+using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -25,7 +26,7 @@ public partial class DevicesController
 
         var targetDevice = device!;
 
-        MediaPi.Core.Services.Models.SnapshotResponse snapshot;
+        DeviceSnapshotResult snapshot;
         try
         {
             snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
@@ -45,7 +46,17 @@ public partial class DevicesController
             ContentType = snapshot.ContentType
         };
 
-        var saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(snapshot.Filename), ct);
+        ScreenshotSaveResult saveResult;
+        try
+        {
+            saveResult = await screenshotStorageService.SaveScreenshotAsync(formFile, Path.GetFileNameWithoutExtension(snapshot.Filename), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при сохранении снимка экрана для устройства {DeviceId}", id);
+            return _500SnapshotPersistence();
+        }
+
         var screenshot = new Screenshot
         {
             Filename = saveResult.Filename,
@@ -55,8 +66,24 @@ public partial class DevicesController
             DeviceId = id
         };
 
-        _db.Screenshots.Add(screenshot);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            _db.Screenshots.Add(screenshot);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при сохранении записи снимка экрана для устройства {DeviceId}", id);
+            try
+            {
+                await screenshotStorageService.DeleteScreenshotAsync(saveResult.Filename, ct);
+            }
+            catch (Exception deleteEx)
+            {
+                logger.LogError(deleteEx, "Не удалось удалить осиротевший файл снимка {Filename}", saveResult.Filename);
+            }
+            return _500SnapshotPersistence();
+        }
 
         return File(snapshot.Content, snapshot.ContentType, snapshot.Filename);
     }
