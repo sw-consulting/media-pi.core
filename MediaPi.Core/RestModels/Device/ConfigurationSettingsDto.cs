@@ -21,4 +21,10 @@ public class ConfigurationSettingsDto
     {
         Output = string.Empty
     };
+
+    [JsonPropertyName("screenshot")]
+    public ScreenshotSettingsDto Screenshot { get; set; } = new()
+    {
+        IntervalMinutes = 0
+    };
 }
