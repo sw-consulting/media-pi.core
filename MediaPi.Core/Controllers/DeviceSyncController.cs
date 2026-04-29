@@ -285,7 +285,7 @@ public class DeviceSyncController(
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<Reference>> UploadScreenshot([FromForm] IFormFile file, CancellationToken ct = default)
+    public async Task<ActionResult<Reference>> UploadScreenshot(IFormFile file, CancellationToken ct = default)
     {
         if (_httpContextAccessor.HttpContext?.Items["DeviceId"] is not int deviceId)
         {
