@@ -33,7 +33,7 @@ public partial class DevicesController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Ошибка при создании  фотографии для устройства {DeviceId}", id);
+            logger.LogError(ex, "Ошибка при создании фотографии для устройства {DeviceId}", id);
             return _502Agent();
         }
 
