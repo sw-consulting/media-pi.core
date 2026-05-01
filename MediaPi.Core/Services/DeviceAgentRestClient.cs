@@ -121,7 +121,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             {
                 if (buffer.Length + bytesRead > MaxScreenshotBytes)
                 {
-                    throw new InvalidOperationException($"Snapshot response body exceeds the maximum allowed size of {MaxScreenshotBytes / (1024 * 1024)} MB.");
+                    throw new InvalidOperationException($"Screenshot response body exceeds the maximum allowed size of {MaxScreenshotBytes / (1024 * 1024)} MB.");
                 }
                 buffer.Write(chunk, 0, bytesRead);
             }
@@ -130,7 +130,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
 
         if (content.Length == 0)
         {
-            throw new InvalidOperationException("Snapshot endpoint returned an empty response body.");
+            throw new InvalidOperationException("Screenshot endpoint returned an empty response body.");
         }
 
         var rawContentType = response.Content.Headers.ContentType?.MediaType;
@@ -292,7 +292,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         }
 
         var extension = GetExtensionForContentType(contentType);
-        return $"snapshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
+        return $"screenshot_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}{extension}";
     }
 
     private static string EnsureFilenameHasExtension(string filename, string contentType)
