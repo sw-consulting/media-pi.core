@@ -23,7 +23,7 @@ public static class StartupStorageMigration
         Directory.CreateDirectory(videoRootPath);
         Directory.CreateDirectory(screenshotRootPath);
 
-        var markerPath = Path.Combine(oldRootPath, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(oldRootPath, ".migration", "storage-layout-v2.done");
 
         if (File.Exists(markerPath))
         {

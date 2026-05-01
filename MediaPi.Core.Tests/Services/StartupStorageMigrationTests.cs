@@ -107,7 +107,7 @@ public class StartupStorageMigrationTests
     {
         var markerDirectory = Path.Combine(_legacyRoot, ".migration");
         Directory.CreateDirectory(markerDirectory);
-        var markerPath = Path.Combine(markerDirectory, $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(markerDirectory, "storage-layout-v2.done");
         await File.WriteAllTextAsync(markerPath, "done");
 
         var videoRelative = "0003/video-dup.mp4";
@@ -177,7 +177,7 @@ public class StartupStorageMigrationTests
         Assert.ThrowsAsync<OperationCanceledException>(async () =>
             await StartupStorageMigration.RunAsync(db2, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, cts.Token));
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.That(File.Exists(markerPath), Is.False, "Marker must not be written when the migration is cancelled");
     }
 
@@ -213,7 +213,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.That(File.Exists(markerPath), Is.False, "Marker must not be written when file moves fail");
         Assert.That(File.Exists(oldVideoPath), Is.True, "File must remain in legacy root when its move fails");
     }
@@ -248,7 +248,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _legacyRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(markerPath), Is.True, "Marker should be written when same-root is skipped (no failures)");
@@ -284,7 +284,7 @@ public class StartupStorageMigrationTests
         var escapedPath = Path.Combine(Path.GetDirectoryName(_legacyRoot)!, "escape.mp4");
         // No file should appear inside _videoRoot either (no successful move occurred)
         var movedPath = Path.Combine(_videoRoot, "escape.mp4");
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(escapedPath), Is.False, "Must not write outside the root boundary");
@@ -326,7 +326,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(newPath), Is.True, "New file must remain");
@@ -363,7 +363,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(newPath), Is.True, "New file must remain");
@@ -395,7 +395,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.That(File.Exists(markerPath), Is.True, "Marker must be written when source file is absent (no failures)");
     }
 
@@ -416,7 +416,7 @@ public class StartupStorageMigrationTests
         }
 
         // WriteMarker failed internally, so no marker file was written
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.That(File.Exists(markerPath), Is.False, "Marker must NOT exist when WriteMarker throws internally");
     }
 
@@ -428,7 +428,7 @@ public class StartupStorageMigrationTests
         var markerDir = Path.Combine(_legacyRoot, ".migration");
         Directory.CreateDirectory(markerDir);
         await File.WriteAllTextAsync(
-            Path.Combine(markerDir, $"storage-layout-{VersionInfo.AppVersion}.done"), "done");
+            Path.Combine(markerDir, "storage-layout-v2.done"), "done");
 
         await using (var db = new AppDbContext(_dbOptions))
         {
@@ -450,7 +450,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _legacyRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(markerDir, $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(markerDir, "storage-layout-v2.done");
         Assert.That(File.Exists(markerPath), Is.True, "Marker must remain after no-op cleanup");
     }
 
@@ -462,7 +462,7 @@ public class StartupStorageMigrationTests
         var markerDir = Path.Combine(_legacyRoot, ".migration");
         Directory.CreateDirectory(markerDir);
         await File.WriteAllTextAsync(
-            Path.Combine(markerDir, $"storage-layout-{VersionInfo.AppVersion}.done"), "done");
+            Path.Combine(markerDir, "storage-layout-v2.done"), "done");
 
         await using (var db = new AppDbContext(_dbOptions))
         {
@@ -485,7 +485,7 @@ public class StartupStorageMigrationTests
 
         // The escaped path must not have been touched during cleanup
         var escapedPath = Path.Combine(Path.GetDirectoryName(_legacyRoot)!, "escape-cleanup.mp4");
-        var markerPath = Path.Combine(markerDir, $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(markerDir, "storage-layout-v2.done");
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(escapedPath), Is.False, "Must not touch files outside the root boundary during cleanup");
@@ -527,7 +527,7 @@ public class StartupStorageMigrationTests
             await StartupStorageMigration.RunAsync(db, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
         }
 
-        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        var markerPath = Path.Combine(_legacyRoot, ".migration", "storage-layout-v2.done");
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(markerPath), Is.False, "Marker must not be written when copy fallback fails");
