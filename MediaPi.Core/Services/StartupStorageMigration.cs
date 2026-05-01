@@ -190,7 +190,7 @@ public static class StartupStorageMigration
         }
     }
 
-    private static bool CopyFsyncDelete(string oldPath, string newPath, string filename, string kind, ILogger logger)
+    internal static bool CopyFsyncDelete(string oldPath, string newPath, string filename, string kind, ILogger logger)
     {
         logger.LogDebug("File.Move failed for {Kind} file {Filename}; using copy+delete fallback", kind, filename);
         try
@@ -260,7 +260,7 @@ public static class StartupStorageMigration
         return deleted;
     }
 
-    private static bool TryDeleteLegacyFile(string oldPath, string filename, string kind, ILogger logger)
+    internal static bool TryDeleteLegacyFile(string oldPath, string filename, string kind, ILogger logger)
     {
         try
         {
