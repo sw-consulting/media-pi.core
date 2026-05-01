@@ -27,14 +27,14 @@ public static class StartupStorageMigration
 
         if (File.Exists(markerPath))
         {
-            var videoCleanup = await CleanupOldFilesWhenNewAlreadyExistsAsync(
+            var videoCleanup = CleanupOldFilesWhenNewAlreadyExists(
                 await db.Videos.AsNoTracking().Select(v => v.Filename).ToListAsync(ct),
                 oldRootPath,
                 videoRootPath,
                 "video",
                 logger);
 
-            var screenshotCleanup = await CleanupOldFilesWhenNewAlreadyExistsAsync(
+            var screenshotCleanup = CleanupOldFilesWhenNewAlreadyExists(
                 await db.Screenshots.AsNoTracking().Select(s => s.Filename).ToListAsync(ct),
                 oldRootPath,
                 screenshotRootPath,
@@ -49,14 +49,14 @@ public static class StartupStorageMigration
             return;
         }
 
-        var movedVideos = await MoveFilesAsync(
+        var movedVideos = MoveFiles(
             await db.Videos.AsNoTracking().Select(v => v.Filename).ToListAsync(ct),
             oldRootPath,
             videoRootPath,
             "video",
             logger);
 
-        var movedScreenshots = await MoveFilesAsync(
+        var movedScreenshots = MoveFiles(
             await db.Screenshots.AsNoTracking().Select(s => s.Filename).ToListAsync(ct),
             oldRootPath,
             screenshotRootPath,
@@ -202,26 +202,6 @@ public static class StartupStorageMigration
             logger.LogWarning(ex, "Failed to delete legacy {Kind} file after migration: {Filename}", kind, filename);
             return false;
         }
-    }
-
-    private static Task<int> CleanupOldFilesWhenNewAlreadyExistsAsync(
-        IEnumerable<string> filenames,
-        string oldRootPath,
-        string newRootPath,
-        string kind,
-        ILogger logger)
-    {
-        return Task.FromResult(CleanupOldFilesWhenNewAlreadyExists(filenames, oldRootPath, newRootPath, kind, logger));
-    }
-
-    private static Task<int> MoveFilesAsync(
-        IEnumerable<string> filenames,
-        string oldRootPath,
-        string newRootPath,
-        string kind,
-        ILogger logger)
-    {
-        return Task.FromResult(MoveFiles(filenames, oldRootPath, newRootPath, kind, logger));
     }
 
     private static bool IsPathInsideRoot(string fullPath, string rootFullPath)
