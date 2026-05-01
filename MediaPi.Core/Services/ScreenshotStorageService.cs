@@ -15,11 +15,7 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
     protected override string DefaultTitleToken => "screenshot";
 
     public ScreenshotStorageService(IOptions<ScreenshotStorageSettings> options)
-        : base(Options.Create(new VideoStorageSettings
-        {
-            RootPath = options.Value.RootPath,
-            MaxFilesPerDirectory = options.Value.MaxFilesPerDirectory
-        }))
+        : base(options.Value.RootPath, options.Value.MaxFilesPerDirectory)
     {
     }
 
