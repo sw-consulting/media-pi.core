@@ -15,7 +15,7 @@ public class VideoStorageService : FileStorageService, IVideoStorageService
     protected override string DefaultTitleToken => "video";
 
     public VideoStorageService(IOptions<VideoStorageSettings> options, IVideoMetadataService metadataService)
-        : base(options)
+        : base(options.Value.RootPath, options.Value.MaxFilesPerDirectory)
     {
         _metadataService = metadataService ?? throw new ArgumentNullException(nameof(metadataService));
     }

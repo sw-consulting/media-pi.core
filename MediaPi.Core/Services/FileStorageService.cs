@@ -3,29 +3,28 @@
 
 using System.Globalization;
 using System.Security.Cryptography;
-using Microsoft.Extensions.Options;
 
 using MediaPi.Core.Services.Interfaces;
-using MediaPi.Core.Settings;
 
 namespace MediaPi.Core.Services;
 
 public class FileStorageService : IFileStorageService
 {
-    private readonly VideoStorageSettings _settings;
+    private readonly int _maxFilesPerDirectory;
     private readonly string _rootFullPath;
     private readonly string _rootFullPathWithSeparator;
 
-    public FileStorageService(IOptions<VideoStorageSettings> options)
+    public FileStorageService(string rootPath, int maxFilesPerDirectory)
     {
-        _settings = options.Value ?? throw new ArgumentNullException(nameof(options));
-
-        if (string.IsNullOrWhiteSpace(_settings.RootPath))
+        if (string.IsNullOrWhiteSpace(rootPath))
         {
-            throw new ArgumentException("RootPath must be provided", nameof(options));
+            throw new ArgumentException("RootPath must be provided", nameof(rootPath));
         }
 
-        _rootFullPath = Path.GetFullPath(_settings.RootPath);
+        _maxFilesPerDirectory = maxFilesPerDirectory > 0
+            ? maxFilesPerDirectory
+            : throw new ArgumentOutOfRangeException(nameof(maxFilesPerDirectory), "MaxFilesPerDirectory must be greater than zero");
+        _rootFullPath = Path.GetFullPath(rootPath);
         _rootFullPathWithSeparator = _rootFullPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
             ? _rootFullPath
             : _rootFullPath + Path.DirectorySeparatorChar;
@@ -129,12 +128,12 @@ public class FileStorageService : IFileStorageService
             foreach (var _ in Directory.EnumerateFiles(directory))
             {
                 fileCount++;
-                if (fileCount >= _settings.MaxFilesPerDirectory)
+                if (fileCount >= _maxFilesPerDirectory)
                 {
                     break;
                 }
             }
-            if (fileCount < _settings.MaxFilesPerDirectory)
+            if (fileCount < _maxFilesPerDirectory)
             {
                 return directory;
             }

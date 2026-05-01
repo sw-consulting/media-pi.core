@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +45,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
     .Configure<VideoStorageSettings>(config.GetSection("VideoStorage"))
+    .Configure<ScreenshotStorageSettings>(config.GetSection("ScreenshotStorage"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
@@ -96,7 +98,11 @@ builder.Services.AddSingleton<DeviceMonitoringService>();
 builder.Services.AddSingleton<IDeviceMonitoringService>(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddSingleton<IVideoMetadataService, VideoMetadataService>();
-builder.Services.AddSingleton<IFileStorageService, FileStorageService>();
+builder.Services.AddSingleton<IFileStorageService>(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<VideoStorageSettings>>().Value;
+    return new FileStorageService(settings.RootPath, settings.MaxFilesPerDirectory);
+});
 builder.Services.AddSingleton<IVideoStorageService, VideoStorageService>();
 builder.Services.AddSingleton<IScreenshotStorageService, ScreenshotStorageService>();
 builder.Services.AddEndpointsApiExplorer();
@@ -131,6 +137,16 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    var videoSettings = scope.ServiceProvider.GetRequiredService<IOptions<VideoStorageSettings>>().Value;
+    var screenshotSettings = scope.ServiceProvider.GetRequiredService<IOptions<ScreenshotStorageSettings>>().Value;
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupStorageMigration");
+
+    await StartupStorageMigration.RunAsync(
+        db,
+        videoSettings.RootPath,
+        screenshotSettings.RootPath,
+        startupLogger);
 }
 
 app

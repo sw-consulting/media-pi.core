@@ -13,40 +13,40 @@ namespace MediaPi.Core.Controllers;
 
 public partial class DevicesController
 {
-    [HttpPost("{id}/snapshot")]
+    [HttpPost("{id}/screenshot")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FileContentResult))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
-    public async Task<IActionResult> CreateSnapshot(int id, CancellationToken ct = default)
+    public async Task<IActionResult> CreateScreenshot(int id, CancellationToken ct = default)
     {
         var (device, error) = await GetDeviceForServiceAsync(id, ct);
         if (error != null) return error;
 
         var targetDevice = device!;
 
-        DeviceSnapshotResult snapshot;
+        DeviceScreenshotResult deviceScreenshot;
         try
         {
-            snapshot = await mediaPiAgentClient.CreateSnapshotAsync(targetDevice, ct);
+            deviceScreenshot = await mediaPiAgentClient.CreateScreenshotAsync(targetDevice, ct);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Ошибка при выполнении операции create snapshot для устройства {DeviceId}", id);
+            logger.LogError(ex, "Ошибка при создании фотографии для устройства {DeviceId}", id);
             return _502Agent();
         }
 
         // Normalize filename and content-type before using them in storage or response headers.
         // IMediaPiAgentClient does not guarantee these values are sanitized, so we apply
         // defensive normalization regardless of the underlying implementation.
-        var safeFilename = SanitizeSnapshotFilename(snapshot.Filename);
-        var safeContentType = IsAllowedImageContentType(snapshot.ContentType) ? snapshot.ContentType : "image/jpeg";
+        var safeFilename = SanitizeScreenshotFilename(deviceScreenshot.Filename);
+        var safeContentType = IsAllowedImageContentType(deviceScreenshot.ContentType) ? deviceScreenshot.ContentType : "image/jpeg";
 
         // Stream must remain open for the duration of SaveScreenshotAsync; it is disposed
         // at the end of this method scope, after the save call has completed.
-        await using var stream = new MemoryStream(snapshot.Content);
-        var formFile = new FormFile(stream, 0, snapshot.Content.Length, "file", safeFilename)
+        await using var stream = new MemoryStream(deviceScreenshot.Content);
+        var formFile = new FormFile(stream, 0, deviceScreenshot.Content.Length, "file", safeFilename)
         {
             Headers = new HeaderDictionary(),
             ContentType = safeContentType
@@ -59,8 +59,8 @@ public partial class DevicesController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Ошибка при сохранении снимка экрана для устройства {DeviceId}", id);
-            return _500SnapshotPersistence();
+            logger.LogError(ex, "Ошибка при сохранении фотографии для устройства {DeviceId}", id);
+            return _500ScreenshotPersistence();
         }
 
         var screenshot = new Screenshot
@@ -79,28 +79,28 @@ public partial class DevicesController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Ошибка при сохранении записи снимка экрана для устройства {DeviceId}", id);
+            logger.LogError(ex, "Ошибка при сохранении фотографии для устройства {DeviceId}", id);
             try
             {
                 await screenshotStorageService.DeleteScreenshotAsync(saveResult.Filename, ct);
             }
             catch (Exception deleteEx)
             {
-                logger.LogError(deleteEx, "Не удалось удалить осиротевший файл снимка {Filename}", saveResult.Filename);
+                logger.LogError(deleteEx, "Не удалось удалить фотографию {Filename}", saveResult.Filename);
             }
-            return _500SnapshotPersistence();
+            return _500ScreenshotPersistence();
         }
 
-        return File(snapshot.Content, safeContentType, safeFilename);
+        return File(deviceScreenshot.Content, safeContentType, safeFilename);
     }
 
     private static readonly HashSet<char> _unsafeFileNameChars = new(
         Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
 
-    private static string SanitizeSnapshotFilename(string? filename)
+    private static string SanitizeScreenshotFilename(string? filename)
     {
         if (string.IsNullOrWhiteSpace(filename))
-            return "snapshot.jpg";
+            return "screenshot.jpg";
 
         var name = Path.GetFileName(filename.Replace('\\', '/'));
         var result = new System.Text.StringBuilder(name.Length);
@@ -109,7 +109,7 @@ public partial class DevicesController
             result.Append(char.IsControl(c) || _unsafeFileNameChars.Contains(c) ? '_' : c);
         }
         var safe = result.ToString().Trim();
-        return string.IsNullOrWhiteSpace(safe) ? "snapshot.jpg" : safe;
+        return string.IsNullOrWhiteSpace(safe) ? "screenshot.jpg" : safe;
     }
 
     private static bool IsAllowedImageContentType(string? contentType) =>

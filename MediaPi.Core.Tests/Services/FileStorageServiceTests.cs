@@ -7,9 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Services;
-using MediaPi.Core.Settings;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
 
@@ -18,8 +16,8 @@ namespace MediaPi.Core.Tests.Services;
 [TestFixture]
 public class FileStorageServiceTests
 {
-    private Mock<IOptions<VideoStorageSettings>> _mockOptions = null!;
-    private VideoStorageSettings _settings = null!;
+    private const int MaxFilesPerDirectory = 2;
+
     private string _testRootPath = null!;
     private FileStorageService _service = null!;
     private readonly ConcurrentBag<MemoryStream> _memoryStreams = new();
@@ -29,16 +27,7 @@ public class FileStorageServiceTests
     {
         _testRootPath = Path.Combine(Path.GetTempPath(), $"file_storage_test_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testRootPath);
-
-        _settings = new VideoStorageSettings
-        {
-            RootPath = _testRootPath,
-            MaxFilesPerDirectory = 2
-        };
-
-        _mockOptions = new Mock<IOptions<VideoStorageSettings>>();
-        _mockOptions.Setup(x => x.Value).Returns(_settings);
-        _service = new FileStorageService(_mockOptions.Object);
+        _service = new FileStorageService(_testRootPath, MaxFilesPerDirectory);
     }
 
     [TearDown]
@@ -104,7 +93,7 @@ public class FileStorageServiceTests
     [Test]
     public async Task SaveFileAsync_RespectsMaxFilesPerDirectory()
     {
-        for (int i = 0; i < _settings.MaxFilesPerDirectory + 1; i++)
+        for (int i = 0; i < MaxFilesPerDirectory + 1; i++)
         {
             var mockFile = CreateMockFormFile($"image{i}.jpg", $"content{i}");
             await _service.SaveFileAsync(mockFile.Object, $"Image {i}");

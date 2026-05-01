@@ -544,11 +544,11 @@ public class DevicesControllerErrorTests
     public async Task CreateSnapshot_EngineerAssignedDevice_ReturnsForbidden()
     {
         SetCurrentUser(_engineer.Id);
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
-        _agentClientMock.Verify(c => c.CreateSnapshotAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+        _agentClientMock.Verify(c => c.CreateScreenshotAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
@@ -556,10 +556,10 @@ public class DevicesControllerErrorTests
     {
         SetCurrentUser(_admin.Id);
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("snapshot failed"));
 
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
@@ -571,8 +571,8 @@ public class DevicesControllerErrorTests
     {
         SetCurrentUser(_admin.Id);
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeviceSnapshotResult
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
             {
                 Content = [1, 2],
                 ContentType = "image/jpeg",
@@ -582,7 +582,7 @@ public class DevicesControllerErrorTests
             .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new IOException("disk full"));
 
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
         Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
@@ -600,8 +600,8 @@ public class DevicesControllerErrorTests
         SetCurrentUser(_admin.Id);
         var savedFilename = "0001/snapshot.jpg";
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeviceSnapshotResult
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
             {
                 Content = [1, 2],
                 ContentType = "image/jpeg",
@@ -639,7 +639,7 @@ public class DevicesControllerErrorTests
             }
         };
 
-        var result = await throwingController.CreateSnapshot(1, CancellationToken.None);
+        var result = await throwingController.CreateScreenshot(1, CancellationToken.None);
 
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = result as ObjectResult;
