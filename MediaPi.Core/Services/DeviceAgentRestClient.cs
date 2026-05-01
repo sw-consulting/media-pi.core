@@ -97,7 +97,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
 
     public async Task<DeviceScreenshotResult> CreateScreenshotAsync(Device device, CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(device, HttpMethod.Post, "/api/screenshot");
+        using var request = CreateRequest(device, HttpMethod.Get, "/api/menu/screenshot/take");
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
