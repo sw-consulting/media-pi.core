@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +45,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
     .Configure<VideoStorageSettings>(config.GetSection("VideoStorage"))
+    .Configure<ScreenshotStorageSettings>(config.GetSection("ScreenshotStorage"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
@@ -131,6 +133,16 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    var videoSettings = scope.ServiceProvider.GetRequiredService<IOptions<VideoStorageSettings>>().Value;
+    var screenshotSettings = scope.ServiceProvider.GetRequiredService<IOptions<ScreenshotStorageSettings>>().Value;
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupStorageMigration");
+
+    await StartupStorageMigration.RunAsync(
+        db,
+        videoSettings.RootPath,
+        screenshotSettings.RootPath,
+        startupLogger);
 }
 
 app
