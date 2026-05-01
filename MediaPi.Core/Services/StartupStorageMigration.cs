@@ -32,14 +32,16 @@ public static class StartupStorageMigration
                 oldRootPath,
                 videoRootPath,
                 "video",
-                logger);
+                logger,
+                ct);
 
             var screenshotCleanup = CleanupOldFilesWhenNewAlreadyExists(
                 await db.Screenshots.AsNoTracking().Select(s => s.Filename).ToListAsync(ct),
                 oldRootPath,
                 screenshotRootPath,
                 "screenshot",
-                logger);
+                logger,
+                ct);
 
             logger.LogInformation(
                 "Storage migration marker found: {MarkerPath}. Cleanup done. Deleted legacy duplicates - videos: {Videos}, screenshots: {Screenshots}",
@@ -49,26 +51,36 @@ public static class StartupStorageMigration
             return;
         }
 
-        var movedVideos = MoveFiles(
+        var (movedVideos, failedVideos) = MoveFiles(
             await db.Videos.AsNoTracking().Select(v => v.Filename).ToListAsync(ct),
             oldRootPath,
             videoRootPath,
             "video",
-            logger);
+            logger,
+            ct);
 
-        var movedScreenshots = MoveFiles(
+        var (movedScreenshots, failedScreenshots) = MoveFiles(
             await db.Screenshots.AsNoTracking().Select(s => s.Filename).ToListAsync(ct),
             oldRootPath,
             screenshotRootPath,
             "screenshot",
-            logger);
+            logger,
+            ct);
 
-        WriteMarker(markerPath, logger);
-
-        logger.LogInformation(
-            "Storage migration completed. Moved videos: {MovedVideos}, moved screenshots: {MovedScreenshots}",
-            movedVideos,
-            movedScreenshots);
+        if (failedVideos == 0 && failedScreenshots == 0)
+        {
+            WriteMarker(markerPath, logger);
+            logger.LogInformation(
+                "Storage migration completed. Moved videos: {MovedVideos}, moved screenshots: {MovedScreenshots}",
+                movedVideos,
+                movedScreenshots);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Storage migration completed with failures; marker not written. Videos: {MovedVideos} moved, {FailedVideos} failed. Screenshots: {MovedScreenshots} moved, {FailedScreenshots} failed.",
+                movedVideos, failedVideos, movedScreenshots, failedScreenshots);
+        }
     }
 
     private static void WriteMarker(string markerPath, ILogger logger)
@@ -89,12 +101,13 @@ public static class StartupStorageMigration
         }
     }
 
-    private static int MoveFiles(
+    private static (int moved, int failed) MoveFiles(
         IEnumerable<string> filenames,
         string oldRootPath,
         string newRootPath,
         string kind,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken ct)
     {
         var oldRootFullPath = Path.GetFullPath(oldRootPath);
         var newRootFullPath = Path.GetFullPath(newRootPath);
@@ -102,13 +115,16 @@ public static class StartupStorageMigration
         if (string.Equals(oldRootFullPath, newRootFullPath, StringComparison.Ordinal))
         {
             logger.LogInformation("Storage migration for {Kind} skipped: old and new roots are the same ({Root})", kind, oldRootFullPath);
-            return 0;
+            return (0, 0);
         }
 
         var moved = 0;
+        var failed = 0;
 
         foreach (var filename in filenames.Where(name => !string.IsNullOrWhiteSpace(name)))
         {
+            ct.ThrowIfCancellationRequested();
+
             var relativePath = filename.Replace('/', Path.DirectorySeparatorChar);
             var oldPath = Path.GetFullPath(Path.Combine(oldRootFullPath, relativePath));
             var newPath = Path.GetFullPath(Path.Combine(newRootFullPath, relativePath));
@@ -141,16 +157,68 @@ public static class StartupStorageMigration
                     Directory.CreateDirectory(targetDirectory);
                 }
 
-                File.Move(oldPath, newPath);
-                moved++;
+                if (MoveFileWithFallback(oldPath, newPath, filename, kind, logger))
+                {
+                    moved++;
+                }
+                else
+                {
+                    failed++;
+                }
             }
             catch (Exception ex)
             {
+                failed++;
                 logger.LogWarning(ex, "Storage migration for {Kind} failed for file {Filename}", kind, filename);
             }
         }
 
-        return moved;
+        return (moved, failed);
+    }
+
+    private static bool MoveFileWithFallback(string oldPath, string newPath, string filename, string kind, ILogger logger)
+    {
+        try
+        {
+            File.Move(oldPath, newPath);
+            return true;
+        }
+        catch (IOException)
+        {
+            // File.Move fails for cross-device/cross-filesystem moves; fall back to copy+fsync+delete
+            return CopyFsyncDelete(oldPath, newPath, filename, kind, logger);
+        }
+    }
+
+    private static bool CopyFsyncDelete(string oldPath, string newPath, string filename, string kind, ILogger logger)
+    {
+        logger.LogDebug("File.Move failed for {Kind} file {Filename}; using copy+delete fallback", kind, filename);
+        try
+        {
+            File.Copy(oldPath, newPath, overwrite: false);
+            using var fs = new FileStream(newPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            fs.Flush(flushToDisk: true);
+        }
+        catch (Exception ex)
+        {
+            if (File.Exists(newPath))
+            {
+                try { File.Delete(newPath); } catch { /* best-effort: leaving a stale partial copy is preferable to masking the real copy failure */ }
+            }
+            logger.LogWarning(ex, "Storage migration copy+delete for {Kind} failed for file {Filename}", kind, filename);
+            return false;
+        }
+
+        try
+        {
+            File.Delete(oldPath);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not delete legacy {Kind} file {Filename} after copy; will retry cleanup on next startup", kind, filename);
+        }
+
+        return true;
     }
 
     private static int CleanupOldFilesWhenNewAlreadyExists(
@@ -158,7 +226,8 @@ public static class StartupStorageMigration
         string oldRootPath,
         string newRootPath,
         string kind,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken ct)
     {
         var oldRootFullPath = Path.GetFullPath(oldRootPath);
         var newRootFullPath = Path.GetFullPath(newRootPath);
@@ -171,6 +240,8 @@ public static class StartupStorageMigration
         var deleted = 0;
         foreach (var filename in filenames.Where(name => !string.IsNullOrWhiteSpace(name)))
         {
+            ct.ThrowIfCancellationRequested();
+
             var relativePath = filename.Replace('/', Path.DirectorySeparatorChar);
             var oldPath = Path.GetFullPath(Path.Combine(oldRootFullPath, relativePath));
             var newPath = Path.GetFullPath(Path.Combine(newRootFullPath, relativePath));

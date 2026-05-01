@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
@@ -145,5 +146,75 @@ public class StartupStorageMigrationTests
             Assert.That(File.Exists(newVideoPath), Is.True);
             Assert.That(File.Exists(oldVideoPath), Is.False);
         });
+    }
+
+    [Test]
+    public async Task RunAsync_WhenCancelled_ThrowsAndDoesNotWriteMarker()
+    {
+        var videoRelative = "0001/video-cancel.mp4";
+        var oldVideoPath = Path.Combine(_legacyRoot, videoRelative.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(oldVideoPath)!);
+        await File.WriteAllTextAsync(oldVideoPath, "video");
+
+        await using (var db = new AppDbContext(_dbOptions))
+        {
+            db.Videos.Add(new Video
+            {
+                Id = 20,
+                Title = "cancel-video",
+                Filename = videoRelative,
+                OriginalFilename = "video-cancel.mp4",
+                FileSizeBytes = 5,
+                DurationSeconds = 1
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await using var db2 = new AppDbContext(_dbOptions);
+        Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await StartupStorageMigration.RunAsync(db2, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, cts.Token));
+
+        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        Assert.That(File.Exists(markerPath), Is.False, "Marker must not be written when the migration is cancelled");
+    }
+
+    [Test]
+    public async Task RunAsync_WhenMoveFails_DoesNotWriteMarker()
+    {
+        var videoRelative = "0001/video-fail.mp4";
+        var oldVideoPath = Path.Combine(_legacyRoot, videoRelative.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(oldVideoPath)!);
+        await File.WriteAllTextAsync(oldVideoPath, "video");
+
+        // Block the target sub-directory by creating a regular file where a directory is expected.
+        // Directory.CreateDirectory(_videoRoot/0001) will fail because '0001' already exists as a file.
+        Directory.CreateDirectory(_videoRoot);
+        await File.WriteAllTextAsync(Path.Combine(_videoRoot, "0001"), "blocking");
+
+        await using (var db = new AppDbContext(_dbOptions))
+        {
+            db.Videos.Add(new Video
+            {
+                Id = 30,
+                Title = "fail-video",
+                Filename = videoRelative,
+                OriginalFilename = "video-fail.mp4",
+                FileSizeBytes = 5,
+                DurationSeconds = 1
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = new AppDbContext(_dbOptions))
+        {
+            await StartupStorageMigration.RunAsync(db, _videoRoot, _screenshotRoot, NullLogger.Instance, _legacyRoot, default);
+        }
+
+        var markerPath = Path.Combine(_legacyRoot, ".migration", $"storage-layout-{VersionInfo.AppVersion}.done");
+        Assert.That(File.Exists(markerPath), Is.False, "Marker must not be written when file moves fail");
+        Assert.That(File.Exists(oldVideoPath), Is.True, "File must remain in legacy root when its move fails");
     }
 }
