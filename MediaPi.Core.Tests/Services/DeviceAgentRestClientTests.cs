@@ -395,7 +395,7 @@ public class DeviceAgentRestClientTests
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_ReturnsImagePayload()
+    public async Task CreateScreenshotAsync_ReturnsImagePayload()
     {
         HttpMethod? observedMethod = null;
         Uri? observedUri = null;
@@ -419,26 +419,26 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(ip: "10.0.0.8", port: 8086), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(ip: "10.0.0.8", port: 8086), CancellationToken.None);
 
         Assert.That(observedMethod, Is.EqualTo(HttpMethod.Post));
         Assert.That(observedUri, Is.Not.Null);
-        Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/api/snapshot"));
+        Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/api/screenshot"));
         Assert.That(result.Content, Is.EqualTo(bytes));
         Assert.That(result.ContentType, Is.EqualTo("image/png"));
         Assert.That(result.Filename, Is.EqualTo("from-device.png"));
     }
 
     [Test]
-    public void CreateSnapshotAsync_WhenEndpointFails_Throws()
+    public void CreateScreenshotAsync_WhenEndpointFails_Throws()
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)));
         var client = CreateClient(handler);
-        Assert.ThrowsAsync<InvalidOperationException>(() => client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
+        Assert.ThrowsAsync<InvalidOperationException>(() => client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None));
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_NonImageContentType_FallsBackToJpeg()
+    public async Task CreateScreenshotAsync_NonImageContentType_FallsBackToJpeg()
     {
         var bytes = new byte[] { 1, 2, 3 };
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -452,13 +452,13 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.ContentType, Is.EqualTo("image/jpeg"));
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_FilenameWithPathTraversal_IsNormalized()
+    public async Task CreateScreenshotAsync_FilenameWithPathTraversal_IsNormalized()
     {
         var bytes = new byte[] { 1, 2, 3 };
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -476,13 +476,13 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.Filename, Is.EqualTo("passwd.jpg"));
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_FilenameWithInvalidChars_AreReplaced()
+    public async Task CreateScreenshotAsync_FilenameWithInvalidChars_AreReplaced()
     {
         var bytes = new byte[] { 1, 2, 3 };
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -500,7 +500,7 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.Filename, Does.Not.Contain("|"));
         Assert.That(result.Filename, Does.Not.Contain("<"));
@@ -509,7 +509,7 @@ public class DeviceAgentRestClientTests
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_FilenameWithoutExtension_AppendsTypeBasedExtension()
+    public async Task CreateScreenshotAsync_FilenameWithoutExtension_AppendsTypeBasedExtension()
     {
         var bytes = new byte[] { 1, 2, 3 };
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -527,13 +527,13 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.Filename, Is.EqualTo("snapshot.png"));
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_FilenameWithControlChars_AreReplaced()
+    public async Task CreateScreenshotAsync_FilenameWithControlChars_AreReplaced()
     {
         var bytes = new byte[] { 1, 2, 3 };
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -550,14 +550,14 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.Filename, Does.Not.Contain("\x0B"));
         Assert.That(result.Filename, Does.EndWith(".jpg"));
     }
 
     [Test]
-    public async Task CreateSnapshotAsync_ExcessivelyLongFilename_IsTrimmed()
+    public async Task CreateScreenshotAsync_ExcessivelyLongFilename_IsTrimmed()
     {
         var bytes = new byte[] { 1, 2, 3 };
         var longName = new string('a', 300) + ".jpg";
@@ -576,14 +576,14 @@ public class DeviceAgentRestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None);
+        var result = await client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None);
 
         Assert.That(result.Filename.Length, Is.LessThanOrEqualTo(200));
         Assert.That(result.Filename, Does.EndWith(".jpg"));
     }
 
     [Test]
-    public void CreateSnapshotAsync_WhenContentLengthExceedsMaxSize_Throws()
+    public void CreateScreenshotAsync_WhenContentLengthExceedsMaxSize_Throws()
     {
         var handler = new StubHttpMessageHandler((_, _) =>
         {
@@ -593,23 +593,23 @@ public class DeviceAgentRestClientTests
             };
             response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
             // Simulate a Content-Length that exceeds the max allowed size
-            response.Content.Headers.ContentLength = DeviceAgentRestClient.MaxSnapshotBytes + 1L;
+            response.Content.Headers.ContentLength = DeviceAgentRestClient.MaxScreenshotBytes + 1L;
             return Task.FromResult(response);
         });
 
         var client = CreateClient(handler);
         var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
+            client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None));
         Assert.That(ex!.Message, Does.Contain("maximum allowed size"));
     }
 
     [Test]
-    public void CreateSnapshotAsync_WhenStreamedBodyExceedsMaxSize_Throws()
+    public void CreateScreenshotAsync_WhenStreamedBodyExceedsMaxSize_Throws()
     {
         var handler = new StubHttpMessageHandler((_, _) =>
         {
             // No Content-Length header; body size exceeds the limit via streaming
-            var oversizedContent = new byte[DeviceAgentRestClient.MaxSnapshotBytes + 1];
+            var oversizedContent = new byte[DeviceAgentRestClient.MaxScreenshotBytes + 1];
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new ByteArrayContent(oversizedContent)
@@ -622,7 +622,7 @@ public class DeviceAgentRestClientTests
 
         var client = CreateClient(handler);
         var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.CreateSnapshotAsync(CreateDevice(), CancellationToken.None));
+            client.CreateScreenshotAsync(CreateDevice(), CancellationToken.None));
         Assert.That(ex!.Message, Does.Contain("maximum allowed size"));
     }
 

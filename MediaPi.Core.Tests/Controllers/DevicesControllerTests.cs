@@ -1326,8 +1326,8 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var imageContent = new byte[] { 1, 2, 3, 4, 5 };
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeviceSnapshotResult
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
             {
                 Content = imageContent,
                 ContentType = "image/jpeg",
@@ -1345,7 +1345,7 @@ public class DevicesControllerTests
                 TimeCreated = new DateTime(2026, 4, 14, 12, 0, 0, DateTimeKind.Utc)
             });
 
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
 
         Assert.That(result, Is.TypeOf<FileContentResult>());
         var file = (FileContentResult)result;
@@ -1365,8 +1365,8 @@ public class DevicesControllerTests
     {
         SetCurrentUser(_manager.Id);
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeviceSnapshotResult
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
             {
                 Content = [9, 9, 9],
                 ContentType = "image/png",
@@ -1383,7 +1383,7 @@ public class DevicesControllerTests
                 TimeCreated = DateTime.UtcNow
             });
 
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
         Assert.That(result, Is.TypeOf<FileContentResult>());
     }
 
@@ -1393,8 +1393,8 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var imageContent = new byte[] { 1, 2, 3 };
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeviceSnapshotResult
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
             {
                 Content = imageContent,
                 ContentType = "image/jpeg",
@@ -1411,7 +1411,7 @@ public class DevicesControllerTests
                 TimeCreated = DateTime.UtcNow
             });
 
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
 
         Assert.That(result, Is.TypeOf<FileContentResult>());
         var file = (FileContentResult)result;
@@ -1425,8 +1425,8 @@ public class DevicesControllerTests
         SetCurrentUser(_admin.Id);
         var imageContent = new byte[] { 1, 2, 3 };
         _agentClientMock
-            .Setup(c => c.CreateSnapshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeviceSnapshotResult
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
             {
                 Content = imageContent,
                 ContentType = "text/html",
@@ -1443,7 +1443,7 @@ public class DevicesControllerTests
                 TimeCreated = DateTime.UtcNow
             });
 
-        var result = await _controller.CreateSnapshot(1, CancellationToken.None);
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
 
         Assert.That(result, Is.TypeOf<FileContentResult>());
         var file = (FileContentResult)result;

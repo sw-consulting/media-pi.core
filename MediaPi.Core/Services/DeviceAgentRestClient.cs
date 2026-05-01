@@ -89,26 +89,26 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         };
     }
 
-    // Maximum permitted size for a snapshot response body (20 MB).
-    internal const int MaxSnapshotBytes = 20 * 1024 * 1024;
+    // Maximum permitted size for a screenshot response body (20 MB).
+    internal const int MaxScreenshotBytes = 20 * 1024 * 1024;
 
     // 80 KB read buffer – matches the default buffer size used by Stream.CopyToAsync.
     private const int StreamBufferSize = 80 * 1024;
 
-    public async Task<DeviceSnapshotResult> CreateSnapshotAsync(Device device, CancellationToken cancellationToken = default)
+    public async Task<DeviceScreenshotResult> CreateScreenshotAsync(Device device, CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(device, HttpMethod.Post, "/api/snapshot");
+        using var request = CreateRequest(device, HttpMethod.Post, "/api/screenshot");
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException($"Snapshot endpoint returned status {(int)response.StatusCode} ({response.StatusCode}).");
+            throw new InvalidOperationException($"Screenshot endpoint returned status {(int)response.StatusCode} ({response.StatusCode}).");
         }
 
         var contentLength = response.Content.Headers.ContentLength;
-        if (contentLength.HasValue && contentLength.Value > MaxSnapshotBytes)
+        if (contentLength.HasValue && contentLength.Value > MaxScreenshotBytes)
         {
-            throw new InvalidOperationException($"Snapshot response body ({contentLength.Value} bytes) exceeds the maximum allowed size of {MaxSnapshotBytes / (1024 * 1024)} MB.");
+            throw new InvalidOperationException($"Screenshot response body ({contentLength.Value} bytes) exceeds the maximum allowed size of {MaxScreenshotBytes / (1024 * 1024)} MB.");
         }
 
         byte[] content;
@@ -119,9 +119,9 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             int bytesRead;
             while ((bytesRead = await responseStream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
             {
-                if (buffer.Length + bytesRead > MaxSnapshotBytes)
+                if (buffer.Length + bytesRead > MaxScreenshotBytes)
                 {
-                    throw new InvalidOperationException($"Snapshot response body exceeds the maximum allowed size of {MaxSnapshotBytes / (1024 * 1024)} MB.");
+                    throw new InvalidOperationException($"Snapshot response body exceeds the maximum allowed size of {MaxScreenshotBytes / (1024 * 1024)} MB.");
                 }
                 buffer.Write(chunk, 0, bytesRead);
             }
@@ -138,8 +138,8 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             ? rawContentType
             : "image/jpeg";
 
-        var filename = ResolveSnapshotFilename(response, contentType);
-        return new DeviceSnapshotResult
+        var filename = ResolveScreenshotFilename(response, contentType);
+        return new DeviceScreenshotResult
         {
             Content = content,
             ContentType = contentType,
@@ -279,7 +279,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         return new StringContent(json, Encoding.UTF8, "application/json");
     }
 
-    private static string ResolveSnapshotFilename(HttpResponseMessage response, string contentType)
+    private static string ResolveScreenshotFilename(HttpResponseMessage response, string contentType)
     {
         var fromHeader = response.Content.Headers.ContentDisposition?.FileNameStar
             ?? response.Content.Headers.ContentDisposition?.FileName;
