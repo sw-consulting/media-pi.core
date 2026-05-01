@@ -55,19 +55,45 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
             return DateTime.UtcNow;
         }
 
-        return TimeZoneInfo.ConvertTimeToUtc(parsed, MoscowTimeZone);
+        try
+        {
+            return TimeZoneInfo.ConvertTimeToUtc(parsed, MoscowTimeZone);
+        }
+        catch (ArgumentException)
+        {
+            return DateTime.UtcNow;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return DateTime.UtcNow;
+        }
+    }
+
+    private static TimeZoneInfo? TryFindTimeZoneById(string timeZoneId)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return null;
+        }
     }
 
     private static TimeZoneInfo ResolveMoscowTimeZone()
     {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
-        }
+        return TryFindTimeZoneById("Europe/Moscow")
+            ?? TryFindTimeZoneById("Russian Standard Time")
+            ?? TimeZoneInfo.CreateCustomTimeZone(
+                id: "Moscow Standard Time (Fixed)",
+                baseUtcOffset: TimeSpan.FromHours(3),
+                displayName: "(UTC+03:00) Moscow",
+                standardDisplayName: "Moscow Standard Time");
     }
 
     [GeneratedRegex("^cam_(?<timestamp>\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.jpg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

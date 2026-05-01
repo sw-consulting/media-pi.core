@@ -164,15 +164,37 @@ public class ScreenshotStorageServiceTests
         });
     }
 
+    [Test]
+    public async Task SaveScreenshotAsync_WithFullPath_ExtractsTimeCreatedFromFilename()
+    {
+        var file = CreateMockFormFile("/media/pi/cam_2026-05-01_09-00-00.jpg", "image-content");
+
+        var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");
+
+        var expectedUtc = new DateTimeOffset(2026, 5, 1, 9, 0, 0, TimeSpan.FromHours(3)).UtcDateTime;
+        Assert.That(result.TimeCreated, Is.EqualTo(expectedUtc));
+        Assert.That(result.TimeCreated.Kind, Is.EqualTo(DateTimeKind.Utc));
+    }
+
+    [Test]
+    public async Task SaveScreenshotAsync_TimestampConvertedFromMoscowToUtc_OffsetIsThreeHours()
+    {
+        // Moscow is UTC+3; 10:00 Moscow = 07:00 UTC
+        var file = CreateMockFormFile("cam_2026-06-15_10-00-00.jpg", "image-content");
+
+        var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");
+
+        var expectedUtc = new DateTimeOffset(2026, 6, 15, 10, 0, 0, TimeSpan.FromHours(3)).UtcDateTime;
+        Assert.That(result.TimeCreated, Is.EqualTo(expectedUtc));
+        Assert.That(result.TimeCreated.Kind, Is.EqualTo(DateTimeKind.Utc));
+    }
+
     private static TimeZoneInfo ResolveMoscowTimeZone()
     {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
-        }
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "Europe/Moscow",
+            TimeSpan.FromHours(3),
+            "Moscow",
+            "Moscow");
     }
 }
