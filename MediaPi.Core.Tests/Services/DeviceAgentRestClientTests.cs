@@ -421,9 +421,9 @@ public class DeviceAgentRestClientTests
         var client = CreateClient(handler);
         var result = await client.CreateScreenshotAsync(CreateDevice(ip: "10.0.0.8", port: 8086), CancellationToken.None);
 
-        Assert.That(observedMethod, Is.EqualTo(HttpMethod.Post));
+        Assert.That(observedMethod, Is.EqualTo(HttpMethod.Get));
         Assert.That(observedUri, Is.Not.Null);
-        Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/api/screenshot"));
+        Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/api/menu/screenshot/take"));
         Assert.That(result.Content, Is.EqualTo(bytes));
         Assert.That(result.ContentType, Is.EqualTo("image/png"));
         Assert.That(result.Filename, Is.EqualTo("from-device.png"));

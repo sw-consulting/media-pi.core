@@ -12,6 +12,8 @@ namespace MediaPi.Core.Services;
 
 public partial class ScreenshotStorageService : FileStorageService, IScreenshotStorageService
 {
+    private static readonly TimeZoneInfo MoscowTimeZone = ResolveMoscowTimeZone();
+
     protected override string DefaultTitleToken => "screenshot";
 
     public ScreenshotStorageService(IOptions<ScreenshotStorageSettings> options)
@@ -53,7 +55,19 @@ public partial class ScreenshotStorageService : FileStorageService, IScreenshotS
             return DateTime.UtcNow;
         }
 
-        return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+        return TimeZoneInfo.ConvertTimeToUtc(parsed, MoscowTimeZone);
+    }
+
+    private static TimeZoneInfo ResolveMoscowTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
+        }
     }
 
     [GeneratedRegex("^cam_(?<timestamp>\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.jpg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

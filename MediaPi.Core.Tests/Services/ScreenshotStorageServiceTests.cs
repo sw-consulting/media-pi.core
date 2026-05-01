@@ -18,6 +18,7 @@ namespace MediaPi.Core.Tests.Services;
 [TestFixture]
 public class ScreenshotStorageServiceTests
 {
+    private static readonly TimeZoneInfo MoscowTimeZone = ResolveMoscowTimeZone();
     private Mock<IOptions<ScreenshotStorageSettings>> _mockOptions = null!;
     private ScreenshotStorageSettings _settings = null!;
     private string _testRootPath = null!;
@@ -84,7 +85,9 @@ public class ScreenshotStorageServiceTests
 
         var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");
 
-        Assert.That(result.TimeCreated, Is.EqualTo(new DateTime(2026, 3, 11, 15, 23, 59, DateTimeKind.Utc)));
+        var expectedUtc = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 3, 11, 15, 23, 59), MoscowTimeZone);
+        Assert.That(result.TimeCreated, Is.EqualTo(expectedUtc));
+        Assert.That(result.TimeCreated.Kind, Is.EqualTo(DateTimeKind.Utc));
         Assert.That(result.Sha256, Is.Null);
     }
 
@@ -95,7 +98,9 @@ public class ScreenshotStorageServiceTests
 
         var result = await _service.SaveScreenshotAsync(file.Object, "Cam Shot");
 
-        Assert.That(result.TimeCreated, Is.EqualTo(new DateTime(2026, 3, 11, 15, 23, 59, DateTimeKind.Utc)));
+        var expectedUtc = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 3, 11, 15, 23, 59), MoscowTimeZone);
+        Assert.That(result.TimeCreated, Is.EqualTo(expectedUtc));
+        Assert.That(result.TimeCreated.Kind, Is.EqualTo(DateTimeKind.Utc));
         Assert.That(result.Sha256, Is.Null);
     }
 
@@ -157,5 +162,17 @@ public class ScreenshotStorageServiceTests
             Assert.That(result.FileSizeBytes, Is.EqualTo((uint)"image-content".Length));
             Assert.That(result.Filename, Does.EndWith(".jpg"));
         });
+    }
+
+    private static TimeZoneInfo ResolveMoscowTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
+        }
     }
 }
