@@ -18,8 +18,8 @@ namespace MediaPi.Core.Tests.Services;
 [TestFixture]
 public class ScreenshotStorageServiceTests
 {
-    private Mock<IOptions<VideoStorageSettings>> _mockOptions = null!;
-    private VideoStorageSettings _settings = null!;
+    private Mock<IOptions<ScreenshotStorageSettings>> _mockOptions = null!;
+    private ScreenshotStorageSettings _settings = null!;
     private string _testRootPath = null!;
     private ScreenshotStorageService _service = null!;
     private readonly ConcurrentBag<MemoryStream> _memoryStreams = new();
@@ -30,13 +30,13 @@ public class ScreenshotStorageServiceTests
         _testRootPath = Path.Combine(Path.GetTempPath(), $"screenshot_storage_test_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testRootPath);
 
-        _settings = new VideoStorageSettings
+        _settings = new ScreenshotStorageSettings
         {
             RootPath = _testRootPath,
             MaxFilesPerDirectory = 2
         };
 
-        _mockOptions = new Mock<IOptions<VideoStorageSettings>>();
+        _mockOptions = new Mock<IOptions<ScreenshotStorageSettings>>();
         _mockOptions.Setup(x => x.Value).Returns(_settings);
         _service = new ScreenshotStorageService(_mockOptions.Object);
     }
