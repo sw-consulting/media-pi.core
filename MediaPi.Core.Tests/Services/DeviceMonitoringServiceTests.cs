@@ -29,8 +29,8 @@ public class DeviceMonitoringServiceTests
 {
     private DeviceMonitorSettings GetDefaultSettings() => new DeviceMonitorSettings
     {
-        OnlinePollingIntervalSeconds = 1,
-        OfflinePollingIntervalSeconds = 2,
+        ActiveSubscriberPollingIntervalSeconds = 1,
+        LazyPollingIntervalSeconds = 2,
         MaxParallelProbes = 2,
         TimeoutSeconds = 1,
         JitterSeconds = 0

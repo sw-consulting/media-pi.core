@@ -25,6 +25,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly DeviceEventsService _deviceEventsService;
     private readonly IMediaPiAgentClient _agentClient;
     private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
+    private readonly Channel<bool> _pollWakeSignals = Channel.CreateUnbounded<bool>();
 
     public DeviceMonitoringService(
         IServiceScopeFactory scopeFactory,
@@ -61,6 +62,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         var channel = Channel.CreateUnbounded<DeviceStatusEvent>();
         var id = Guid.NewGuid();
         _subscribers[id] = channel;
+        _pollWakeSignals.Writer.TryWrite(true);
 
         foreach (var kvp in _snapshot)
         {
@@ -71,6 +73,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         {
             _subscribers.TryRemove(id, out _);
             channel.Writer.TryComplete();
+            _pollWakeSignals.Writer.TryWrite(true);
         });
 
         return channel.Reader.ReadAllAsync(token);
@@ -154,30 +157,38 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         _logger.LogInformation("DeviceMonitoringService started.");
         var rnd = new Random();
         var nextPoll = new ConcurrentDictionary<int, DateTime>();
+        var nextPersist = new ConcurrentDictionary<int, DateTime>();
         var semaphore = new SemaphoreSlim(_settings.MaxParallelProbes);
 
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                var now = DateTime.UtcNow;
+                var hasSubscribers = !_subscribers.IsEmpty;
+                var fastInterval = TimeSpan.FromSeconds(Math.Max(1, _settings.ActiveSubscriberPollingIntervalSeconds));
+                var lazyInterval = TimeSpan.FromSeconds(Math.Max(1, _settings.LazyPollingIntervalSeconds));
+
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var devices = await db.Devices.AsNoTracking().ToListAsync(stoppingToken);
 
-                _logger.LogDebug("Loaded {DeviceCount} devices for monitoring.", devices.Count);
+                _logger.LogDebug("Loaded {DeviceCount} devices for monitoring. Subscribers={SubscriberCount}", devices.Count, _subscribers.Count);
 
                 foreach (var d in devices)
                 {
-                    nextPoll.TryAdd(d.Id, DateTime.UtcNow);
+                    nextPoll.TryAdd(d.Id, now);
+                    nextPersist.TryAdd(d.Id, now);
                 }
 
                 var due = new List<Device>();
-                foreach (var kvp in nextPoll.Where(kvp => kvp.Value <= DateTime.UtcNow).ToList())
+                foreach (var kvp in nextPoll.Where(kvp => kvp.Value <= now || (hasSubscribers && kvp.Value - now > fastInterval)).ToList())
                 {
                     var device = devices.FirstOrDefault(d => d.Id == kvp.Key);
                     if (device is null)
                     {
                         nextPoll.TryRemove(kvp.Key, out _);
+                        nextPersist.TryRemove(kvp.Key, out _);
                         continue;
                     }
                     due.Add(device);
@@ -191,10 +202,21 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                     try
                     {
                         var (snap, probe) = await ProbeDevice(device, stoppingToken);
+                        var hasSubscribersForDevice = !_subscribers.IsEmpty;
+                        var baseInterval = hasSubscribersForDevice
+                            ? _settings.ActiveSubscriberPollingIntervalSeconds
+                            : _settings.LazyPollingIntervalSeconds;
+
                         nextPoll[device.Id] = DateTime.UtcNow
-                            + TimeSpan.FromSeconds(snap.IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
+                            + TimeSpan.FromSeconds(Math.Max(1, baseInterval))
                             + TimeSpan.FromSeconds(rnd.NextDouble() * _settings.JitterSeconds);
-                        probeResults.Add(probe);
+
+                        var persistNow = DateTime.UtcNow;
+                        if (!nextPersist.TryGetValue(device.Id, out var nextPersistAt) || persistNow >= nextPersistAt)
+                        {
+                            probeResults.Add(probe);
+                            nextPersist[device.Id] = persistNow + lazyInterval;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -208,16 +230,27 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
                 await Task.WhenAll(tasks);
 
-                foreach (var probe in probeResults)
-                    db.DeviceProbes.Add(probe);
+                if (!probeResults.IsEmpty)
+                {
+                    foreach (var probe in probeResults)
+                        db.DeviceProbes.Add(probe);
 
-                await db.SaveChangesAsync(stoppingToken);
-                _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
+                }
 
                 var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(_settings.FallbackIntervalSeconds)).Min();
                 var delay = next - DateTime.UtcNow;
                 if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
-                await Task.Delay(delay, stoppingToken);
+                delay = hasSubscribers && delay > fastInterval ? fastInterval : delay;
+                delay = !hasSubscribers && delay > lazyInterval ? lazyInterval : delay;
+
+                var waitDelay = Task.Delay(delay, stoppingToken);
+                var waitSignal = _pollWakeSignals.Reader.ReadAsync(stoppingToken).AsTask();
+                await Task.WhenAny(waitDelay, waitSignal);
+                while (_pollWakeSignals.Reader.TryRead(out _))
+                {
+                }
             }
         }
         catch (Exception ex)
