@@ -207,7 +207,14 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
                 var tasks = due.Select(async device =>
                 {
-                    await semaphore.WaitAsync(stoppingToken);
+                    try
+                    {
+                        await semaphore.WaitAsync(stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
                     try
                     {
                         var (snap, probe) = await ProbeDevice(device, stoppingToken);
@@ -261,6 +268,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 {
                 }
             }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal service shutdown — not an error.
         }
         catch (Exception ex)
         {
