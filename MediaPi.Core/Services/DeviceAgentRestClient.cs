@@ -86,7 +86,8 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             ErrMsg = NormalizeError(result),
             Status = data?.Status,
             Uptime = data?.Uptime,
-            Version = data?.Version
+            Version = data?.Version,
+            ServiceStatus = data?.ServiceStatus
         };
     }
 

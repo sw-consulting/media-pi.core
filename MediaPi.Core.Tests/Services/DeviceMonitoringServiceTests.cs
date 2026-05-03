@@ -525,6 +525,9 @@ public class DeviceMonitoringServiceTests
         {
             Assert.That(deletionEvent.Snapshot.SoftwareVersion, Is.Null);
             Assert.That(deletionEvent.Snapshot.IpAddress, Is.EqualTo(string.Empty));
+            Assert.That(deletionEvent.Snapshot.PlaybackServiceStatus, Is.Null);
+            Assert.That(deletionEvent.Snapshot.PlaylistUploadServiceStatus, Is.Null);
+            Assert.That(deletionEvent.Snapshot.VideoUploadServiceStatus, Is.Null);
         }
     }
 

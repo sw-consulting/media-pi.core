@@ -112,7 +112,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 LastChecked = DateTime.UtcNow,
                 ConnectLatencyMs = 0,
                 TotalLatencyMs = 0,
-                SoftwareVersion = null
+                SoftwareVersion = null,
+                PlaybackServiceStatus = null,
+                PlaylistUploadServiceStatus = null,
+                VideoUploadServiceStatus = null
             }));
         }
     }
@@ -135,7 +138,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = probeResult.ConnectMs,
             TotalLatencyMs = probeResult.TotalMs,
-            SoftwareVersion = probeResult.SoftwareVersion
+            SoftwareVersion = probeResult.SoftwareVersion,
+            PlaybackServiceStatus = probeResult.ServiceStatus?.PlaybackServiceStatus,
+            PlaylistUploadServiceStatus = probeResult.ServiceStatus?.PlaylistUploadServiceStatus,
+            VideoUploadServiceStatus = probeResult.ServiceStatus?.VideoUploadServiceStatus
         };
         _snapshot[device.Id] = snap;
         Broadcast(new DeviceStatusEvent(device.Id, snap));
@@ -147,7 +153,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             Timestamp = snap.LastChecked,
             IsOnline = snap.IsOnline,
             ConnectLatencyMs = snap.ConnectLatencyMs,
-            TotalLatencyMs = snap.TotalLatencyMs
+            TotalLatencyMs = snap.TotalLatencyMs,
+            PlaybackServiceStatus = snap.PlaybackServiceStatus,
+            PlaylistUploadServiceStatus = snap.PlaylistUploadServiceStatus,
+            VideoUploadServiceStatus = snap.VideoUploadServiceStatus
         };
         return (snap, probe);
     }
@@ -272,7 +281,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 sw.Stop();
                 _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", device.IpAddress);
-                return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
+                return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
             }
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -289,22 +298,22 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
                     device.Id, device.IpAddress, healthResponse.ErrMsg);
-                return new DeviceProbeResult(false, connectMs, sw.ElapsedMilliseconds, null);
+                return new DeviceProbeResult(false, connectMs, sw.ElapsedMilliseconds, null, healthResponse.ServiceStatus);
             }
 
-            return new DeviceProbeResult(true, connectMs, sw.ElapsedMilliseconds, healthResponse.Version);
+            return new DeviceProbeResult(true, connectMs, sw.ElapsedMilliseconds, healthResponse.Version, healthResponse.ServiceStatus);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             sw.Stop();
             _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) timed out.", device.Id, device.IpAddress);
-            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
+            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
         }
         catch (Exception ex)
         {
             sw.Stop();
             _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
-            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
+            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
         }
     }
 }

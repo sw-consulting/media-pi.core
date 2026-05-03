@@ -15,6 +15,9 @@ public class DeviceStatusItem
     public long ConnectLatencyMs { get; set; }
     public long TotalLatencyMs { get; set; }
     public string? SoftwareVersion { get; set; }
+    public bool? PlaybackServiceStatus { get; set; }
+    public bool? PlaylistUploadServiceStatus { get; set; }
+    public bool? VideoUploadServiceStatus { get; set; }
 
     // Parameterless constructor for JSON deserialization
     public DeviceStatusItem() { }
@@ -27,6 +30,9 @@ public class DeviceStatusItem
         ConnectLatencyMs = snapshot.ConnectLatencyMs;
         TotalLatencyMs = snapshot.TotalLatencyMs;
         SoftwareVersion = snapshot.SoftwareVersion;
+        PlaybackServiceStatus = snapshot.PlaybackServiceStatus;
+        PlaylistUploadServiceStatus = snapshot.PlaylistUploadServiceStatus;
+        VideoUploadServiceStatus = snapshot.VideoUploadServiceStatus;
     }
 
     public override string ToString()

@@ -11,4 +11,7 @@ public class DeviceStatusSnapshot
     public long ConnectLatencyMs { get; set; }
     public long TotalLatencyMs { get; set; }
     public string? SoftwareVersion { get; set; }
+    public bool? PlaybackServiceStatus { get; set; }
+    public bool? PlaylistUploadServiceStatus { get; set; }
+    public bool? VideoUploadServiceStatus { get; set; }
 }

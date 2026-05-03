@@ -156,6 +156,14 @@ namespace MediaPi.Core.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_online");
 
+                    b.Property<bool?>("PlaybackServiceStatus")
+                        .HasColumnType("boolean")
+                        .HasColumnName("playback_service_status");
+
+                    b.Property<bool?>("PlaylistUploadServiceStatus")
+                        .HasColumnType("boolean")
+                        .HasColumnName("playlist_upload_service_status");
+
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
@@ -163,6 +171,10 @@ namespace MediaPi.Core.Migrations
                     b.Property<long>("TotalLatencyMs")
                         .HasColumnType("bigint")
                         .HasColumnName("total_latency");
+
+                    b.Property<bool?>("VideoUploadServiceStatus")
+                        .HasColumnType("boolean")
+                        .HasColumnName("video_upload_service_status");
 
                     b.HasKey("Id");
 
