@@ -1,11 +1,11 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace MediaPi.Core.Migrations
 {
     /// <inheritdoc />
-    public partial class _0_9_1_DeviceProbe_ServiceStatus : Migration
+    public partial class _0_9_1_DeviceProbe : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

@@ -25,7 +25,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly DeviceEventsService _deviceEventsService;
     private readonly IMediaPiAgentClient _agentClient;
     private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
-    private readonly Channel<bool> _pollWakeSignals = Channel.CreateUnbounded<bool>();
+    private readonly SemaphoreSlim _pollWakeSignal = new(0);
 
     public DeviceMonitoringService(
         IServiceScopeFactory scopeFactory,
@@ -62,7 +62,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         var channel = Channel.CreateUnbounded<DeviceStatusEvent>();
         var id = Guid.NewGuid();
         _subscribers[id] = channel;
-        _pollWakeSignals.Writer.TryWrite(true);
+        _pollWakeSignal.Release();
 
         foreach (var kvp in _snapshot)
         {
@@ -73,7 +73,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         {
             _subscribers.TryRemove(id, out _);
             channel.Writer.TryComplete();
-            _pollWakeSignals.Writer.TryWrite(true);
+            _pollWakeSignal.Release();
         });
 
         return channel.Reader.ReadAllAsync(token);
@@ -254,29 +254,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 delay = hasSubscribers && delay > fastInterval ? fastInterval : delay;
                 delay = !hasSubscribers && delay > lazyInterval ? lazyInterval : delay;
 
-                using var wakeSignalCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                var waitDelay = Task.Delay(delay, stoppingToken);
-                var waitSignal = _pollWakeSignals.Reader.ReadAsync(wakeSignalCancellation.Token).AsTask();
-                var completedTask = await Task.WhenAny(waitDelay, waitSignal);
-
-                if (completedTask == waitDelay)
-                {
-                    wakeSignalCancellation.Cancel();
-
-                    try
-                    {
-                        await waitSignal;
-                    }
-                    catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
-                    {
-                    }
-                }
-                else
-                {
-                    await waitSignal;
-                }
-
-                while (_pollWakeSignals.Reader.TryRead(out _))
+                await _pollWakeSignal.WaitAsync(delay, stoppingToken);
+                // Drain any extra wake signals accumulated during bursts of subscribe/unsubscribe events;
+                // otherwise leftover semaphore count can cause repeated immediate wake-ups in next iterations.
+                while (_pollWakeSignal.Wait(0))
                 {
                 }
             }
