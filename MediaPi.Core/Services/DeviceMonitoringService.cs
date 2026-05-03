@@ -254,9 +254,28 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 delay = hasSubscribers && delay > fastInterval ? fastInterval : delay;
                 delay = !hasSubscribers && delay > lazyInterval ? lazyInterval : delay;
 
+                using var wakeSignalCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 var waitDelay = Task.Delay(delay, stoppingToken);
-                var waitSignal = _pollWakeSignals.Reader.ReadAsync(stoppingToken).AsTask();
-                await Task.WhenAny(waitDelay, waitSignal);
+                var waitSignal = _pollWakeSignals.Reader.ReadAsync(wakeSignalCancellation.Token).AsTask();
+                var completedTask = await Task.WhenAny(waitDelay, waitSignal);
+
+                if (completedTask == waitDelay)
+                {
+                    wakeSignalCancellation.Cancel();
+
+                    try
+                    {
+                        await waitSignal;
+                    }
+                    catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+                    {
+                    }
+                }
+                else
+                {
+                    await waitSignal;
+                }
+
                 while (_pollWakeSignals.Reader.TryRead(out _))
                 {
                 }
