@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using MediaPi.Core.Models;
 using MediaPi.Core.Services.Interfaces;
 using MediaPi.Core.Services.Models;
+using MediaPi.Core.RestModels.Device;
 
 namespace MediaPi.Core.Services;
 
@@ -85,7 +86,8 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             ErrMsg = NormalizeError(result),
             Status = data?.Status,
             Uptime = data?.Uptime,
-            Version = data?.Version
+            Version = data?.Version,
+            ServiceStatus = data?.ServiceStatus
         };
     }
 
@@ -398,40 +400,5 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
         }
 
         return "Device API returned an unsuccessful response without an error message.";
-    }
-
-    private sealed class DeviceApiResponse<T>
-    {
-        public bool Ok { get; init; }
-        public string? ErrMsg { get; init; }
-        public T? Data { get; init; }
-    }
-
-    private sealed record DeviceApiResult<T>(DeviceApiResponse<T> Response, HttpStatusCode StatusCode);
-
-    private sealed class DeviceUnitInfo
-    {
-        public string? Unit { get; init; }
-        public JsonElement Active { get; init; }
-        public JsonElement Sub { get; init; }
-        public string? Error { get; init; }
-    }
-
-    private sealed class HealthInfo
-    {
-        public string? Status { get; init; }
-        public double? Uptime { get; init; }
-        public string? Version { get; init; }
-    }
-
-    private sealed class UnitActionRequest
-    {
-        public string Unit { get; init; } = string.Empty;
-    }
-
-    private sealed class UnitActionResponse
-    {
-        public string? Unit { get; init; }
-        public string? Result { get; init; }
     }
 }

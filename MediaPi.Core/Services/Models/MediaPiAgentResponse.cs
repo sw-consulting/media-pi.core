@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MediaPi.Core.RestModels.Device;
 
 namespace MediaPi.Core.Services.Models
 {
@@ -54,5 +55,6 @@ namespace MediaPi.Core.Services.Models
         [JsonPropertyName("status")] public string? Status { get; init; }
         [JsonPropertyName("uptime")] public double? Uptime { get; init; }
         [JsonPropertyName("version")] public string? Version { get; init; }
+        [JsonPropertyName("serviceStatus")] public ServiceStatusDto? ServiceStatus { get; init; }
     }
 }

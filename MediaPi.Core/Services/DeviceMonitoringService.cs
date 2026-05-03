@@ -25,6 +25,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private readonly DeviceEventsService _deviceEventsService;
     private readonly IMediaPiAgentClient _agentClient;
     private readonly ConcurrentDictionary<Guid, Channel<DeviceStatusEvent>> _subscribers = new();
+    private readonly SemaphoreSlim _pollWakeSignal = new(0);
 
     public DeviceMonitoringService(
         IServiceScopeFactory scopeFactory,
@@ -61,6 +62,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         var channel = Channel.CreateUnbounded<DeviceStatusEvent>();
         var id = Guid.NewGuid();
         _subscribers[id] = channel;
+        _pollWakeSignal.Release();
 
         foreach (var kvp in _snapshot)
         {
@@ -71,6 +73,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         {
             _subscribers.TryRemove(id, out _);
             channel.Writer.TryComplete();
+            _pollWakeSignal.Release();
         });
 
         return channel.Reader.ReadAllAsync(token);
@@ -109,7 +112,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 LastChecked = DateTime.UtcNow,
                 ConnectLatencyMs = 0,
                 TotalLatencyMs = 0,
-                SoftwareVersion = null
+                SoftwareVersion = null,
+                PlaybackServiceStatus = null,
+                PlaylistUploadServiceStatus = null,
+                VideoUploadServiceStatus = null
             }));
         }
     }
@@ -132,7 +138,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             LastChecked = DateTime.UtcNow,
             ConnectLatencyMs = probeResult.ConnectMs,
             TotalLatencyMs = probeResult.TotalMs,
-            SoftwareVersion = probeResult.SoftwareVersion
+            SoftwareVersion = probeResult.SoftwareVersion,
+            PlaybackServiceStatus = probeResult.ServiceStatus?.PlaybackServiceStatus,
+            PlaylistUploadServiceStatus = probeResult.ServiceStatus?.PlaylistUploadServiceStatus,
+            VideoUploadServiceStatus = probeResult.ServiceStatus?.VideoUploadServiceStatus
         };
         _snapshot[device.Id] = snap;
         Broadcast(new DeviceStatusEvent(device.Id, snap));
@@ -144,7 +153,10 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             Timestamp = snap.LastChecked,
             IsOnline = snap.IsOnline,
             ConnectLatencyMs = snap.ConnectLatencyMs,
-            TotalLatencyMs = snap.TotalLatencyMs
+            TotalLatencyMs = snap.TotalLatencyMs,
+            PlaybackServiceStatus = snap.PlaybackServiceStatus,
+            PlaylistUploadServiceStatus = snap.PlaylistUploadServiceStatus,
+            VideoUploadServiceStatus = snap.VideoUploadServiceStatus
         };
         return (snap, probe);
     }
@@ -154,30 +166,38 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         _logger.LogInformation("DeviceMonitoringService started.");
         var rnd = new Random();
         var nextPoll = new ConcurrentDictionary<int, DateTime>();
+        var nextPersist = new ConcurrentDictionary<int, DateTime>();
         var semaphore = new SemaphoreSlim(_settings.MaxParallelProbes);
 
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                var now = DateTime.UtcNow;
+                var hasSubscribers = !_subscribers.IsEmpty;
+                var fastInterval = TimeSpan.FromSeconds(Math.Max(1, _settings.ActiveSubscriberPollingIntervalSeconds));
+                var lazyInterval = TimeSpan.FromSeconds(Math.Max(1, _settings.LazyPollingIntervalSeconds));
+
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var devices = await db.Devices.AsNoTracking().ToListAsync(stoppingToken);
 
-                _logger.LogDebug("Loaded {DeviceCount} devices for monitoring.", devices.Count);
+                _logger.LogDebug("Loaded {DeviceCount} devices for monitoring. Subscribers={SubscriberCount}", devices.Count, _subscribers.Count);
 
                 foreach (var d in devices)
                 {
-                    nextPoll.TryAdd(d.Id, DateTime.UtcNow);
+                    nextPoll.TryAdd(d.Id, now);
+                    nextPersist.TryAdd(d.Id, now);
                 }
 
                 var due = new List<Device>();
-                foreach (var kvp in nextPoll.Where(kvp => kvp.Value <= DateTime.UtcNow).ToList())
+                foreach (var kvp in nextPoll.Where(kvp => kvp.Value <= now || (hasSubscribers && kvp.Value - now > fastInterval)).ToList())
                 {
                     var device = devices.FirstOrDefault(d => d.Id == kvp.Key);
                     if (device is null)
                     {
                         nextPoll.TryRemove(kvp.Key, out _);
+                        nextPersist.TryRemove(kvp.Key, out _);
                         continue;
                     }
                     due.Add(device);
@@ -187,14 +207,32 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
                 var tasks = due.Select(async device =>
                 {
-                    await semaphore.WaitAsync(stoppingToken);
+                    try
+                    {
+                        await semaphore.WaitAsync(stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
                     try
                     {
                         var (snap, probe) = await ProbeDevice(device, stoppingToken);
+                        var hasSubscribersForDevice = !_subscribers.IsEmpty;
+                        var baseInterval = hasSubscribersForDevice
+                            ? _settings.ActiveSubscriberPollingIntervalSeconds
+                            : _settings.LazyPollingIntervalSeconds;
+
                         nextPoll[device.Id] = DateTime.UtcNow
-                            + TimeSpan.FromSeconds(snap.IsOnline ? _settings.OnlinePollingIntervalSeconds : _settings.OfflinePollingIntervalSeconds)
+                            + TimeSpan.FromSeconds(Math.Max(1, baseInterval))
                             + TimeSpan.FromSeconds(rnd.NextDouble() * _settings.JitterSeconds);
-                        probeResults.Add(probe);
+
+                        var persistNow = DateTime.UtcNow;
+                        if (!nextPersist.TryGetValue(device.Id, out var nextPersistAt) || persistNow >= nextPersistAt)
+                        {
+                            probeResults.Add(probe);
+                            nextPersist[device.Id] = persistNow + lazyInterval;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -208,17 +246,32 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
                 await Task.WhenAll(tasks);
 
-                foreach (var probe in probeResults)
-                    db.DeviceProbes.Add(probe);
+                if (!probeResults.IsEmpty)
+                {
+                    foreach (var probe in probeResults)
+                        db.DeviceProbes.Add(probe);
 
-                await db.SaveChangesAsync(stoppingToken);
-                _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogDebug("Saved {ProbeCount} device probe results to database.", probeResults.Count);
+                }
 
                 var next = nextPoll.Values.DefaultIfEmpty(DateTime.UtcNow.AddSeconds(_settings.FallbackIntervalSeconds)).Min();
                 var delay = next - DateTime.UtcNow;
                 if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
-                await Task.Delay(delay, stoppingToken);
+                delay = hasSubscribers && delay > fastInterval ? fastInterval : delay;
+                delay = !hasSubscribers && delay > lazyInterval ? lazyInterval : delay;
+
+                await _pollWakeSignal.WaitAsync(delay, stoppingToken);
+                // Drain any extra wake signals accumulated during bursts of subscribe/unsubscribe events;
+                // otherwise leftover semaphore count can cause repeated immediate wake-ups in next iterations.
+                while (_pollWakeSignal.Wait(0))
+                {
+                }
             }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal service shutdown — not an error.
         }
         catch (Exception ex)
         {
@@ -239,7 +292,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 sw.Stop();
                 _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", device.IpAddress);
-                return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
+                return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
             }
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -256,22 +309,22 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
                     device.Id, device.IpAddress, healthResponse.ErrMsg);
-                return new DeviceProbeResult(false, connectMs, sw.ElapsedMilliseconds, null);
+                return new DeviceProbeResult(false, connectMs, sw.ElapsedMilliseconds, null, healthResponse.ServiceStatus);
             }
 
-            return new DeviceProbeResult(true, connectMs, sw.ElapsedMilliseconds, healthResponse.Version);
+            return new DeviceProbeResult(true, connectMs, sw.ElapsedMilliseconds, healthResponse.Version, healthResponse.ServiceStatus);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             sw.Stop();
             _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) timed out.", device.Id, device.IpAddress);
-            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
+            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
         }
         catch (Exception ex)
         {
             sw.Stop();
             _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
-            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null);
+            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
         }
     }
 }

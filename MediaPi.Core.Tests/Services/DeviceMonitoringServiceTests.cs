@@ -29,8 +29,8 @@ public class DeviceMonitoringServiceTests
 {
     private DeviceMonitorSettings GetDefaultSettings() => new DeviceMonitorSettings
     {
-        OnlinePollingIntervalSeconds = 1,
-        OfflinePollingIntervalSeconds = 2,
+        ActiveSubscriberPollingIntervalSeconds = 1,
+        LazyPollingIntervalSeconds = 2,
         MaxParallelProbes = 2,
         TimeoutSeconds = 1,
         JitterSeconds = 0
@@ -525,6 +525,9 @@ public class DeviceMonitoringServiceTests
         {
             Assert.That(deletionEvent.Snapshot.SoftwareVersion, Is.Null);
             Assert.That(deletionEvent.Snapshot.IpAddress, Is.EqualTo(string.Empty));
+            Assert.That(deletionEvent.Snapshot.PlaybackServiceStatus, Is.Null);
+            Assert.That(deletionEvent.Snapshot.PlaylistUploadServiceStatus, Is.Null);
+            Assert.That(deletionEvent.Snapshot.VideoUploadServiceStatus, Is.Null);
         }
     }
 

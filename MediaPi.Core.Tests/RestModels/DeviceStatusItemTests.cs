@@ -24,7 +24,10 @@ public class DeviceStatusItemTests
             LastChecked = now,
             ConnectLatencyMs = 150,
             TotalLatencyMs = 200,
-            SoftwareVersion = "5.2.1"
+            SoftwareVersion = "5.2.1",
+            PlaybackServiceStatus = true,
+            PlaylistUploadServiceStatus = false,
+            VideoUploadServiceStatus = true
         };
 
         // Act
@@ -37,6 +40,9 @@ public class DeviceStatusItemTests
         Assert.That(statusItem.ConnectLatencyMs, Is.EqualTo(150));
         Assert.That(statusItem.TotalLatencyMs, Is.EqualTo(200));
         Assert.That(statusItem.SoftwareVersion, Is.EqualTo("5.2.1"));
+        Assert.That(statusItem.PlaybackServiceStatus, Is.True);
+        Assert.That(statusItem.PlaylistUploadServiceStatus, Is.False);
+        Assert.That(statusItem.VideoUploadServiceStatus, Is.True);
     }
 
     [Test]

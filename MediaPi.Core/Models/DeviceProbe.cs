@@ -26,4 +26,13 @@ public class DeviceProbe
 
     [Column("total_latency")]
     public long TotalLatencyMs { get; set; }
+
+    [Column("playback_service_status")]
+    public bool? PlaybackServiceStatus { get; set; }
+
+    [Column("playlist_upload_service_status")]
+    public bool? PlaylistUploadServiceStatus { get; set; }
+
+    [Column("video_upload_service_status")]
+    public bool? VideoUploadServiceStatus { get; set; }
 }
