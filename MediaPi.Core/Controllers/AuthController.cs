@@ -80,8 +80,8 @@ public class AuthController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
     public async Task<ActionResult<UserViewItem>> Login(Credentials crd, CancellationToken ct = default)
     {
-        // Log the authentication attempt for security auditing
-        _logger.LogDebug("Login attempt for {email}", crd.Email);
+        // Log the authentication attempt for security auditing without private identifiers
+        _logger.LogDebug("Login attempt received");
 
         // Query user with all necessary related data for complete authentication context
         // Include UserRoles and Role for permission checking
@@ -109,8 +109,8 @@ public class AuthController(
             Token = _jwtUtils.GenerateJwtToken(user),
         };
 
-        // Log successful authentication for security auditing
-        _logger.LogDebug("Login returning\n{res}", userViewItem.ToString());
+        // Log successful authentication for security auditing without sensitive payload data
+        _logger.LogDebug("Login successful");
         return userViewItem;
     }
 
