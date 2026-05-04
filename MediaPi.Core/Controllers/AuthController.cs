@@ -81,7 +81,10 @@ public class AuthController(
     public async Task<ActionResult<UserViewItem>> Login(Credentials crd, CancellationToken ct = default)
     {
         // Log the authentication attempt for security auditing
-        _logger.LogDebug("Login attempt for {email}", crd.Email);
+        string sanitizedEmailForLog = (crd.Email ?? string.Empty)
+            .Replace("\r", string.Empty)
+            .Replace("\n", string.Empty);
+        _logger.LogDebug("Login attempt for {email}", sanitizedEmailForLog);
 
         // Query user with all necessary related data for complete authentication context
         // Include UserRoles and Role for permission checking
