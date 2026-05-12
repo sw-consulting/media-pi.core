@@ -121,6 +121,39 @@ public class FileStorageServiceTests
     }
 
     [Test]
+    [TestCase("file.jpg", ".jpg")]
+    [TestCase("file.PNG", ".PNG")]
+    [TestCase("archive.tar.gz", ".gz")]
+    [TestCase("noextension", ".bin")]
+    [TestCase("file.", ".bin")]
+    [TestCase("file.jpg/../evil", ".bin")]  // GetExtension returns "" for the last segment "evil"; SanitizeExtension maps to .bin
+    public async Task SaveFileAsync_ExtensionFromFileName_IsPreservedOrSanitized(string filename, string expectedExtension)
+    {
+        var mockFile = CreateMockFormFile(filename, "content");
+
+        var result = await _service.SaveFileAsync(mockFile.Object, "title");
+
+        Assert.That(result.Filename, Does.EndWith(expectedExtension));
+        var absolutePath = _service.GetAbsolutePath(result.Filename);
+        Assert.That(File.Exists(absolutePath), Is.True);
+    }
+
+    [Test]
+    public async Task SaveFileAsync_ExtensionWithControlChars_IsSanitized()
+    {
+        // File name whose extension contains a control character (newline)
+        var filename = "file.jpg\n.evil";
+        var mockFile = CreateMockFormFile(filename, "content");
+
+        var result = await _service.SaveFileAsync(mockFile.Object, "title");
+
+        // The result filename must not contain control characters
+        Assert.That(result.Filename, Does.Not.Contain("\n"));
+        var absolutePath = _service.GetAbsolutePath(result.Filename);
+        Assert.That(File.Exists(absolutePath), Is.True);
+    }
+
+    [Test]
     public async Task SaveFileAsync_WithComputeSha256_ReturnsCorrectHash()
     {
         var content = "hello world";
