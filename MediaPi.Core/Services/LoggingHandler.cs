@@ -63,6 +63,6 @@ public class LoggingHandler : DelegatingHandler
 
         message.AppendLine($"=== End HTTP {direction} ===");
 
-        _logger.LogInformation(message.ToString());
+        _logger.LogInformation("{HttpMessage}", message.ToString());
     }
 }
