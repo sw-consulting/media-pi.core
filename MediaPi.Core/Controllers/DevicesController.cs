@@ -318,7 +318,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StartService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "start service",
@@ -337,7 +337,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StopService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "stop service",
@@ -356,7 +356,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentUnitResultResponse>> RestartService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "restart service",
@@ -375,7 +375,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentEnableResponse>> EnableService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "enable service",
@@ -394,7 +394,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentEnableResponse>> DisableService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "disable service",
@@ -483,6 +483,14 @@ public partial class DevicesController(
         return (device, null);
     }
     
+    private static string? SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+
+        var sanitized = value.Replace("\r", "\\r").Replace("\n", "\\n");
+        return new string(sanitized.Select(ch => char.IsControl(ch) ? '?' : ch).ToArray());
+    }
+
     private async Task<ActionResult<TResponse>> ExecuteAgentOperation<TResponse>(
         int id,
         string operationName,
@@ -495,6 +503,7 @@ public partial class DevicesController(
         if (error != null) return error;
 
         var targetDevice = device!;
+        var safeUnitForLog = SanitizeForLog(unit);
 
         try
         {
@@ -507,7 +516,7 @@ public partial class DevicesController(
                 }
                 else
                 {
-                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.ErrMsg ?? "неизвестная ошибка");
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, safeUnitForLog, response.ErrMsg ?? "неизвестная ошибка");
                 }
                 return _502Agent(response.ErrMsg);
             }
@@ -522,7 +531,7 @@ public partial class DevicesController(
             }
             else
             {
-                logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
+                logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, safeUnitForLog);
             }
 
             return _502Agent();
