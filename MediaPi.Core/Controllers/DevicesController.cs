@@ -495,6 +495,9 @@ public partial class DevicesController(
         if (error != null) return error;
 
         var targetDevice = device!;
+        var safeUnitForLog = string.IsNullOrEmpty(unit)
+            ? unit
+            : unit.Replace("\r", "\\r").Replace("\n", "\\n");
 
         try
         {
@@ -507,7 +510,7 @@ public partial class DevicesController(
                 }
                 else
                 {
-                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, unit, response.ErrMsg ?? "неизвестная ошибка");
+                    logger.LogWarning("Агент не выполнил операцию {Operation} для устройства {DeviceId}, сервиса {Unit}: {Error}", operationName, id, safeUnitForLog, response.ErrMsg ?? "неизвестная ошибка");
                 }
                 return _502Agent(response.ErrMsg);
             }
@@ -522,7 +525,7 @@ public partial class DevicesController(
             }
             else
             {
-                logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, unit);
+                logger.LogError(ex, "Ошибка при выполнении операции {Operation} для устройства {DeviceId}, сервиса {Unit}", operationName, id, safeUnitForLog);
             }
 
             return _502Agent();
