@@ -403,6 +403,7 @@ FodyWeavers.xsd
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
+!.vscode/*.md
 
 # Local History for Visual Studio Code
 .history/
@@ -422,7 +423,6 @@ bin/
 obj/
 pgdata/
 certificate/
-.vscode/
 *.user
 *.suo
 *.DS_Store

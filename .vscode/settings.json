@@ -1,0 +1,37 @@
+{
+  "[csharp]": {
+    "editor.defaultFormatter": "ms-dotnettools.csharp",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "omnisharp.enableEditorConfigSupport": true,
+  "omnisharp.enableRoslynAnalyzers": true,
+  "omnisharp.analyzeOpenDocumentsOnly": false,
+  "dotnet.defaultSolutionOrFolder": "${workspaceFolder}/MediaPi.sln",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.vs": true,
+    "**/bin": true,
+    "**/obj": true,
+    "**/*.user": true,
+    ".devcontainer": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    ".devcontainer": true
+  },
+  "editor.rulers": [80, 120],
+  "editor.insertSpaces": true,
+  "editor.tabSize": 4,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "docker.showEngineOutput": false,
+  "[dockerfile]": {
+    "editor.defaultFormatter": "ms-vscode.makefile-tools"
+  }
+}
+
