@@ -41,17 +41,18 @@ public class FileStorageService : IFileStorageService
                 $"File size {file.Length} bytes exceeds maximum supported size of {uint.MaxValue} bytes (4GB)");
         }
 
-        var extension = Path.GetExtension(file.FileName);
-        if (string.IsNullOrWhiteSpace(extension) || extension == ".")
-        {
-            extension = ".bin";
-        }
+        var extension = SanitizeExtension(Path.GetExtension(file.FileName));
 
         var sanitizedTitle = SanitizeTitle(title);
         var uniqueName = $"{sanitizedTitle}-{Guid.NewGuid():N}{extension}";
 
         var targetDirectory = GetOrCreateTargetDirectory();
         var filePath = Path.Combine(targetDirectory, uniqueName);
+        var fullFilePath = Path.GetFullPath(filePath);
+        if (!fullFilePath.StartsWith(_rootFullPathWithSeparator, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Attempted to write a file outside of the storage root");
+        }
 
         string? sha256Hash = null;
         if (computeSha256)
@@ -180,5 +181,19 @@ public class FileStorageService : IFileStorageService
             .Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
         return string.IsNullOrWhiteSpace(sanitized) ? DefaultTitleToken : sanitized;
+    }
+
+    private static string SanitizeExtension(string rawExtension)
+    {
+        if (string.IsNullOrWhiteSpace(rawExtension) || rawExtension == ".")
+            return ".bin";
+
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitizedChars = rawExtension
+            .Where(c => !invalidChars.Contains(c) && !char.IsWhiteSpace(c) && !char.IsControl(c))
+            .ToArray();
+
+        var sanitized = new string(sanitizedChars);
+        return string.IsNullOrWhiteSpace(sanitized) || sanitized == "." ? ".bin" : sanitized;
     }
 }
