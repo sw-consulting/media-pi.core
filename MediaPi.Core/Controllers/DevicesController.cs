@@ -318,7 +318,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StartService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "start service",
@@ -337,7 +337,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentUnitResultResponse>> StopService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "stop service",
@@ -356,7 +356,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentUnitResultResponse>> RestartService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "restart service",
@@ -375,7 +375,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentEnableResponse>> EnableService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "enable service",
@@ -394,7 +394,7 @@ public partial class DevicesController(
     public async Task<ActionResult<MediaPiAgentEnableResponse>> DisableService(int id, string unit, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(unit)) return _400ServiceUnit(unit);
-        var service = unit.Trim();
+        var service = unit.Trim().Replace("\r", "").Replace("\n", "");
         return await ExecuteAgentOperation(
             id,
             "disable service",
