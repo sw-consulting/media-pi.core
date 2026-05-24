@@ -483,6 +483,14 @@ public partial class DevicesController(
         return (device, null);
     }
     
+    private static string? SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+
+        var sanitized = value.Replace("\r", "\\r").Replace("\n", "\\n");
+        return new string(sanitized.Select(ch => char.IsControl(ch) ? '?' : ch).ToArray());
+    }
+
     private async Task<ActionResult<TResponse>> ExecuteAgentOperation<TResponse>(
         int id,
         string operationName,
@@ -495,9 +503,7 @@ public partial class DevicesController(
         if (error != null) return error;
 
         var targetDevice = device!;
-        var safeUnitForLog = string.IsNullOrEmpty(unit)
-            ? unit
-            : unit.Replace("\r", "\\r").Replace("\n", "\\n");
+        var safeUnitForLog = SanitizeForLog(unit);
 
         try
         {
