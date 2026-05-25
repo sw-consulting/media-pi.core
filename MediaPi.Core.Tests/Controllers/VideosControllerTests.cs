@@ -591,7 +591,7 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task DeleteVideos_Admin_FileDeleteThrows_ReturnsFileDeleteFailureButCompletesDbDeletion()
+    public async Task DeleteVideos_Admin_FileDeleteThrows_ReturnsFileDeleteFailureAndSkipsDbDeletion()
     {
         SetCurrentUser(_admin.Id);
         _mockVideoStorageService
@@ -610,8 +610,8 @@ public class VideosControllerTests
         Assert.That(body.Failures, Has.Count.EqualTo(1));
         Assert.That(body.Failures[0].Id, Is.EqualTo(_videoAccount1.Id));
         Assert.That(body.Failures[0].Reason, Is.EqualTo("fileDeleteFailed"));
-        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
-        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.VideoId == _videoAccount1.Id), Is.False);
+        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.True);
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.VideoId == _videoAccount1.Id), Is.True);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
     }
 
