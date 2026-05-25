@@ -591,7 +591,7 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task DeleteVideos_Admin_FileDeleteThrows_ReturnsFileDeleteFailureAndKeepsDbDeletion()
+    public async Task DeleteVideos_Admin_FileDeleteThrows_ReturnsFileDeleteFailureButCompletesDbDeletion()
     {
         SetCurrentUser(_admin.Id);
         _mockVideoStorageService
