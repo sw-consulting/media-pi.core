@@ -76,8 +76,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
     volumes:
-#      - R:/Projects/certificates:/certificate:ro
-      - /Users/maxirmx/Projects/volumes/storage/:/var/lib/storage:rw
+      - R:/Projects/certificates:/certificate:ro
+      - D:/Projects/media-pi/volumes/storage/:/var/lib/storage:rw
+
+# for linux dev environment
+#      - /Users/maxirmx/Projects/volumes/storage/:/var/lib/storage:rw
 
 #  ui:
 #    image: ghcr.io/sw-consulting/media-pi.ui
