@@ -223,6 +223,88 @@ public class VideosController(
         await _db.SaveChangesAsync(ct);
         return NoContent();
     }
+
+    [HttpPost("delete/batch")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoBatchDeleteResult))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<VideoBatchDeleteResult>> DeleteVideos([FromBody] VideoBatchDeleteItem item, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (item?.Ids == null || item.Ids.Count == 0) return _400RequestPayloadMissing();
+
+        var ids = item.Ids.Distinct().ToList();
+        var result = new VideoBatchDeleteResult { RequestedCount = item.Ids.Count };
+
+        var videos = await _db.Videos
+            .Include(v => v.VideoPlaylists)
+            .Where(v => ids.Contains(v.Id))
+            .ToListAsync(ct);
+        var videosById = videos.ToDictionary(v => v.Id);
+        var videosToDelete = new List<Video>();
+
+        foreach (var id in ids)
+        {
+            if (!videosById.TryGetValue(id, out var video))
+            {
+                result.Failures.Add(new VideoBatchDeleteFailure
+                {
+                    Id = id,
+                    Reason = "notFound",
+                    Message = $"Не удалось найти видеофайл [id={id}]"
+                });
+                continue;
+            }
+
+            if (!_userInformationService.UserCanManageVideo(user, video.AccountId))
+            {
+                result.Failures.Add(new VideoBatchDeleteFailure
+                {
+                    Id = id,
+                    Reason = "forbidden",
+                    Message = $"Недостаточно прав для удаления видеофайла [id={id}]"
+                });
+                continue;
+            }
+
+            videosToDelete.Add(video);
+        }
+
+        if (videosToDelete.Count == 0) return Ok(result);
+
+        var videoPlaylists = videosToDelete.SelectMany(v => v.VideoPlaylists).ToList();
+        if (videoPlaylists.Count != 0)
+        {
+            _db.VideoPlaylists.RemoveRange(videoPlaylists);
+        }
+
+        _db.Videos.RemoveRange(videosToDelete);
+        await _db.SaveChangesAsync(ct);
+
+        foreach (var video in videosToDelete)
+        {
+            try
+            {
+                await _videoStorageService.DeleteVideoAsync(video.Filename, ct);
+                result.DeletedIds.Add(video.Id);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Failed to delete stored video file {Filename} for video {VideoId}", video.Filename, video.Id);
+                result.Failures.Add(new VideoBatchDeleteFailure
+                {
+                    Id = video.Id,
+                    Reason = "fileDeleteFailed",
+                    Message = $"Не удалось удалить файл видео [id={video.Id}]"
+                });
+            }
+        }
+
+        return Ok(result);
+    }
+
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]

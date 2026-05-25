@@ -540,6 +540,108 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task DeleteVideos_Admin_RemovesMultipleVideosAndFiles()
+    {
+        SetCurrentUser(_admin.Id);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.DeleteVideos(new VideoBatchDeleteItem
+        {
+            Ids = [_videoAccount1.Id, _videoAccount2.Id]
+        });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchDeleteResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.RequestedCount, Is.EqualTo(2));
+        Assert.That(body.DeletedIds, Is.EquivalentTo(new[] { _videoAccount1.Id, _videoAccount2.Id }));
+        Assert.That(body.Failures, Is.Empty);
+        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
+        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount2.Id), Is.False);
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.VideoId == _videoAccount1.Id), Is.False);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount2.Filename, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task DeleteVideos_Manager_PartiallyDeletesOwnVideosAndReportsFailures()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.DeleteVideos(new VideoBatchDeleteItem
+        {
+            Ids = [_videoAccount1.Id, _videoAccount2.Id, 999]
+        });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchDeleteResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.RequestedCount, Is.EqualTo(3));
+        Assert.That(body.DeletedIds, Is.EquivalentTo(new[] { _videoAccount1.Id }));
+        Assert.That(body.Failures.Select(f => f.Id), Is.EquivalentTo(new[] { _videoAccount2.Id, 999 }));
+        Assert.That(body.Failures.Single(f => f.Id == _videoAccount2.Id).Reason, Is.EqualTo("forbidden"));
+        Assert.That(body.Failures.Single(f => f.Id == 999).Reason, Is.EqualTo("notFound"));
+        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
+        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount2.Id), Is.True);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount2.Filename, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task DeleteVideos_DuplicateIds_DeletesOnlyOnce()
+    {
+        SetCurrentUser(_admin.Id);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.DeleteVideos(new VideoBatchDeleteItem
+        {
+            Ids = [_videoAccount1.Id, _videoAccount1.Id, _videoAccount1.Id]
+        });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchDeleteResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.RequestedCount, Is.EqualTo(3));
+        Assert.That(body.DeletedIds, Is.EquivalentTo(new[] { _videoAccount1.Id }));
+        Assert.That(body.Failures, Is.Empty);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task DeleteVideos_EmptyIds_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.DeleteVideos(new VideoBatchDeleteItem { Ids = [] });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task DeleteVideos_Manager_CommonVideos_ReturnsForbiddenFailure()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.DeleteVideos(new VideoBatchDeleteItem { Ids = [3] });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchDeleteResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.DeletedIds, Is.Empty);
+        Assert.That(body.Failures, Has.Count.EqualTo(1));
+        Assert.That(body.Failures[0].Id, Is.EqualTo(3));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo("forbidden"));
+        Assert.That(_dbContext.Videos.Any(v => v.Id == 3), Is.True);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
     public async Task GetVideosByAccount_Admin_SpecificAccount()
     {
         SetCurrentUser(_admin.Id);
