@@ -109,15 +109,12 @@ public class VideosController(
         if (item.File == null || item.File.Length == 0) return _400VideoFileMissing();
         if (string.IsNullOrWhiteSpace(item.Title)) return _400VideoTitleMissing();
 
-        int? aId = item.AccountId == 0 ? null : item.AccountId;
-        if (aId != null)
-        { 
-            var account = await _db.Accounts.FindAsync([item.AccountId], ct);
-            if (account == null) return _404Account(item.AccountId);
-        }
-        if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
+        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, ct);
+        if (validationError != null) return validationError;
 
-        var saveResult = await _videoStorageService.SaveVideoAsync(item.File, item.Title, ct);
+        var title = item.Title.Trim();
+        var accountId = NormalizeAccountId(item.AccountId);
+        var saveResult = await _videoStorageService.SaveVideoAsync(item.File, title, ct);
 
         // Check for duplicate filename before saving to database
         if (await _db.Videos.AnyAsync(v => v.Filename == saveResult.Filename, ct))
@@ -127,21 +124,71 @@ public class VideosController(
             return _409VideoFilename(saveResult.Filename);
         }
 
-        var video = new Video
-        {
-            Title = item.Title,
-            Filename = saveResult.Filename,
-            OriginalFilename = saveResult.OriginalFilename,
-            FileSizeBytes = saveResult.FileSizeBytes,
-            DurationSeconds = saveResult.DurationSeconds,
-            AccountId = aId,
-            Sha256 = saveResult.Sha256
-        };
+        var video = CreateVideo(title, saveResult, accountId);
 
         _db.Videos.Add(video);
         await _db.SaveChangesAsync(ct);
 
         return CreatedAtAction(nameof(GetVideo), new { id = video.Id }, new Reference { Id = video.Id });
+    }
+
+    [HttpPost("upload/batch")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(IEnumerable<Reference>))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<Reference>>> UploadVideos([FromForm] VideoBatchUploadItem item, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (item.Files == null || item.Files.Count == 0 || item.Files.Any(file => file == null || file.Length == 0))
+        {
+            return _400VideoFileMissing();
+        }
+
+        var titles = item.Files.Select((file, index) => ResolveBatchUploadTitle(item, file, index)).ToList();
+        if (titles.Any(string.IsNullOrWhiteSpace)) return _400VideoTitleMissing();
+
+        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, ct);
+        if (validationError != null) return validationError;
+
+        var accountId = NormalizeAccountId(item.AccountId);
+        var savedFilenames = new List<string>();
+        var videosToCreate = new List<Video>();
+
+        try
+        {
+            for (var index = 0; index < item.Files.Count; index++)
+            {
+                var file = item.Files[index];
+                var title = titles[index];
+                var saveResult = await _videoStorageService.SaveVideoAsync(file, title, ct);
+                savedFilenames.Add(saveResult.Filename);
+
+                if (videosToCreate.Any(v => v.Filename == saveResult.Filename)
+                    || await _db.Videos.AnyAsync(v => v.Filename == saveResult.Filename, ct))
+                {
+                    await CleanupSavedVideos(savedFilenames, ct);
+                    return _409VideoFilename(saveResult.Filename);
+                }
+
+                videosToCreate.Add(CreateVideo(title, saveResult, accountId));
+            }
+
+            _db.Videos.AddRange(videosToCreate);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            await CleanupSavedVideos(savedFilenames, ct);
+            throw;
+        }
+
+        var references = videosToCreate.Select(v => new Reference { Id = v.Id }).ToList();
+        return StatusCode(StatusCodes.Status201Created, references);
     }
 
     [HttpPut("{id}")]
@@ -249,6 +296,73 @@ public class VideosController(
         foreach (var playlistId in desired.Except(existing))
         {
             video.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, PlaylistId = playlistId, Position = 0 });
+        }
+    }
+
+    private async Task<ObjectResult?> ValidateVideoUploadTarget(User user, int accountId, CancellationToken ct)
+    {
+        var normalizedAccountId = NormalizeAccountId(accountId);
+        if (normalizedAccountId != null)
+        {
+            var account = await _db.Accounts.FindAsync([normalizedAccountId.Value], ct);
+            if (account == null) return _404Account(normalizedAccountId.Value);
+        }
+
+        if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
+
+        return null;
+    }
+
+    private static int? NormalizeAccountId(int accountId) => accountId == 0 ? null : accountId;
+
+    private static string ResolveBatchUploadTitle(VideoBatchUploadItem item, IFormFile file, int index)
+    {
+        if (item.Titles.Count > index && !string.IsNullOrWhiteSpace(item.Titles[index]))
+        {
+            return item.Titles[index].Trim();
+        }
+
+        return file.FileName?.Trim() ?? string.Empty;
+    }
+
+    private static Video CreateVideo(string title, VideoSaveResult saveResult, int? accountId)
+    {
+        return new Video
+        {
+            Title = title,
+            Filename = saveResult.Filename,
+            OriginalFilename = saveResult.OriginalFilename,
+            FileSizeBytes = saveResult.FileSizeBytes,
+            DurationSeconds = saveResult.DurationSeconds,
+            AccountId = accountId,
+            Sha256 = saveResult.Sha256
+        };
+    }
+
+    private async Task CleanupSavedVideos(IEnumerable<string> filenames, CancellationToken ct)
+    {
+        var uniqueFilenames = filenames
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var persistedFilenames = await _db.Videos
+            .AsNoTracking()
+            .Where(v => uniqueFilenames.Contains(v.Filename))
+            .Select(v => v.Filename)
+            .ToListAsync(ct);
+        var persistedFilenameSet = persistedFilenames.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var filename in uniqueFilenames)
+        {
+            if (persistedFilenameSet.Contains(filename)) continue;
+
+            try
+            {
+                await _videoStorageService.DeleteVideoAsync(filename, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cleanup uploaded video file {Filename}", filename);
+            }
         }
     }
 

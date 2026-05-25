@@ -1,0 +1,56 @@
+{
+  "name": "MediaPi.Core",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "api",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "root",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "EditorConfig.EditorConfig",
+        "ms-docker.docker",
+        "humao.rest-client"
+      ],
+      "settings": {
+        "omnisharp.enableEditorConfigSupport": true,
+        "omnisharp.enableRoslynAnalyzers": true
+      }
+    }
+  },
+  "forwardPorts": [
+    8080,
+    8081,
+    8084,
+    8085,
+    5432
+  ],
+  "portsAttributes": {
+    "8080": {
+      "label": "API HTTP",
+      "onAutoForward": "notify"
+    },
+    "8081": {
+      "label": "API HTTPS",
+      "onAutoForward": "notify"
+    },
+    "8084": {
+      "label": "API (Host)",
+      "onAutoForward": "notify"
+    },
+    "8085": {
+      "label": "API (Host HTTPS)",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "dotnet restore /workspace/MediaPi.sln",
+  "postStartCommand": "dotnet build /workspace/MediaPi.sln",
+  "remoteEnv": {
+    "ASPNETCORE_ENVIRONMENT": "Development"
+  }
+}

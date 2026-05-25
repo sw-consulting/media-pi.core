@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.vscode-dotnet-runtime",
+    "ms-vscode.makefile-tools",
+    "EditorConfig.EditorConfig",
+    "ms-docker.remote-containers",
+    "ms-docker.docker",
+    "humao.rest-client",
+    "ms-dotnettools.blazorwasm-companion"
+  ]
+}

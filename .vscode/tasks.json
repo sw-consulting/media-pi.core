@@ -1,0 +1,217 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "docker-compose-up",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "up",
+        "-d"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": false,
+      "problemMatcher": []
+    },
+    {
+      "label": "docker-compose-down",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "down"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "docker-compose-build",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "build",
+        "--no-cache"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "docker-compose-rebuild",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "up",
+        "-d",
+        "--build"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": false
+    },
+    {
+      "label": "docker-compose-logs",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "logs",
+        "-f",
+        "api"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "docker-compose-logs-all",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "logs",
+        "-f"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "docker-compose-db-shell",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "exec",
+        "db",
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        "mediapi"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": false
+    },
+    {
+      "label": "docker-compose-api-shell",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "${workspaceFolder}/docker-compose.yml",
+        "exec",
+        "api",
+        "/bin/bash"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": false
+    },
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "build",
+        "${workspaceFolder}/MediaPi.sln",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-verbose",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "build",
+        "${workspaceFolder}/MediaPi.sln"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "rebuild",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "clean",
+        "&&",
+        "dotnet",
+        "build",
+        "${workspaceFolder}/MediaPi.sln"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "test",
+        "${workspaceFolder}/MediaPi.Core.Tests/MediaPi.Core.Tests.csproj",
+        "/p:CollectCoverageMetrics=true"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "restore",
+      "command": "dotnet",
+      "type": "shell",
+      "args": [
+        "restore",
+        "${workspaceFolder}/MediaPi.sln"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}
+
