@@ -379,7 +379,7 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_DuplicateFilename_Returns409AndCleansUpSavedFiles()
+    public async Task UploadVideos_DuplicateFilenameFromDatabase_Returns409WithoutDeletingPersistedFile()
     {
         SetCurrentUser(_admin.Id);
         var file1 = CreateFormFile("first.mp4", "first");
@@ -422,7 +422,7 @@ public class VideosControllerTests
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0002/first.mp4", It.IsAny<CancellationToken>()), Times.Once);
-        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0001/video1.mp4", It.IsAny<CancellationToken>()), Times.Once);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0001/video1.mp4", It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]

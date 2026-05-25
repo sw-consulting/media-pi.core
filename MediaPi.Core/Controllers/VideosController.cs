@@ -341,10 +341,19 @@ public class VideosController(
 
     private async Task CleanupSavedVideos(IEnumerable<string> filenames, CancellationToken ct)
     {
-        var cleaned = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var filename in filenames)
+        var uniqueFilenames = filenames
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var persistedFilenames = await _db.Videos
+            .AsNoTracking()
+            .Where(v => uniqueFilenames.Contains(v.Filename))
+            .Select(v => v.Filename)
+            .ToListAsync(ct);
+        var persistedFilenameSet = persistedFilenames.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var filename in uniqueFilenames)
         {
-            if (!cleaned.Add(filename)) continue;
+            if (persistedFilenameSet.Contains(filename)) continue;
 
             try
             {
