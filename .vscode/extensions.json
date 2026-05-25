@@ -7,7 +7,6 @@
     "ms-docker.remote-containers",
     "ms-docker.docker",
     "humao.rest-client",
-    "ms-dotnettools.blazm-wasm",
-    "paulalleweldt.blazm-browser-extension"
+    "ms-dotnettools.blazorwasm-companion"
   ]
 }
