@@ -591,6 +591,31 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task DeleteVideos_Admin_FileDeleteThrows_ReturnsFileDeleteFailureAndKeepsDbDeletion()
+    {
+        SetCurrentUser(_admin.Id);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("disk error"));
+
+        var result = await _controller.DeleteVideos(new VideoBatchDeleteItem
+        {
+            Ids = [_videoAccount1.Id]
+        });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchDeleteResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.RequestedCount, Is.EqualTo(1));
+        Assert.That(body.DeletedIds, Is.Empty);
+        Assert.That(body.Failures, Has.Count.EqualTo(1));
+        Assert.That(body.Failures[0].Id, Is.EqualTo(_videoAccount1.Id));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo("fileDeleteFailed"));
+        Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.VideoId == _videoAccount1.Id), Is.False);
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
     public async Task DeleteVideos_DuplicateIds_DeletesOnlyOnce()
     {
         SetCurrentUser(_admin.Id);
