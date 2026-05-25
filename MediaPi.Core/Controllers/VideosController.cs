@@ -274,20 +274,14 @@ public class VideosController(
 
         if (videosToDelete.Count == 0) return Ok(result);
 
-        var videoPlaylists = videosToDelete.SelectMany(v => v.VideoPlaylists).ToList();
-        if (videoPlaylists.Count != 0)
-        {
-            _db.VideoPlaylists.RemoveRange(videoPlaylists);
-        }
-
-        _db.Videos.RemoveRange(videosToDelete);
-        await _db.SaveChangesAsync(ct);
+        var videosWithDeletedFiles = new List<Video>();
 
         foreach (var video in videosToDelete)
         {
             try
             {
                 await _videoStorageService.DeleteVideoAsync(video.Filename, ct);
+                videosWithDeletedFiles.Add(video);
                 result.DeletedIds.Add(video.Id);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -300,6 +294,18 @@ public class VideosController(
                     Message = $"Не удалось удалить файл видео [id={video.Id}]"
                 });
             }
+        }
+
+        if (videosWithDeletedFiles.Count > 0)
+        {
+            var videoPlaylistsToDelete = videosWithDeletedFiles.SelectMany(v => v.VideoPlaylists).ToList();
+            if (videoPlaylistsToDelete.Count != 0)
+            {
+                _db.VideoPlaylists.RemoveRange(videoPlaylistsToDelete);
+            }
+
+            _db.Videos.RemoveRange(videosWithDeletedFiles);
+            await _db.SaveChangesAsync(ct);
         }
 
         return Ok(result);
