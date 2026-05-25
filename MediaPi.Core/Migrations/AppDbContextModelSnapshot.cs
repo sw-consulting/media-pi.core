@@ -52,6 +52,7 @@ namespace MediaPi.Core.Migrations
 
                     b.Property<bool>("Free")
                         .HasColumnType("boolean")
+                        .HasDefaultValue(true)
                         .HasColumnName("free");
 
                     b.Property<string>("Title")
@@ -60,6 +61,10 @@ namespace MediaPi.Core.Migrations
                         .HasColumnName("title");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Title")
+                        .IsUnique()
+                        .HasDatabaseName("IX_categories_title");
 
                     b.ToTable("categories");
                 });
@@ -644,7 +649,7 @@ namespace MediaPi.Core.Migrations
                     b.HasOne("MediaPi.Core.Models.Category", "Category")
                         .WithMany("Subscriptions")
                         .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Account");
@@ -698,7 +703,8 @@ namespace MediaPi.Core.Migrations
 
                     b.HasOne("MediaPi.Core.Models.Category", "Category")
                         .WithMany("Videos")
-                        .HasForeignKey("CategoryId");
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Account");
 

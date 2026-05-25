@@ -92,6 +92,11 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
         return StatusCode(StatusCodes.Status404NotFound,
                           new ErrMessage { Msg = $"Не удалось найти скриншот [id={id}]" });
     }
+    protected ObjectResult _404Category(int id)
+    {
+        return StatusCode(StatusCodes.Status404NotFound,
+                          new ErrMessage { Msg = $"Не удалось найти категорию [id={id}]" });
+    }
     protected ObjectResult _409Email(string email)
     {
         return StatusCode(StatusCodes.Status409Conflict,
@@ -120,6 +125,18 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     {
         return StatusCode(StatusCodes.Status409Conflict,
                           new ErrMessage { Msg = $"Плейлист с таким именем файла уже существует [filename = {filename}]" });
+    }
+
+    protected ObjectResult _409Category(string title)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = $"Категория с таким названием уже существует [title = {title}]" });
+    }
+
+    protected ObjectResult _409CategoryInUse(int id)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage { Msg = $"Невозможно удалить категорию [id={id}], так как она используется" });
     }
 
     protected ObjectResult _400PlaylistVideoAccountMismatch(int videoId, int accountId)
