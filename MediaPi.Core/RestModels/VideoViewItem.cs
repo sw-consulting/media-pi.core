@@ -18,6 +18,7 @@ public class VideoViewItem(Video video)
     public uint FileSizeBytes { get; init; } = video.FileSizeBytes;
     public uint? DurationSeconds { get; init; } = video.DurationSeconds;
     public int AccountId { get; init; } = video.AccountId ?? 0;
+    public int CategoryId { get; init; } = video.CategoryId ?? 0;
     
     // Formatted string properties
     public string FileSize { get; init; } = FormatFileSize(video.FileSizeBytes);

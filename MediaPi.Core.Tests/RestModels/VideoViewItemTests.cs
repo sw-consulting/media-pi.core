@@ -40,6 +40,17 @@ public class VideoViewItemTests
         Assert.That(viewItem.FileSizeBytes, Is.EqualTo(1048576));
         Assert.That(viewItem.DurationSeconds, Is.EqualTo(3661));
         Assert.That(viewItem.AccountId, Is.EqualTo(456));
+        Assert.That(viewItem.CategoryId, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void Constructor_WithCategory_CopiesCategoryId()
+    {
+        var video = CreateTestVideo(categoryId: 12);
+
+        var viewItem = new VideoViewItem(video);
+
+        Assert.That(viewItem.CategoryId, Is.EqualTo(12));
     }
 
     [Test]
@@ -488,7 +499,8 @@ public class VideoViewItemTests
         string originalFilename = "original_test.mp4",
         uint fileSizeBytes = 1024,
         uint? durationSeconds = 60,
-        int accountId = 1)
+        int accountId = 1,
+        int? categoryId = null)
     {
         return new Video
         {
@@ -498,7 +510,8 @@ public class VideoViewItemTests
             OriginalFilename = originalFilename,
             FileSizeBytes = fileSizeBytes,
             DurationSeconds = durationSeconds,
-            AccountId = accountId
+            AccountId = accountId,
+            CategoryId = categoryId
         };
     }
 

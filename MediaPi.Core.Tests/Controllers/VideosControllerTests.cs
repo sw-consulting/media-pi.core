@@ -47,6 +47,9 @@ public class VideosControllerTests
     private Playlist _playlistAccount2;
     private Video _videoAccount1;
     private Video _videoAccount2;
+    private Video _videoCommon;
+    private Category _categoryNews;
+    private Category _categorySport;
 #pragma warning restore CS8618
 
     [SetUp]
@@ -66,6 +69,10 @@ public class VideosControllerTests
         _account2 = new Account { Id = 2, Name = "Account 2" };
         _dbContext.Accounts.AddRange(_account1, _account2);
 
+        _categoryNews = new Category { Id = 1, Title = "News", Free = true };
+        _categorySport = new Category { Id = 2, Title = "Sport", Free = true };
+        _dbContext.Categories.AddRange(_categoryNews, _categorySport);
+
         _playlistAccount1 = new Playlist { Id = 1, Title = "Playlist 1", Filename = "playlist1.json", AccountId = _account1.Id, Account = _account1 };
         _playlistAccount1Second = new Playlist { Id = 2, Title = "Playlist 2", Filename = "playlist2.json", AccountId = _account1.Id, Account = _account1 };
         _playlistAccount2 = new Playlist { Id = 3, Title = "Playlist 3", Filename = "playlist3.json", AccountId = _account2.Id, Account = _account2 };
@@ -74,8 +81,8 @@ public class VideosControllerTests
         _videoAccount1 = new Video { Id = 1, Title = "Video 1", Filename = "0001/video1.mp4", OriginalFilename = "video1.mp4", FileSizeBytes = 1024000, AccountId = _account1.Id, Account = _account1 };
         _videoAccount2 = new Video { Id = 2, Title = "Video 2", Filename = "0001/video2.mp4", OriginalFilename = "video2.mp4", FileSizeBytes = 2048000, AccountId = _account2.Id, Account = _account2 };
         // Unassigned common video available to everyone but managed by administrators only
-        var videoUnassigned = new Video { Id = 3, Title = "Public Video", Filename = "0001/public.mp4", OriginalFilename = "public.mp4", FileSizeBytes = 512000, AccountId = null };
-        _dbContext.Videos.AddRange(_videoAccount1, _videoAccount2, videoUnassigned);
+        _videoCommon = new Video { Id = 3, Title = "Public Video", Filename = "0001/public.mp4", OriginalFilename = "public.mp4", FileSizeBytes = 512000, AccountId = null };
+        _dbContext.Videos.AddRange(_videoAccount1, _videoAccount2, _videoCommon);
 
         const string pass = "pwd";
         string hashed = BCrypt.Net.BCrypt.HashPassword(pass);
@@ -213,6 +220,68 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task GetVideosByAccount_CommonCategory_ReturnsOnlyCategoryVideos()
+    {
+        _videoCommon.CategoryId = _categoryNews.Id;
+        _dbContext.Videos.Add(new Video
+        {
+            Id = 10,
+            Title = "Uncategorized",
+            Filename = "0001/uncategorized.mp4",
+            OriginalFilename = "uncategorized.mp4",
+            FileSizeBytes = 10,
+            AccountId = null
+        });
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetVideosByAccount(0, _categoryNews.Id);
+
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_videoCommon.Id));
+        Assert.That(list[0].CategoryId, Is.EqualTo(_categoryNews.Id));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_CommonUncategorized_ReturnsOnlyUncategorized()
+    {
+        _videoCommon.CategoryId = _categoryNews.Id;
+        _dbContext.Videos.Add(new Video
+        {
+            Id = 10,
+            Title = "Uncategorized",
+            Filename = "0001/uncategorized.mp4",
+            OriginalFilename = "uncategorized.mp4",
+            FileSizeBytes = 10,
+            AccountId = null
+        });
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.GetVideosByAccount(0, 0);
+
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(10));
+        Assert.That(list[0].CategoryId, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_CategoryFilterOnAccount_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetVideosByAccount(_account1.Id, _categoryNews.Id);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
     public async Task UploadVideo_Admin_SavesVideo()
     {
         SetCurrentUser(_admin.Id);
@@ -338,8 +407,97 @@ public class VideosControllerTests
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.AccountId, Is.Null);
+        Assert.That(video.CategoryId, Is.Null);
         Assert.That(video.Title, Is.EqualTo("common.mp4"));
         _mockVideoStorageService.Verify(s => s.SaveVideoAsync(file, "common.mp4", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task UploadVideos_Admin_CommonFiles_SavesCategory()
+    {
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile("categorized.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/categorized.mp4",
+            OriginalFilename = "categorized.mp4",
+            FileSizeBytes = (uint)file.Length,
+            DurationSeconds = 30
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+
+        var item = new VideoBatchUploadItem
+        {
+            AccountId = 0,
+            CategoryId = _categoryNews.Id,
+            Files = [file]
+        };
+
+        var result = await _controller.UploadVideos(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
+        var reference = ((IEnumerable<Reference>)obj.Value!).Single();
+        var video = await _dbContext.Videos.FindAsync(reference.Id);
+        Assert.That(video, Is.Not.Null);
+        Assert.That(video!.AccountId, Is.Null);
+        Assert.That(video.CategoryId, Is.EqualTo(_categoryNews.Id));
+    }
+
+    [Test]
+    public async Task UploadVideos_Admin_CommonFiles_CategoryZeroSavesUncategorized()
+    {
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile("uncategorized.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/uncategorized.mp4",
+            OriginalFilename = "uncategorized.mp4",
+            FileSizeBytes = (uint)file.Length,
+            DurationSeconds = 30
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+
+        var item = new VideoBatchUploadItem
+        {
+            AccountId = 0,
+            CategoryId = 0,
+            Files = [file]
+        };
+
+        var result = await _controller.UploadVideos(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
+        var reference = ((IEnumerable<Reference>)obj.Value!).Single();
+        var video = await _dbContext.Videos.FindAsync(reference.Id);
+        Assert.That(video, Is.Not.Null);
+        Assert.That(video!.CategoryId, Is.Null);
+    }
+
+    [Test]
+    public async Task UploadVideos_AccountFileWithCategory_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoBatchUploadItem
+        {
+            AccountId = _account1.Id,
+            CategoryId = _categoryNews.Id,
+            Files = [CreateFormFile("account.mp4")]
+        };
+
+        var result = await _controller.UploadVideos(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
@@ -472,6 +630,69 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task UpdateVideo_TitleNull_DoesNotChangeTitle()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, new VideoUpdateItem { Title = null });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var video = await _dbContext.Videos.FindAsync(_videoAccount1.Id);
+        Assert.That(video!.Title, Is.EqualTo("Video 1"));
+    }
+
+    [Test]
+    public async Task UpdateVideo_CategoryOnly_AssignsCommonVideoCategory()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideo(_videoCommon.Id, new VideoUpdateItem { CategoryId = _categoryNews.Id });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var video = await _dbContext.Videos.FindAsync(_videoCommon.Id);
+        Assert.That(video!.Title, Is.EqualTo("Public Video"));
+        Assert.That(video.CategoryId, Is.EqualTo(_categoryNews.Id));
+    }
+
+    [Test]
+    public async Task UpdateVideo_CategoryZero_ClearsCommonVideoCategory()
+    {
+        _videoCommon.CategoryId = _categoryNews.Id;
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideo(_videoCommon.Id, new VideoUpdateItem { CategoryId = 0 });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var video = await _dbContext.Videos.FindAsync(_videoCommon.Id);
+        Assert.That(video!.CategoryId, Is.Null);
+    }
+
+    [Test]
+    public async Task UpdateVideo_AccountLinkedCategory_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideo(_videoAccount1.Id, new VideoUpdateItem { CategoryId = _categoryNews.Id });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpdateVideo_UnknownCategory_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideo(_videoCommon.Id, new VideoUpdateItem { CategoryId = 999 });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
     public async Task UpdateVideo_PlaylistIdsEmpty_RemovesAssociations()
     {
         SetCurrentUser(_admin.Id);
@@ -537,6 +758,105 @@ public class VideosControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_Admin_AssignsCategoryToCommonVideos()
+    {
+        _dbContext.Videos.Add(new Video
+        {
+            Id = 10,
+            Title = "Second Common",
+            Filename = "0001/second-common.mp4",
+            OriginalFilename = "second-common.mp4",
+            FileSizeBytes = 100,
+            AccountId = null
+        });
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id, 10], CategoryId = _categoryNews.Id });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { _videoCommon.Id, 10 }));
+        Assert.That(body.Failures, Is.Empty);
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.EqualTo(_categoryNews.Id));
+        Assert.That((await _dbContext.Videos.FindAsync(10))!.CategoryId, Is.EqualTo(_categoryNews.Id));
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_Admin_CategoryZeroClearsCategory()
+    {
+        _videoCommon.CategoryId = _categoryNews.Id;
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id], CategoryId = 0 });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { _videoCommon.Id }));
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_MissingCategory_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id], CategoryId = null });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_UnknownCategory_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id], CategoryId = 999 });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_PartialFailures_DoNotBlockValidCommonVideos()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id, _videoAccount1.Id, 999], CategoryId = _categorySport.Id });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { _videoCommon.Id }));
+        Assert.That(body.Failures.Select(f => f.Reason), Is.EquivalentTo(new[] { "accountLinked", "notFound" }));
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.EqualTo(_categorySport.Id));
+        Assert.That((await _dbContext.Videos.FindAsync(_videoAccount1.Id))!.CategoryId, Is.Null);
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_ManagerCommonVideo_ReturnsForbiddenFailure()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id], CategoryId = _categoryNews.Id });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.UpdatedIds, Is.Empty);
+        Assert.That(body.Failures.Single().Reason, Is.EqualTo("forbidden"));
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
     }
 
     [Test]

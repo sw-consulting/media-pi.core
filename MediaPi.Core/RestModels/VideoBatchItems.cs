@@ -21,3 +21,16 @@ public class VideoBatchDeleteFailure
     public required string Reason { get; init; }
     public required string Message { get; init; }
 }
+
+public class VideoBatchCategoryUpdateItem
+{
+    public List<int> Ids { get; set; } = [];
+    public int? CategoryId { get; set; }
+}
+
+public class VideoBatchCategoryUpdateResult
+{
+    public int RequestedCount { get; init; }
+    public List<int> UpdatedIds { get; init; } = [];
+    public List<VideoBatchDeleteFailure> Failures { get; init; } = [];
+}
