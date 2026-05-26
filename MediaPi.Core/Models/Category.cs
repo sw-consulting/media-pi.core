@@ -15,7 +15,7 @@ namespace MediaPi.Core.Models
         public required string Title { get; set; }
 
         [Column("free")]
-        public required bool Free { get; set; } = true;
+        public bool Free { get; set; } = true;
 
         public ICollection<Video> Videos { get; set; } = [];
         public ICollection<Subscription> Subscriptions { get; set; } = [];
