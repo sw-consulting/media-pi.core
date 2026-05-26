@@ -282,6 +282,19 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task GetVideosByAccount_CategoryZeroOnAccount_ReturnsAccountVideos()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetVideosByAccount(_account1.Id, 0);
+
+        Assert.That(result.Value, Is.Not.Null);
+        var list = result.Value!.ToList();
+        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.That(list[0].Id, Is.EqualTo(_videoAccount1.Id));
+    }
+
+    [Test]
     public async Task UploadVideo_Admin_SavesVideo()
     {
         SetCurrentUser(_admin.Id);
@@ -309,12 +322,45 @@ public class VideosControllerTests
         Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
         var created = (CreatedAtActionResult)result.Result!;
         Assert.That(created.Value, Is.TypeOf<Reference>());
+    }
+
+    [Test]
+    public async Task UploadVideo_AccountWithCategoryZero_SavesAsUncategorized()
+    {
+        SetCurrentUser(_admin.Id);
+        var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "sample.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/sample.mp4",
+            OriginalFilename = "sample.mp4",
+            FileSizeBytes = (uint)stream.Length,
+            DurationSeconds = 121
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+
+        var item = new VideoUploadItem
+        {
+            Title = "Sample",
+            AccountId = _account1.Id,
+            CategoryId = 0,
+            File = file
+        };
+
+        var result = await _controller.UploadVideo(item);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
         var reference = (Reference)created.Value!;
-        Assert.That(reference.Id, Is.GreaterThan(0));
-        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(4));
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
-        Assert.That(video!.Filename, Is.EqualTo("0002/sample.mp4"));
+        Assert.That(video!.AccountId, Is.EqualTo(_account1.Id));
+        Assert.That(video.CategoryId, Is.Null);
+        Assert.That(reference.Id, Is.GreaterThan(0));
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(4));
+        Assert.That(video.Filename, Is.EqualTo("0002/sample.mp4"));
         Assert.That(video.OriginalFilename, Is.EqualTo("sample.mp4"));
         Assert.That(video.FileSizeBytes, Is.EqualTo((uint)stream.Length));
         Assert.That(video.DurationSeconds, Is.EqualTo(121u));

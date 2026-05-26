@@ -62,7 +62,9 @@ public class VideosController(
     // GET: api/videos/by-account/{accountId}
     [HttpGet("by-account/{accountId}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<VideoViewItem>))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
     public async Task<ActionResult<IEnumerable<VideoViewItem>>> GetVideosByAccount(
         int accountId,
         [FromQuery] int? categoryId = null,
@@ -86,7 +88,7 @@ public class VideosController(
             return await query.Select(v => v.ToViewItem()).ToListAsync(ct);
         }
 
-        if (categoryId.HasValue) return _400VideoCategoryOnlyForCommon();
+        if (ResolveCategoryId(categoryId) != null) return _400VideoCategoryOnlyForCommon();
 
         if (!_userInformationService.UserCanViewVideo(user, accountId)) return _403();
         return await _db.Videos.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync(ct);
@@ -498,7 +500,7 @@ public class VideosController(
             var account = await _db.Accounts.FindAsync([normalizedAccountId.Value], ct);
             if (account == null) return _404Account(normalizedAccountId.Value);
 
-            if (categoryId.HasValue) return _400VideoCategoryOnlyForCommon();
+            if (ResolveCategoryId(categoryId) != null) return _400VideoCategoryOnlyForCommon();
         }
 
         if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
