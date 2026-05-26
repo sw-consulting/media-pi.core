@@ -286,7 +286,7 @@ public class VideosController(
         {
             if (!videosById.TryGetValue(id, out var video))
             {
-                result.Failures.Add(new VideoBatchDeleteFailure
+                result.Failures.Add(new VideoBatchOperationFailure
                 {
                     Id = id,
                     Reason = "notFound",
@@ -297,7 +297,7 @@ public class VideosController(
 
             if (!_userInformationService.UserCanManageVideo(user, video.AccountId))
             {
-                result.Failures.Add(new VideoBatchDeleteFailure
+                result.Failures.Add(new VideoBatchOperationFailure
                 {
                     Id = id,
                     Reason = "forbidden",
@@ -308,7 +308,7 @@ public class VideosController(
 
             if (video.AccountId != null)
             {
-                result.Failures.Add(new VideoBatchDeleteFailure
+                result.Failures.Add(new VideoBatchOperationFailure
                 {
                     Id = id,
                     Reason = "accountLinked",
