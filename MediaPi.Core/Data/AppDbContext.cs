@@ -110,6 +110,28 @@ namespace MediaPi.Core.Data
                  .HasIndex(pdg => pdg.DeviceGroupId)
                  .IsUnique()
                  .HasFilter("\"play\" = true");
+
+            modelBuilder.Entity<Category>()
+                .Property(c => c.Free)
+                .HasDefaultValue(true)
+                .ValueGeneratedNever();
+
+            modelBuilder.Entity<Category>()
+                .HasIndex(c => c.Title)
+                .IsUnique()
+                .HasDatabaseName("IX_categories_title");
+
+            modelBuilder.Entity<Video>()
+                .HasOne(v => v.Category)
+                .WithMany(c => c.Videos)
+                .HasForeignKey(v => v.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Subscription>()
+                .HasOne(s => s.Category)
+                .WithMany(c => c.Subscriptions)
+                .HasForeignKey(s => s.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
     
             modelBuilder.Entity<Role>().HasData(
                 new Role { Id = 1, RoleId = UserRoleConstants.SystemAdministrator, Name = "Администратор системы" },
