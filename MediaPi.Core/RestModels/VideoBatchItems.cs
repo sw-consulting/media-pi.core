@@ -15,19 +15,14 @@ public class VideoBatchDeleteResult
     public List<VideoBatchDeleteFailure> Failures { get; init; } = [];
 }
 
-public class VideoBatchDeleteFailure
-{
-    public required int Id { get; init; }
-    public required string Reason { get; init; }
-    public required string Message { get; init; }
-}
-
 public class VideoBatchOperationFailure
 {
     public required int Id { get; init; }
     public required string Reason { get; init; }
     public required string Message { get; init; }
 }
+
+public class VideoBatchDeleteFailure : VideoBatchOperationFailure;
 
 public class VideoBatchCategoryUpdateItem
 {
