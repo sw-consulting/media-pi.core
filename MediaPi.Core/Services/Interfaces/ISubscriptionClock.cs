@@ -1,0 +1,9 @@
+// Copyright (C) 2025-2026 sw.consulting
+// This file is a part of Media Pi backend
+
+namespace MediaPi.Core.Services.Interfaces;
+
+public interface ISubscriptionClock
+{
+    DateTime UtcNow { get; }
+}

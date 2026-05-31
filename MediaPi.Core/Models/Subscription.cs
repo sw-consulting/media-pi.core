@@ -2,17 +2,16 @@
 // This file is a part of Media Pi backend
 
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediaPi.Core.Models
 {
+    [Index(nameof(AccountId), nameof(CategoryId), IsUnique = true)]
     [Table("subscriptions")]
     public class Subscription
     {
         [Column("id")]
         public int Id { get; set; }
-
-        [Column("name")]
-        public required string Name { get; set; }
 
         [Column("start_time")]
         public DateTime StartTime { get; set; }

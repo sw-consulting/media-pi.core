@@ -145,6 +145,12 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage { Msg = $"Видео [id={videoId}] не относится к лицевому счёту [id={accountId}]" });
     }
 
+    protected ObjectResult _400PlaylistVideoAccessDenied(int videoId, int accountId)
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = $"Видео [id={videoId}] недоступно для плейлиста лицевого счёта [id={accountId}] по условиям подписки" });
+    }
+
     protected ObjectResult _400VideoPlaylistAccountMismatch(int playlistId, int accountId)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
@@ -205,6 +211,12 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     {
         return StatusCode(StatusCodes.Status400BadRequest,
                           new ErrMessage { Msg = "Не указана категория видеофайла" });
+    }
+
+    protected ObjectResult _400SubscriptionDateRangeInvalid()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Дата окончания подписки не может быть раньше даты начала" });
     }
 
     protected ObjectResult _400RequestPayloadMissing()

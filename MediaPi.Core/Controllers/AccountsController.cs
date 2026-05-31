@@ -20,10 +20,14 @@ namespace MediaPi.Core.Controllers;
 public class AccountsController(
     IHttpContextAccessor httpContextAccessor,
     IUserInformationService userInformationService,
+    IPlaylistAccessService playlistAccessService,
+    ISubscriptionTimeService subscriptionTimeService,
     AppDbContext db,
     ILogger<AccountsController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     private readonly IUserInformationService _userInformationService = userInformationService;
+    private readonly IPlaylistAccessService _playlistAccessService = playlistAccessService;
+    private readonly ISubscriptionTimeService _subscriptionTimeService = subscriptionTimeService;
 
     // GET: api/accounts
     [HttpGet]
@@ -144,6 +148,107 @@ public class AccountsController(
 
         _logger.LogDebug("GetAccountsByManager returning {count} accounts", accounts.Count);
         return accounts;
+    }
+
+    // GET: api/accounts/{id}/subscriptions
+    [HttpGet("{id}/subscriptions")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AccountSubscriptionsViewItem))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<AccountSubscriptionsViewItem>> GetSubscriptions(int id, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        var account = await _db.Accounts
+            .AsNoTracking()
+            .Include(a => a.UserAccounts)
+            .Include(a => a.Subscriptions)
+                .ThenInclude(s => s.Category)
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (account == null) return _404Account(id);
+
+        if (!user.IsAdministrator() && !_userInformationService.ManagerOwnsAccount(user, account)) return _403();
+
+        var subscribedCategoryIds = account.Subscriptions.Select(s => s.CategoryId).ToHashSet();
+        var availableCategories = await _db.Categories
+            .AsNoTracking()
+            .Where(c => !subscribedCategoryIds.Contains(c.Id))
+            .OrderBy(c => c.Title)
+            .ToListAsync(ct);
+
+        return new AccountSubscriptionsViewItem
+        {
+            Subscriptions = account.Subscriptions
+                .OrderBy(s => s.Category.Title)
+                .Select(s => new SubscriptionViewItem(s, _subscriptionTimeService))
+                .ToList(),
+            AvailableCategories = availableCategories.Select(c => c.ToViewItem()).ToList()
+        };
+    }
+
+    // PUT: api/accounts/{id}/subscriptions/{categoryId}
+    [HttpPut("{id}/subscriptions/{categoryId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(PlaylistAccessImpact))]
+    public async Task<IActionResult> UpsertSubscription(
+        int id,
+        int categoryId,
+        SubscriptionUpsertItem item,
+        CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null || !user.IsAdministrator()) return _403();
+        if (item.EndDate < item.StartDate) return _400SubscriptionDateRangeInvalid();
+
+        var accountExists = await _db.Accounts.AsNoTracking().AnyAsync(a => a.Id == id, ct);
+        if (!accountExists) return _404Account(id);
+
+        var categoryExists = await _db.Categories.AsNoTracking().AnyAsync(c => c.Id == categoryId, ct);
+        if (!categoryExists) return _404Category(categoryId);
+
+        var startUtc = _subscriptionTimeService.ToUtcStart(item.StartDate);
+        var endUtc = _subscriptionTimeService.ToUtcEnd(item.EndDate);
+
+        var impact = await _playlistAccessService.BuildSubscriptionChangeImpactAsync(id, categoryId, startUtc, endUtc, ct);
+        if (impact.HasImpact && !item.ForcePlaylistCleanup)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, impact);
+        }
+
+        var subscription = await _db.Subscriptions
+            .FirstOrDefaultAsync(s => s.AccountId == id && s.CategoryId == categoryId, ct);
+
+        if (subscription == null)
+        {
+            subscription = new Subscription
+            {
+                AccountId = id,
+                CategoryId = categoryId,
+                StartTime = startUtc,
+                EndTime = endUtc
+            };
+            _db.Subscriptions.Add(subscription);
+        }
+        else
+        {
+            subscription.StartTime = startUtc;
+            subscription.EndTime = endUtc;
+        }
+
+        if (item.ForcePlaylistCleanup && impact.HasImpact)
+        {
+            await _playlistAccessService.RemovePlaylistItemsAsync(impact.VideoPlaylistIds, ct);
+        }
+        else
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return NoContent();
     }
 
     // POST: api/accounts

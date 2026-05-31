@@ -18,6 +18,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Extensions;
+using MediaPi.Core.Tests.TestHelpers;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -139,6 +140,7 @@ public class PlaylistsControllerTests
         _controller = new PlaylistsController(
             _mockHttpContextAccessor.Object,
             _userInformationService,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
             _dbContext,
             _mockLogger.Object)
         {
@@ -238,6 +240,82 @@ public class PlaylistsControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_CommonPaidCategoryWithoutSubscription_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var category = new Category { Id = 10, Title = "Premium", Free = false };
+        var video = new Video
+        {
+            Id = 10,
+            Title = "Common premium",
+            Filename = "premium.mp4",
+            OriginalFilename = "premium.mp4",
+            FileSizeBytes = 100,
+            AccountId = null,
+            CategoryId = category.Id,
+            Category = category
+        };
+        _dbContext.Categories.Add(category);
+        _dbContext.Videos.Add(video);
+        await _dbContext.SaveChangesAsync();
+
+        var item = new PlaylistCreateItem
+        {
+            Title = "New",
+            Filename = "premium.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = video.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(((ErrMessage)obj.Value!).Msg, Does.Contain("подписки"));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_CommonPaidCategoryWithValidSubscription_Creates()
+    {
+        SetCurrentUser(_admin.Id);
+        var category = new Category { Id = 11, Title = "Premium valid", Free = false };
+        var video = new Video
+        {
+            Id = 11,
+            Title = "Common premium valid",
+            Filename = "premium-valid.mp4",
+            OriginalFilename = "premium-valid.mp4",
+            FileSizeBytes = 100,
+            AccountId = null,
+            CategoryId = category.Id,
+            Category = category
+        };
+        _dbContext.Categories.Add(category);
+        _dbContext.Videos.Add(video);
+        _dbContext.Subscriptions.Add(new Subscription
+        {
+            AccountId = _account1.Id,
+            CategoryId = category.Id,
+            StartTime = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc)
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var item = new PlaylistCreateItem
+        {
+            Title = "New",
+            Filename = "premium-valid.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = video.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
     }
 
     [Test]
