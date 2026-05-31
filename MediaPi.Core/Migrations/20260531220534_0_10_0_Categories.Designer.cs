@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediaPi.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260525215842_0_10_0_Categories")]
+    [Migration("20260531220534_0_10_0_Categories")]
     partial class _0_10_0_Categories
     {
         /// <inheritdoc />
@@ -362,11 +362,6 @@ namespace MediaPi.Core.Migrations
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("end_time");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("name");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone")

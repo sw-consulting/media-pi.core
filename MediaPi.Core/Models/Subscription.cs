@@ -11,9 +11,6 @@ namespace MediaPi.Core.Models
         [Column("id")]
         public int Id { get; set; }
 
-        [Column("name")]
-        public required string Name { get; set; }
-
         [Column("start_time")]
         public DateTime StartTime { get; set; }
 
