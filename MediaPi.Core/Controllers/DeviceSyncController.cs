@@ -21,12 +21,14 @@ public class DeviceSyncController(
     IHttpContextAccessor httpContextAccessor,
     IVideoStorageService videoStorageService,
     IScreenshotStorageService screenshotStorageService,
+    IPlaylistAccessService playlistAccessService,
     AppDbContext db,
     ILogger<DeviceSyncController> logger) : MediaPiControllerPreBase(db, logger)
 {
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
     private readonly IVideoStorageService _videoStorageService = videoStorageService;
     private readonly IScreenshotStorageService _screenshotStorageService = screenshotStorageService;
+    private readonly IPlaylistAccessService _playlistAccessService = playlistAccessService;
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DeviceSyncManifestItem>))]
@@ -49,19 +51,34 @@ public class DeviceSyncController(
 
         var deviceGroupId = device.DeviceGroupId.Value;
 
-        var videos = await _db.VideoPlaylists.AsNoTracking()
+        var playlistVideos = await _db.VideoPlaylists.AsNoTracking()
             .Where(vp => vp.Playlist.PlaylistDeviceGroups.Any(pdg => pdg.DeviceGroupId == deviceGroupId))
             .Select(vp => new
             {
                 vp.Video.Id,
                 vp.Video.Filename,
                 vp.Video.FileSizeBytes,
-                vp.Video.Sha256
+                vp.Video.Sha256,
+                vp.Playlist.AccountId
             })
+            .ToListAsync(ct);
+
+        var accessibleVideoIds = new HashSet<int>();
+        foreach (var accountGroup in playlistVideos.GroupBy(video => video.AccountId))
+        {
+            var ids = await _playlistAccessService.GetAccessibleVideoIdsForAccountAsync(
+                accountGroup.Key,
+                accountGroup.Select(video => video.Id),
+                ct);
+            accessibleVideoIds.UnionWith(ids);
+        }
+
+        var videos = playlistVideos
+            .Where(video => accessibleVideoIds.Contains(video.Id))
             // Videos can appear in multiple playlists; group by Video.Id to deduplicate per video.
             .GroupBy(video => video.Id)
             .Select(g => g.First())
-            .ToListAsync(ct);
+            .ToList();
 
         // Despite Video.Filename being marked as 'required', we validate it here as a safety net
         // against potential data integrity issues (e.g., database migration problems, manual data edits).
@@ -204,9 +221,22 @@ public class DeviceSyncController(
         }
         else
         {
-            isAuthorized = await _db.VideoPlaylists.AsNoTracking()
-                .AnyAsync(vp => vp.VideoId == id && 
-                               vp.Playlist.PlaylistDeviceGroups.Any(pdg => pdg.DeviceGroupId == device.DeviceGroupId.Value), ct);
+            var accountIds = await _db.VideoPlaylists.AsNoTracking()
+                .Where(vp => vp.VideoId == id &&
+                             vp.Playlist.PlaylistDeviceGroups.Any(pdg => pdg.DeviceGroupId == device.DeviceGroupId.Value))
+                .Select(vp => vp.Playlist.AccountId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            isAuthorized = false;
+            foreach (var accountId in accountIds)
+            {
+                if (await _playlistAccessService.AccountCanAccessVideoAsync(accountId, id, ct))
+                {
+                    isAuthorized = true;
+                    break;
+                }
+            }
         }
 
         if (!isAuthorized)
@@ -253,7 +283,13 @@ public class DeviceSyncController(
         }
 
         // Get videos ordered by position
+        var accessibleIds = await _playlistAccessService.GetAccessibleVideoIdsForAccountAsync(
+            playlistWithPlay.Playlist.AccountId,
+            playlistWithPlay.Playlist.VideosPlaylist.Select(vp => vp.VideoId),
+            ct);
+
         var videos = playlistWithPlay.Playlist.VideosPlaylist
+            .Where(vp => accessibleIds.Contains(vp.VideoId))
             .OrderBy(vp => vp.Position)
             .Select(vp => vp.Video.Filename)
             .ToList();

@@ -18,6 +18,10 @@ namespace MediaPi.Core.Migrations
                 name: "FK_videos_categories_category_id",
                 table: "videos");
 
+            migrationBuilder.DropColumn(
+                name: "name",
+                table: "subscriptions");
+
             migrationBuilder.AddColumn<bool>(
                 name: "free",
                 table: "categories",
@@ -66,6 +70,13 @@ namespace MediaPi.Core.Migrations
             migrationBuilder.DropColumn(
                 name: "free",
                 table: "categories");
+
+            migrationBuilder.AddColumn<string>(
+                name: "name",
+                table: "subscriptions",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_subscriptions_categories_category_id",

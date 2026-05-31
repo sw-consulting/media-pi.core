@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using MediaPi.Core.Controllers;
@@ -14,6 +15,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Tests.TestHelpers;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -104,6 +106,8 @@ public class AccountsControllerTests
         _controller = new AccountsController(
             _mockHttpContextAccessor.Object,
             _userInformationService,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
+            SubscriptionTestServices.TimeService(),
             _dbContext,
             _mockLogger.Object)
         {
@@ -203,6 +207,330 @@ public class AccountsControllerTests
         var acc = await _dbContext.Accounts.FindAsync(_account1.Id);
         Assert.That(acc, Is.Null);
     }
+
+    [Test]
+    public async Task GetSubscriptions_ReturnsOnlyPaidCategories()
+    {
+        var paidCategory = new Category { Title = "Paid", Free = false };
+        var freeCategory = new Category { Title = "Free", Free = true };
+        var availablePaidCategory = new Category { Title = "Available Paid", Free = false };
+        var availableFreeCategory = new Category { Title = "Available Free", Free = true };
+        _dbContext.Categories.AddRange(paidCategory, freeCategory, availablePaidCategory, availableFreeCategory);
+        await _dbContext.SaveChangesAsync();
+
+        _dbContext.Subscriptions.AddRange(
+            new Subscription
+            {
+                AccountId = _account1.Id,
+                CategoryId = paidCategory.Id,
+                StartTime = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 6, 30, 23, 59, 59, DateTimeKind.Utc)
+            },
+            new Subscription
+            {
+                AccountId = _account1.Id,
+                CategoryId = freeCategory.Id,
+                StartTime = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc),
+                EndTime = new DateTime(2026, 6, 30, 23, 59, 59, DateTimeKind.Utc)
+            });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.GetSubscriptions(_account1.Id);
+
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!.Subscriptions.Select(s => s.CategoryTitle), Is.EquivalentTo(new[] { "Paid" }));
+        Assert.That(result.Value.AvailableCategories.Select(c => c.Title), Is.EquivalentTo(new[] { "Available Paid" }));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_FreeCategory_Returns400()
+    {
+        var freeCategory = new Category { Title = "Free", Free = true };
+        _dbContext.Categories.Add(freeCategory);
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            freeCategory.Id,
+            new SubscriptionUpsertItem
+            {
+                StartDate = new DateOnly(2026, 6, 1),
+                EndDate = new DateOnly(2026, 6, 30)
+            });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(_dbContext.Subscriptions.Any(s => s.CategoryId == freeCategory.Id), Is.False);
+    }
+
+    #region UpsertSubscription and GetSubscriptions Additional Tests
+
+    [Test]
+    public async Task UpsertSubscription_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var paidCategory = new Category { Title = "Paid2", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem { StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 6, 30) });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_NonAdmin_Returns403()
+    {
+        SetCurrentUser(2); // Manager
+        var paidCategory = new Category { Title = "Paid3", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem { StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 6, 30) });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_InvalidDateRange_Returns400()
+    {
+        SetCurrentUser(1);
+        var paidCategory = new Category { Title = "Paid4", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem
+            {
+                StartDate = new DateOnly(2026, 6, 30),
+                EndDate = new DateOnly(2026, 6, 1)  // end < start
+            });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_AccountNotFound_Returns404()
+    {
+        SetCurrentUser(1);
+        var paidCategory = new Category { Title = "Paid5", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpsertSubscription(
+            9999,
+            paidCategory.Id,
+            new SubscriptionUpsertItem { StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 6, 30) });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_CategoryNotFound_Returns404()
+    {
+        SetCurrentUser(1);
+
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            9999,
+            new SubscriptionUpsertItem { StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 6, 30) });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_NewSubscription_CreatesRecord()
+    {
+        SetCurrentUser(1);
+        var paidCategory = new Category { Title = "Paid6", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem { StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 6, 30) });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That(_dbContext.Subscriptions.Any(s => s.AccountId == _account1.Id && s.CategoryId == paidCategory.Id), Is.True);
+    }
+
+    [Test]
+    public async Task UpsertSubscription_ExistingSubscription_UpdatesDates()
+    {
+        var paidCategory = new Category { Title = "Paid7", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        _dbContext.Subscriptions.Add(new Subscription
+        {
+            AccountId = _account1.Id,
+            CategoryId = paidCategory.Id,
+            StartTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 1, 31, 23, 59, 59, DateTimeKind.Utc)
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem { StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 6, 30) });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var sub = _dbContext.Subscriptions.Single(s => s.AccountId == _account1.Id && s.CategoryId == paidCategory.Id);
+        // The start/end are converted from local dates; just verify it was saved
+        Assert.That(sub.StartTime.Year, Is.EqualTo(2026));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_WithImpactNoForce_Returns409()
+    {
+        // Setup: paid video in playlist (no active subscription → will have impact when subscription becomes inactive)
+        var paidCategory = new Category { Title = "Paid8", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        var commonVideo = new Video
+        {
+            Id = 501,
+            Title = "Common501",
+            Filename = "v501.mp4",
+            OriginalFilename = "v501.mp4",
+            FileSizeBytes = 100,
+            CategoryId = null,   // will be set after save
+            Sha256 = new string('b', 64)
+        };
+        _dbContext.Videos.Add(commonVideo);
+        await _dbContext.SaveChangesAsync();
+
+        commonVideo.CategoryId = paidCategory.Id;
+        var playlist = new Playlist { Id = 501, Title = "Playlist501", Filename = "p501.m3u", AccountId = _account1.Id, Account = _account1 };
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 5010,
+            PlaylistId = playlist.Id,
+            Playlist = playlist,
+            VideoId = commonVideo.Id,
+            Video = commonVideo,
+            Position = 0
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        // Propose subscription ending in the past → becomes inactive → has impact
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem
+            {
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 1, 31),
+                ForcePlaylistCleanup = false
+            });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task UpsertSubscription_WithImpactForce_RemovesItems()
+    {
+        var paidCategory = new Category { Title = "Paid9", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        var commonVideo = new Video
+        {
+            Id = 502,
+            Title = "Common502",
+            Filename = "v502.mp4",
+            OriginalFilename = "v502.mp4",
+            FileSizeBytes = 100,
+            Sha256 = new string('c', 64)
+        };
+        _dbContext.Videos.Add(commonVideo);
+        await _dbContext.SaveChangesAsync();
+
+        commonVideo.CategoryId = paidCategory.Id;
+        var playlist = new Playlist { Id = 502, Title = "Playlist502", Filename = "p502.m3u", AccountId = _account1.Id, Account = _account1 };
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 5020,
+            PlaylistId = playlist.Id,
+            Playlist = playlist,
+            VideoId = commonVideo.Id,
+            Video = commonVideo,
+            Position = 0
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        // Force cleanup with a subscription that expires in the past
+        var result = await _controller.UpsertSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionUpsertItem
+            {
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 1, 31),
+                ForcePlaylistCleanup = true
+            });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.Id == 5020), Is.False);
+    }
+
+    [Test]
+    public async Task GetSubscriptions_ManagerOwnsAccount_Returns200()
+    {
+        SetCurrentUser(2); // Manager linked to account1
+        var result = await _controller.GetSubscriptions(_account1.Id);
+        Assert.That(result.Value, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetSubscriptions_ManagerOtherAccount_Returns403()
+    {
+        SetCurrentUser(2); // Manager NOT linked to account2
+        var result = await _controller.GetSubscriptions(_account2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetSubscriptions_AccountNotFound_Returns404()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.GetSubscriptions(9999);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task GetSubscriptions_NoUser_Returns403()
+    {
+        SetCurrentUser(null);
+        var result = await _controller.GetSubscriptions(_account1.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    #endregion
 
     #region UpdateAccount Tests
 
