@@ -62,16 +62,33 @@ public class VideosController(
     // GET: api/videos/by-account/{accountId}
     [HttpGet("by-account/{accountId}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<VideoViewItem>))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<VideoViewItem>>> GetVideosByAccount(int accountId, CancellationToken ct = default)
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<IEnumerable<VideoViewItem>>> GetVideosByAccount(
+        int accountId,
+        [FromQuery] int? categoryId = null,
+        CancellationToken ct = default)
     {
         var user = await CurrentUser();
         if (user == null) return _403();
 
         if (accountId == 0)
         {
-            return await _db.Videos.AsNoTracking().Where(d => d.AccountId == null).Select(v => v.ToViewItem()).ToListAsync(ct);
+            var categoryError = await ValidateCategory(categoryId, ct);
+            if (categoryError != null) return categoryError;
+
+            var query = _db.Videos.AsNoTracking().Where(d => d.AccountId == null);
+            if (categoryId.HasValue)
+            {
+                var normalizedCategoryId = NormalizeCategoryId(categoryId.Value);
+                query = query.Where(v => v.CategoryId == normalizedCategoryId);
+            }
+
+            return await query.Select(v => v.ToViewItem()).ToListAsync(ct);
         }
+
+        if (ResolveCategoryId(categoryId) != null) return _400VideoCategoryOnlyForCommon();
 
         if (!_userInformationService.UserCanViewVideo(user, accountId)) return _403();
         return await _db.Videos.AsNoTracking().Where(d => d.AccountId == accountId).Select(v => v.ToViewItem()).ToListAsync(ct);
@@ -109,11 +126,12 @@ public class VideosController(
         if (item.File == null || item.File.Length == 0) return _400VideoFileMissing();
         if (string.IsNullOrWhiteSpace(item.Title)) return _400VideoTitleMissing();
 
-        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, ct);
+        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, item.CategoryId, ct);
         if (validationError != null) return validationError;
 
         var title = item.Title.Trim();
         var accountId = NormalizeAccountId(item.AccountId);
+        var categoryId = ResolveCategoryId(item.CategoryId);
         var saveResult = await _videoStorageService.SaveVideoAsync(item.File, title, ct);
 
         // Check for duplicate filename before saving to database
@@ -124,7 +142,7 @@ public class VideosController(
             return _409VideoFilename(saveResult.Filename);
         }
 
-        var video = CreateVideo(title, saveResult, accountId);
+        var video = CreateVideo(title, saveResult, accountId, categoryId);
 
         _db.Videos.Add(video);
         await _db.SaveChangesAsync(ct);
@@ -152,10 +170,11 @@ public class VideosController(
         var titles = item.Files.Select((file, index) => ResolveBatchUploadTitle(item, file, index)).ToList();
         if (titles.Any(string.IsNullOrWhiteSpace)) return _400VideoTitleMissing();
 
-        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, ct);
+        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, item.CategoryId, ct);
         if (validationError != null) return validationError;
 
         var accountId = NormalizeAccountId(item.AccountId);
+        var categoryId = ResolveCategoryId(item.CategoryId);
         var savedFilenames = new List<string>();
         var videosToCreate = new List<Video>();
 
@@ -175,7 +194,7 @@ public class VideosController(
                     return _409VideoFilename(saveResult.Filename);
                 }
 
-                videosToCreate.Add(CreateVideo(title, saveResult, accountId));
+                videosToCreate.Add(CreateVideo(title, saveResult, accountId, categoryId));
             }
 
             _db.Videos.AddRange(videosToCreate);
@@ -201,7 +220,8 @@ public class VideosController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        if (string.IsNullOrWhiteSpace(item.Title)) return _400VideoTitleMissing();
+        if (item == null) return _400RequestPayloadMissing();
+        if (item.Title != null && string.IsNullOrWhiteSpace(item.Title)) return _400VideoTitleMissing();
 
         var video = await _db.Videos
             .Include(v => v.VideoPlaylists)
@@ -210,7 +230,10 @@ public class VideosController(
 
         if (!_userInformationService.UserCanManageVideo(user, video.AccountId)) return _403();
 
-        video.Title = item.Title;
+        if (item.Title != null)
+        {
+            video.Title = item.Title.Trim();
+        }
 
         if (item.PlaylistIds != null)
         {
@@ -220,8 +243,90 @@ public class VideosController(
             ApplyVideoPlaylists(video, playlistIds);
         }
 
+        if (item.CategoryId.HasValue)
+        {
+            var categoryError = await ValidateVideoCategoryUpdate(video, item.CategoryId.Value, ct);
+            if (categoryError != null) return categoryError;
+
+            video.CategoryId = NormalizeCategoryId(item.CategoryId.Value);
+        }
+
         await _db.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    [HttpPost("category/batch")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoBatchCategoryUpdateResult))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<VideoBatchCategoryUpdateResult>> UpdateVideoCategories(
+        [FromBody] VideoBatchCategoryUpdateItem item,
+        CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        if (item?.Ids == null || item.Ids.Count == 0) return _400RequestPayloadMissing();
+        if (!item.CategoryId.HasValue) return _400VideoCategoryMissing();
+
+        var categoryError = await ValidateCategory(item.CategoryId, ct);
+        if (categoryError != null) return categoryError;
+
+        var ids = item.Ids.Distinct().ToList();
+        var result = new VideoBatchCategoryUpdateResult { RequestedCount = item.Ids.Count };
+
+        var videos = await _db.Videos
+            .Where(v => ids.Contains(v.Id))
+            .ToListAsync(ct);
+        var videosById = videos.ToDictionary(v => v.Id);
+        var normalizedCategoryId = NormalizeCategoryId(item.CategoryId.Value);
+
+        foreach (var id in ids)
+        {
+            if (!videosById.TryGetValue(id, out var video))
+            {
+                result.Failures.Add(new VideoBatchOperationFailure
+                {
+                    Id = id,
+                    Reason = "notFound",
+                    Message = $"Не удалось найти видеофайл [id={id}]"
+                });
+                continue;
+            }
+
+            if (!_userInformationService.UserCanManageVideo(user, video.AccountId))
+            {
+                result.Failures.Add(new VideoBatchOperationFailure
+                {
+                    Id = id,
+                    Reason = "forbidden",
+                    Message = $"Недостаточно прав для изменения видеофайла [id={id}]"
+                });
+                continue;
+            }
+
+            if (video.AccountId != null)
+            {
+                result.Failures.Add(new VideoBatchOperationFailure
+                {
+                    Id = id,
+                    Reason = "accountLinked",
+                    Message = $"Категория может быть назначена только общему видеофайлу [id={id}]"
+                });
+                continue;
+            }
+
+            video.CategoryId = normalizedCategoryId;
+            result.UpdatedIds.Add(video.Id);
+        }
+
+        if (result.UpdatedIds.Count != 0)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return Ok(result);
     }
 
     [HttpPost("delete/batch")]
@@ -387,21 +492,43 @@ public class VideosController(
         }
     }
 
-    private async Task<ObjectResult?> ValidateVideoUploadTarget(User user, int accountId, CancellationToken ct)
+    private async Task<ObjectResult?> ValidateVideoUploadTarget(User user, int accountId, int? categoryId, CancellationToken ct)
     {
         var normalizedAccountId = NormalizeAccountId(accountId);
         if (normalizedAccountId != null)
         {
             var account = await _db.Accounts.FindAsync([normalizedAccountId.Value], ct);
             if (account == null) return _404Account(normalizedAccountId.Value);
+
+            if (ResolveCategoryId(categoryId) != null) return _400VideoCategoryOnlyForCommon();
         }
 
         if (!_userInformationService.UserCanManageAccount(user, accountId)) return _403();
+
+        var categoryError = await ValidateCategory(categoryId, ct);
+        if (categoryError != null) return categoryError;
 
         return null;
     }
 
     private static int? NormalizeAccountId(int accountId) => accountId == 0 ? null : accountId;
+    private static int? NormalizeCategoryId(int categoryId) => categoryId == 0 ? null : categoryId;
+    private static int? ResolveCategoryId(int? categoryId) => categoryId.HasValue ? NormalizeCategoryId(categoryId.Value) : null;
+
+    private async Task<ObjectResult?> ValidateCategory(int? categoryId, CancellationToken ct)
+    {
+        if (!categoryId.HasValue || categoryId.Value == 0) return null;
+        if (categoryId.Value < 0) return _404Category(categoryId.Value);
+
+        var exists = await _db.Categories.AsNoTracking().AnyAsync(c => c.Id == categoryId.Value, ct);
+        return exists ? null : _404Category(categoryId.Value);
+    }
+
+    private async Task<ObjectResult?> ValidateVideoCategoryUpdate(Video video, int categoryId, CancellationToken ct)
+    {
+        if (video.AccountId != null) return _400VideoCategoryOnlyForCommon();
+        return await ValidateCategory(categoryId, ct);
+    }
 
     private static string ResolveBatchUploadTitle(VideoBatchUploadItem item, IFormFile file, int index)
     {
@@ -413,7 +540,7 @@ public class VideosController(
         return file.FileName?.Trim() ?? string.Empty;
     }
 
-    private static Video CreateVideo(string title, VideoSaveResult saveResult, int? accountId)
+    private static Video CreateVideo(string title, VideoSaveResult saveResult, int? accountId, int? categoryId)
     {
         return new Video
         {
@@ -423,6 +550,7 @@ public class VideosController(
             FileSizeBytes = saveResult.FileSizeBytes,
             DurationSeconds = saveResult.DurationSeconds,
             AccountId = accountId,
+            CategoryId = categoryId,
             Sha256 = saveResult.Sha256
         };
     }

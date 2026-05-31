@@ -5,7 +5,9 @@ namespace MediaPi.Core.RestModels;
 
 public class VideoUpdateItem
 {
-    public required string Title { get; set; }
+    public string? Title { get; set; }
 
     public List<int>? PlaylistIds { get; set; }
+
+    public int? CategoryId { get; set; }
 }

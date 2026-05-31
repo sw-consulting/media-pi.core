@@ -195,6 +195,18 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует название" });
     }
 
+    protected ObjectResult _400VideoCategoryOnlyForCommon()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Категория может быть назначена только общим видеофайлам" });
+    }
+
+    protected ObjectResult _400VideoCategoryMissing()
+    {
+        return StatusCode(StatusCodes.Status400BadRequest,
+                          new ErrMessage { Msg = "Не указана категория видеофайла" });
+    }
+
     protected ObjectResult _400RequestPayloadMissing()
     {
         return StatusCode(StatusCodes.Status400BadRequest,
