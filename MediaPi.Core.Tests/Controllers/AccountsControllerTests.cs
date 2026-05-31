@@ -14,6 +14,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Tests.TestHelpers;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -104,6 +105,8 @@ public class AccountsControllerTests
         _controller = new AccountsController(
             _mockHttpContextAccessor.Object,
             _userInformationService,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
+            SubscriptionTestServices.TimeService(),
             _dbContext,
             _mockLogger.Object)
         {

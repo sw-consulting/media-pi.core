@@ -46,9 +46,13 @@ builder.Services
     .Configure<AppSettings>(config.GetSection("AppSettings"))
     .Configure<VideoStorageSettings>(config.GetSection("VideoStorage"))
     .Configure<ScreenshotStorageSettings>(config.GetSection("ScreenshotStorage"))
+    .Configure<SubscriptionSettings>(config.GetSection("SubscriptionSettings"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
     .AddScoped<IJwtUtils, JwtUtils>()
     .AddScoped<IUserInformationService, UserInformationService>()
+    .AddSingleton<ISubscriptionTimeService, SubscriptionTimeService>()
+    .AddScoped<IPlaylistAccessService, PlaylistAccessService>()
+    .AddSingleton<ISubscriptionClock, SubscriptionClock>()
     .AddHttpContextAccessor()
     .AddControllers()
     .AddJsonOptions(options =>
@@ -97,6 +101,8 @@ builder.Services.AddSingleton<DeviceEventsService>();
 builder.Services.AddSingleton<DeviceMonitoringService>();
 builder.Services.AddSingleton<IDeviceMonitoringService>(sp => sp.GetRequiredService<DeviceMonitoringService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceMonitoringService>());
+builder.Services.AddSingleton<SubscriptionMaintenanceService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SubscriptionMaintenanceService>());
 builder.Services.AddSingleton<IVideoMetadataService, VideoMetadataService>();
 builder.Services.AddSingleton<IFileStorageService>(sp =>
 {

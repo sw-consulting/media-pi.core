@@ -6,6 +6,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Extensions;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,9 +19,11 @@ namespace MediaPi.Core.Controllers;
 [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
 public class CategoriesController(
     IHttpContextAccessor httpContextAccessor,
+    IPlaylistAccessService playlistAccessService,
     AppDbContext db,
     ILogger<CategoriesController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
+    private readonly IPlaylistAccessService _playlistAccessService = playlistAccessService;
     private const string CategoryTitleIndex = "IX_categories_title";
     private const string VideoCategoryForeignKey = "FK_videos_categories_category_id";
     private const string SubscriptionCategoryForeignKey = "FK_subscriptions_categories_category_id";
@@ -101,10 +104,27 @@ public class CategoriesController(
         var category = await _db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (category == null) return _404Category(id);
 
+        PlaylistAccessImpact? impact = null;
+        if (item.Free.HasValue && item.Free.Value != category.Free)
+        {
+            impact = await _playlistAccessService.BuildCategoryFreeChangeImpactAsync(id, item.Free.Value, ct);
+            if (impact.HasImpact && !item.ForcePlaylistCleanup)
+            {
+                return StatusCode(StatusCodes.Status409Conflict, impact);
+            }
+        }
+
         category.UpdateFrom(item);
         try
         {
-            await _db.SaveChangesAsync(ct);
+            if (item.ForcePlaylistCleanup && impact?.HasImpact == true)
+            {
+                await _playlistAccessService.RemovePlaylistItemsAsync(impact.VideoPlaylistIds, ct);
+            }
+            else
+            {
+                await _db.SaveChangesAsync(ct);
+            }
         }
         catch (DbUpdateException ex) when (IsCategoryTitleConstraint(ex))
         {

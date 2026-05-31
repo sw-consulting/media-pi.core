@@ -25,11 +25,13 @@ public class VideosController(
     IHttpContextAccessor httpContextAccessor,
     IUserInformationService userInformationService,
     IVideoStorageService videoStorageService,
+    IPlaylistAccessService playlistAccessService,
     AppDbContext db,
     ILogger<VideosController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     private readonly IUserInformationService _userInformationService = userInformationService;
     private readonly IVideoStorageService _videoStorageService = videoStorageService;
+    private readonly IPlaylistAccessService _playlistAccessService = playlistAccessService;
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<VideoViewItem>))]
@@ -68,6 +70,7 @@ public class VideosController(
     public async Task<ActionResult<IEnumerable<VideoViewItem>>> GetVideosByAccount(
         int accountId,
         [FromQuery] int? categoryId = null,
+        [FromQuery] int? availableForAccountId = null,
         CancellationToken ct = default)
     {
         var user = await CurrentUser();
@@ -75,6 +78,13 @@ public class VideosController(
 
         if (accountId == 0)
         {
+            if (availableForAccountId.HasValue)
+            {
+                var playlistAccount = await _db.Accounts.AsNoTracking().AnyAsync(a => a.Id == availableForAccountId.Value, ct);
+                if (!playlistAccount) return _404Account(availableForAccountId.Value);
+                if (!_userInformationService.UserCanManageAccount(user, availableForAccountId.Value)) return _403();
+            }
+
             var categoryError = await ValidateCategory(categoryId, ct);
             if (categoryError != null) return categoryError;
 
@@ -85,7 +95,17 @@ public class VideosController(
                 query = query.Where(v => v.CategoryId == normalizedCategoryId);
             }
 
-            return await query.Select(v => v.ToViewItem()).ToListAsync(ct);
+            var videos = await query.Select(v => v.ToViewItem()).ToListAsync(ct);
+            if (availableForAccountId.HasValue && videos.Count > 0)
+            {
+                var accessibleIds = await _playlistAccessService.GetAccessibleVideoIdsForAccountAsync(
+                    availableForAccountId.Value,
+                    videos.Select(v => v.Id),
+                    ct);
+                videos = videos.Where(v => accessibleIds.Contains(v.Id)).ToList();
+            }
+
+            return videos;
         }
 
         if (ResolveCategoryId(categoryId) != null) return _400VideoCategoryOnlyForCommon();
@@ -248,7 +268,22 @@ public class VideosController(
             var categoryError = await ValidateVideoCategoryUpdate(video, item.CategoryId.Value, ct);
             if (categoryError != null) return categoryError;
 
-            video.CategoryId = NormalizeCategoryId(item.CategoryId.Value);
+            var normalizedCategoryId = NormalizeCategoryId(item.CategoryId.Value);
+            PlaylistAccessImpact? impact = null;
+            if (video.CategoryId != normalizedCategoryId)
+            {
+                impact = await _playlistAccessService.BuildVideoCategoryChangeImpactAsync([video.Id], normalizedCategoryId, ct);
+                if (impact.HasImpact && !item.ForcePlaylistCleanup)
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, impact);
+                }
+            }
+
+            video.CategoryId = normalizedCategoryId;
+            if (item.ForcePlaylistCleanup && impact?.HasImpact == true)
+            {
+                await _playlistAccessService.RemovePlaylistItemsAsync(impact.VideoPlaylistIds, ct);
+            }
         }
 
         await _db.SaveChangesAsync(ct);
@@ -281,6 +316,7 @@ public class VideosController(
             .ToListAsync(ct);
         var videosById = videos.ToDictionary(v => v.Id);
         var normalizedCategoryId = NormalizeCategoryId(item.CategoryId.Value);
+        var videosToUpdate = new List<Video>();
 
         foreach (var id in ids)
         {
@@ -317,8 +353,30 @@ public class VideosController(
                 continue;
             }
 
-            video.CategoryId = normalizedCategoryId;
+            videosToUpdate.Add(video);
             result.UpdatedIds.Add(video.Id);
+        }
+
+        if (videosToUpdate.Count != 0)
+        {
+            var impact = await _playlistAccessService.BuildVideoCategoryChangeImpactAsync(
+                videosToUpdate.Select(v => v.Id),
+                normalizedCategoryId,
+                ct);
+            if (impact.HasImpact && !item.ForcePlaylistCleanup)
+            {
+                return StatusCode(StatusCodes.Status409Conflict, impact);
+            }
+
+            foreach (var video in videosToUpdate)
+            {
+                video.CategoryId = normalizedCategoryId;
+            }
+
+            if (item.ForcePlaylistCleanup && impact.HasImpact)
+            {
+                await _playlistAccessService.RemovePlaylistItemsAsync(impact.VideoPlaylistIds, ct);
+            }
         }
 
         if (result.UpdatedIds.Count != 0)

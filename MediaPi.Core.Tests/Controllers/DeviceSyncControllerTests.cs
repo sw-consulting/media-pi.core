@@ -12,6 +12,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services.Interfaces;
+using MediaPi.Core.Tests.TestHelpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -79,6 +80,7 @@ public class DeviceSyncControllerTests
             _mockHttpContextAccessor.Object,
             _mockVideoStorageService.Object,
             _mockScreenshotStorageService.Object,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
             _dbContext,
             _mockLogger.Object)
         {
@@ -118,6 +120,38 @@ public class DeviceSyncControllerTests
         Assert.That(video1Item.Filename, Is.EqualTo(video1.Filename));
         Assert.That(video1Item.FileSizeBytes, Is.EqualTo(video1.FileSizeBytes));
         Assert.That(video1Item.Sha256, Is.EqualTo(video1.Sha256));
+    }
+
+    [Test]
+    public async Task GetManifest_ExcludesCommonPaidCategoryWithoutSubscription()
+    {
+        var category = new Category { Id = 10, Title = "Paid", Free = false };
+        var playlist = new Playlist { Id = 30, Title = "Playlist", Filename = "playlist30.json", AccountId = _account.Id, Account = _account };
+        var video = new Video
+        {
+            Id = 300,
+            Title = "Premium",
+            Filename = "0001/premium.mp4",
+            OriginalFilename = "premium.mp4",
+            FileSizeBytes = 1024,
+            CategoryId = category.Id,
+            Category = category,
+            Sha256 = "abc"
+        };
+
+        _dbContext.Categories.Add(category);
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.Videos.Add(video);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist { VideoId = video.Id, Video = video, PlaylistId = playlist.Id, Playlist = playlist });
+        _dbContext.PlaylistDeviceGroups.Add(new PlaylistDeviceGroup { PlaylistId = playlist.Id, Playlist = playlist, DeviceGroupId = _deviceGroup.Id, DeviceGroup = _deviceGroup });
+        _dbContext.SaveChanges();
+
+        SetDeviceContext(_device.Id);
+
+        var result = await _controller.GetManifest();
+
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value!, Is.Empty);
     }
 
     [Test]

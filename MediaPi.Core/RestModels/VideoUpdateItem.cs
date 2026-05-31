@@ -10,4 +10,6 @@ public class VideoUpdateItem
     public List<int>? PlaylistIds { get; set; }
 
     public int? CategoryId { get; set; }
+
+    public bool ForcePlaylistCleanup { get; set; }
 }

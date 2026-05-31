@@ -366,9 +366,10 @@ namespace MediaPi.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId");
-
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("AccountId", "CategoryId")
+                        .IsUnique();
 
                     b.ToTable("subscriptions");
                 });

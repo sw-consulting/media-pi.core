@@ -5,6 +5,7 @@ using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.Tests.TestHelpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -85,6 +86,7 @@ public class CategoriesControllerTests
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(context);
         _controller = new CategoriesController(
             _mockHttpContextAccessor.Object,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
             _dbContext,
             _mockLogger.Object)
         {
@@ -228,6 +230,81 @@ public class CategoriesControllerTests
         var updated = await _dbContext.Categories.FindAsync(_category1.Id);
         Assert.That(updated!.Title, Is.EqualTo("Cinema"));
         Assert.That(updated.Free, Is.False);
+    }
+
+    [Test]
+    public async Task UpdateCategory_FreeToPaidWithPlaylistImpact_Returns409WithAffectedPlaylists()
+    {
+        SetCurrentUser(1);
+        var account = new Account { Id = 10, Name = "Account" };
+        var video = new Video
+        {
+            Id = 10,
+            Title = "Common",
+            Filename = "common.mp4",
+            OriginalFilename = "common.mp4",
+            FileSizeBytes = 100,
+            CategoryId = _category1.Id,
+            Category = _category1
+        };
+        var playlist = new Playlist { Id = 10, Title = "Playlist", Filename = "playlist.m3u", AccountId = account.Id, Account = account };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Videos.Add(video);
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 10,
+            VideoId = video.Id,
+            Video = video,
+            PlaylistId = playlist.Id,
+            Playlist = playlist,
+            Position = 0
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpdateCategory(_category1.Id, new CategoryUpdateItem { Free = false });
+
+        AssertObjectStatus(result, StatusCodes.Status409Conflict);
+        var impact = (PlaylistAccessImpact)((ObjectResult)result).Value!;
+        Assert.That(impact.AffectedPlaylistCount, Is.EqualTo(1));
+        Assert.That(impact.AffectedPlaylists.Single().Title, Is.EqualTo("Playlist"));
+    }
+
+    [Test]
+    public async Task UpdateCategory_ForcePlaylistCleanup_RemovesInvalidRows()
+    {
+        SetCurrentUser(1);
+        var account = new Account { Id = 11, Name = "Account" };
+        var video = new Video
+        {
+            Id = 11,
+            Title = "Common",
+            Filename = "common2.mp4",
+            OriginalFilename = "common2.mp4",
+            FileSizeBytes = 100,
+            CategoryId = _category1.Id,
+            Category = _category1
+        };
+        var playlist = new Playlist { Id = 11, Title = "Playlist", Filename = "playlist2.m3u", AccountId = account.Id, Account = account };
+        _dbContext.Accounts.Add(account);
+        _dbContext.Videos.Add(video);
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 11,
+            VideoId = video.Id,
+            Video = video,
+            PlaylistId = playlist.Id,
+            Playlist = playlist,
+            Position = 0
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _controller.UpdateCategory(_category1.Id, new CategoryUpdateItem { Free = false, ForcePlaylistCleanup = true });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That((await _dbContext.Categories.FindAsync(_category1.Id))!.Free, Is.False);
+        Assert.That(await _dbContext.VideoPlaylists.AnyAsync(vp => vp.Id == 11), Is.False);
     }
 
     [Test]

@@ -15,6 +15,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Interfaces;
+using MediaPi.Core.Tests.TestHelpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -136,6 +137,7 @@ public class VideosControllerTests
             _mockHttpContextAccessor.Object,
             _userInformationService,
             _mockVideoStorageService.Object,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
             _dbContext,
             _mockLogger.Object)
         {

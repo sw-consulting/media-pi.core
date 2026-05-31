@@ -23,10 +23,12 @@ namespace MediaPi.Core.Controllers;
 public class PlaylistsController(
     IHttpContextAccessor httpContextAccessor,
     IUserInformationService userInformationService,
+    IPlaylistAccessService playlistAccessService,
     AppDbContext db,
     ILogger<PlaylistsController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     private readonly IUserInformationService _userInformationService = userInformationService;
+    private readonly IPlaylistAccessService _playlistAccessService = playlistAccessService;
 
     // GET: api/playlists
     [HttpGet]
@@ -275,6 +277,12 @@ public class PlaylistsController(
         if (mismatch != null)
         {
             return _400PlaylistVideoAccountMismatch(mismatch.Id, accountId);
+        }
+
+        var inaccessibleVideoIds = await _playlistAccessService.GetInaccessibleVideoIdsForAccountAsync(accountId, videoIds, ct);
+        if (inaccessibleVideoIds.Count > 0)
+        {
+            return _400PlaylistVideoAccessDenied(inaccessibleVideoIds[0], accountId);
         }
 
         return null;

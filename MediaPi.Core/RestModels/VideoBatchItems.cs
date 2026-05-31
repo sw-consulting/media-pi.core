@@ -28,6 +28,7 @@ public class VideoBatchCategoryUpdateItem
 {
     public List<int> Ids { get; set; } = [];
     public int? CategoryId { get; set; }
+    public bool ForcePlaylistCleanup { get; set; }
 }
 
 public class VideoBatchCategoryUpdateResult

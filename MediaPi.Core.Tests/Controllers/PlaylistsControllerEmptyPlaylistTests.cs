@@ -15,6 +15,7 @@ using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
+using MediaPi.Core.Tests.TestHelpers;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -73,6 +74,7 @@ public class PlaylistsControllerEmptyPlaylistTests
         _controller = new PlaylistsController(
             _mockHttpContextAccessor.Object,
             _userInformationService,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
             _dbContext,
             _mockLogger.Object)
         {
