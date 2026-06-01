@@ -253,6 +253,53 @@ public class AccountsController(
         return NoContent();
     }
 
+    // DELETE: api/accounts/{id}/subscriptions/{categoryId}
+    [HttpDelete("{id}/subscriptions/{categoryId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(PlaylistAccessImpact))]
+    public async Task<IActionResult> DeleteSubscription(
+        int id,
+        int categoryId,
+        [FromBody] SubscriptionDeleteItem? item = null,
+        CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null || !user.IsAdministrator()) return _403();
+
+        var accountExists = await _db.Accounts.AsNoTracking().AnyAsync(a => a.Id == id, ct);
+        if (!accountExists) return _404Account(id);
+
+        var categoryExists = await _db.Categories.AsNoTracking().AnyAsync(c => c.Id == categoryId, ct);
+        if (!categoryExists) return _404Category(categoryId);
+
+        var subscription = await _db.Subscriptions
+            .FirstOrDefaultAsync(s => s.AccountId == id && s.CategoryId == categoryId, ct);
+        if (subscription == null) return NoContent();
+
+        var impact = await _playlistAccessService.BuildSubscriptionChangeImpactAsync(
+            id,
+            categoryId,
+            DateTime.UnixEpoch,
+            DateTime.UnixEpoch,
+            ct);
+        if (impact.HasImpact && item?.ForcePlaylistCleanup != true)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, impact);
+        }
+
+        if (item?.ForcePlaylistCleanup == true && impact.HasImpact)
+        {
+            await _playlistAccessService.RemovePlaylistItemsAsync(impact.VideoPlaylistIds, ct);
+        }
+
+        _db.Subscriptions.Remove(subscription);
+        await _db.SaveChangesAsync(ct);
+
+        return NoContent();
+    }
+
     // POST: api/accounts
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Reference))]

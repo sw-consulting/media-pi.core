@@ -52,3 +52,10 @@ public class SubscriptionUpsertItem
 
     public override string ToString() => JsonSerializer.Serialize(this, JOptions.DefaultOptions);
 }
+
+public class SubscriptionDeleteItem
+{
+    public bool ForcePlaylistCleanup { get; set; }
+
+    public override string ToString() => JsonSerializer.Serialize(this, JOptions.DefaultOptions);
+}

@@ -530,6 +530,189 @@ public class AccountsControllerTests
         Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
     }
 
+    [Test]
+    public async Task DeleteSubscription_NoUser_Returns403()
+    {
+        var paidCategory = new Category { Title = "Delete Paid", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(null);
+        var result = await _controller.DeleteSubscription(_account1.Id, paidCategory.Id);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteSubscription_NonAdmin_Returns403()
+    {
+        var paidCategory = new Category { Title = "Delete Paid Manager", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(2);
+        var result = await _controller.DeleteSubscription(_account1.Id, paidCategory.Id);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteSubscription_AccountNotFound_Returns404()
+    {
+        var paidCategory = new Category { Title = "Delete Paid Account Missing", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.DeleteSubscription(9999, paidCategory.Id);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task DeleteSubscription_CategoryNotFound_Returns404()
+    {
+        SetCurrentUser(1);
+        var result = await _controller.DeleteSubscription(_account1.Id, 9999);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task DeleteSubscription_NoExistingSubscription_ReturnsNoContent()
+    {
+        var paidCategory = new Category { Title = "Delete Paid Empty", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.DeleteSubscription(_account1.Id, paidCategory.Id);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+    }
+
+    [Test]
+    public async Task DeleteSubscription_ExistingSubscription_RemovesRecord()
+    {
+        var paidCategory = new Category { Title = "Delete Paid Existing", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        await _dbContext.SaveChangesAsync();
+        _dbContext.Subscriptions.Add(new Subscription
+        {
+            AccountId = _account1.Id,
+            CategoryId = paidCategory.Id,
+            StartTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 12, 31, 23, 59, 59, DateTimeKind.Utc)
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.DeleteSubscription(_account1.Id, paidCategory.Id);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That(_dbContext.Subscriptions.Any(s => s.AccountId == _account1.Id && s.CategoryId == paidCategory.Id), Is.False);
+    }
+
+    [Test]
+    public async Task DeleteSubscription_WithImpactNoForce_Returns409()
+    {
+        var paidCategory = new Category { Title = "Delete Paid Impact", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        var commonVideo = new Video
+        {
+            Id = 503,
+            Title = "Common503",
+            Filename = "v503.mp4",
+            OriginalFilename = "v503.mp4",
+            FileSizeBytes = 100,
+            Sha256 = new string('d', 64)
+        };
+        _dbContext.Videos.Add(commonVideo);
+        await _dbContext.SaveChangesAsync();
+
+        commonVideo.CategoryId = paidCategory.Id;
+        _dbContext.Subscriptions.Add(new Subscription
+        {
+            AccountId = _account1.Id,
+            CategoryId = paidCategory.Id,
+            StartTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 12, 31, 23, 59, 59, DateTimeKind.Utc)
+        });
+        var playlist = new Playlist { Id = 503, Title = "Playlist503", Filename = "p503.m3u", AccountId = _account1.Id, Account = _account1 };
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 5030,
+            PlaylistId = playlist.Id,
+            Playlist = playlist,
+            VideoId = commonVideo.Id,
+            Video = commonVideo,
+            Position = 0
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.DeleteSubscription(_account1.Id, paidCategory.Id);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        Assert.That(_dbContext.Subscriptions.Any(s => s.AccountId == _account1.Id && s.CategoryId == paidCategory.Id), Is.True);
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.Id == 5030), Is.True);
+    }
+
+    [Test]
+    public async Task DeleteSubscription_WithImpactForce_RemovesItemsAndSubscription()
+    {
+        var paidCategory = new Category { Title = "Delete Paid Force", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        var commonVideo = new Video
+        {
+            Id = 504,
+            Title = "Common504",
+            Filename = "v504.mp4",
+            OriginalFilename = "v504.mp4",
+            FileSizeBytes = 100,
+            Sha256 = new string('e', 64)
+        };
+        _dbContext.Videos.Add(commonVideo);
+        await _dbContext.SaveChangesAsync();
+
+        commonVideo.CategoryId = paidCategory.Id;
+        _dbContext.Subscriptions.Add(new Subscription
+        {
+            AccountId = _account1.Id,
+            CategoryId = paidCategory.Id,
+            StartTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 12, 31, 23, 59, 59, DateTimeKind.Utc)
+        });
+        var playlist = new Playlist { Id = 504, Title = "Playlist504", Filename = "p504.m3u", AccountId = _account1.Id, Account = _account1 };
+        _dbContext.Playlists.Add(playlist);
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 5040,
+            PlaylistId = playlist.Id,
+            Playlist = playlist,
+            VideoId = commonVideo.Id,
+            Video = commonVideo,
+            Position = 0
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(1);
+        var result = await _controller.DeleteSubscription(
+            _account1.Id,
+            paidCategory.Id,
+            new SubscriptionDeleteItem { ForcePlaylistCleanup = true });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That(_dbContext.Subscriptions.Any(s => s.AccountId == _account1.Id && s.CategoryId == paidCategory.Id), Is.False);
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.Id == 5040), Is.False);
+    }
+
     #endregion
 
     #region UpdateAccount Tests
