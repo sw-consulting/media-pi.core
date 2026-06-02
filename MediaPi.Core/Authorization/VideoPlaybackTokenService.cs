@@ -114,7 +114,7 @@ public class VideoPlaybackTokenService : IVideoPlaybackTokenService
 
     private SymmetricSecurityKey CreateSigningKey()
     {
-        var key = SHA256.HashData(Encoding.UTF8.GetBytes(_appSettings.Secret!));
+        var key = SHA256.HashData(Encoding.UTF8.GetBytes(_appSettings.Secret! + ":video-playback"));
         return new SymmetricSecurityKey(key);
     }
 }

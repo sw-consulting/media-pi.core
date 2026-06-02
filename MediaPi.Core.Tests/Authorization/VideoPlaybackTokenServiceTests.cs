@@ -77,7 +77,7 @@ public class VideoPlaybackTokenServiceTests
     private static string CreateToken(int userId, int videoId, string purpose, DateTime expiresAt)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = SHA256.HashData(Encoding.UTF8.GetBytes(Secret));
+        var key = SHA256.HashData(Encoding.UTF8.GetBytes(Secret + ":video-playback"));
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(new[]

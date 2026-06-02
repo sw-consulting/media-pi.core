@@ -654,7 +654,7 @@ public class VideosController(
         if (!string.IsNullOrWhiteSpace(playbackToken))
         {
             var userId = _videoPlaybackTokenService.Validate(playbackToken, videoId);
-            return userId.HasValue ? await LoadUser(userId.Value, ct) : null;
+            if (userId.HasValue) return await LoadUser(userId.Value, ct);
         }
 
         return await CurrentUser();
