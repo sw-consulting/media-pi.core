@@ -15,6 +15,7 @@ using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.Services;
 using MediaPi.Core.Services.Interfaces;
+using MediaPi.Core.Tests.TestHelpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -136,6 +137,7 @@ public class VideosControllerTests
             _mockHttpContextAccessor.Object,
             _userInformationService,
             _mockVideoStorageService.Object,
+            SubscriptionTestServices.PlaylistAccessService(_dbContext),
             _dbContext,
             _mockLogger.Object)
         {
@@ -1168,6 +1170,180 @@ public class VideosControllerTests
         
         // Verify delete was NOT called since there was no conflict
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ──────────────────────────────────────────────────────
+    // GetVideosByAccount – availableForAccountId filter
+    // ──────────────────────────────────────────────────────
+
+    [Test]
+    public async Task GetVideosByAccount_AvailableForAccountId_FiltersInaccessibleVideos()
+    {
+        // Common paid video in paid category (account1 has NO active subscription → inaccessible)
+        var paidCategory = new Category { Id = 10, Title = "Paid", Free = false };
+        _dbContext.Categories.Add(paidCategory);
+        var paidVideo = new Video
+        {
+            Id = 100,
+            Title = "PaidVideo",
+            Filename = "0001/paid.mp4",
+            OriginalFilename = "paid.mp4",
+            FileSizeBytes = 100,
+            AccountId = null,
+            CategoryId = paidCategory.Id
+        };
+        _dbContext.Videos.Add(paidVideo);
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetVideosByAccount(0, availableForAccountId: _account1.Id);
+
+        Assert.That(result.Value, Is.Not.Null);
+        // The paid video should be filtered out (no subscription)
+        var ids = result.Value!.Select(v => v.Id).ToList();
+        Assert.That(ids, Does.Not.Contain(paidVideo.Id));
+        // The original common free-category video (_videoCommon) should remain (uncategorized → free)
+        Assert.That(ids, Does.Contain(_videoCommon.Id));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_AvailableForAccountId_AccountNotFound_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.GetVideosByAccount(0, availableForAccountId: 9999);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+    }
+
+    [Test]
+    public async Task GetVideosByAccount_AvailableForAccountId_ManagerOtherAccount_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id); // manager for account1 only
+        var result = await _controller.GetVideosByAccount(0, availableForAccountId: _account2.Id);
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    // ──────────────────────────────────────────────────────
+    // UpdateVideo – category change with playlist impact
+    // ──────────────────────────────────────────────────────
+
+    [Test]
+    public async Task UpdateVideo_CategoryChangeCausesImpact_Returns409()
+    {
+        // Setup: common video in free category, in playlist of account1 (account1 has no subscription for paid category)
+        var paidCat = new Category { Id = 20, Title = "Paid20", Free = false };
+        _dbContext.Categories.Add(paidCat);
+        _videoCommon.CategoryId = _categoryNews.Id;
+        _videoCommon.Category = _categoryNews;
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 200,
+            VideoId = _videoCommon.Id,
+            Video = _videoCommon,
+            PlaylistId = _playlistAccount1.Id,
+            Playlist = _playlistAccount1,
+            Position = 10
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(_admin.Id);
+        // Move video from free category to paid category → account1 has no subscription → impact
+        var result = await _controller.UpdateVideo(_videoCommon.Id, new VideoUpdateItem { CategoryId = paidCat.Id });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task UpdateVideo_CategoryChangeWithForceCleanup_RemovesPlaylistItems()
+    {
+        var paidCat = new Category { Id = 21, Title = "Paid21", Free = false };
+        _dbContext.Categories.Add(paidCat);
+        _videoCommon.CategoryId = _categoryNews.Id;
+        _videoCommon.Category = _categoryNews;
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 210,
+            VideoId = _videoCommon.Id,
+            Video = _videoCommon,
+            PlaylistId = _playlistAccount1.Id,
+            Playlist = _playlistAccount1,
+            Position = 10
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.UpdateVideo(_videoCommon.Id, new VideoUpdateItem
+        {
+            CategoryId = paidCat.Id,
+            ForcePlaylistCleanup = true
+        });
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.Id == 210), Is.False);
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.EqualTo(paidCat.Id));
+    }
+
+    // ──────────────────────────────────────────────────────
+    // UpdateVideoCategories – playlist impact
+    // ──────────────────────────────────────────────────────
+
+    [Test]
+    public async Task UpdateVideoCategories_WithImpactNoForce_Returns409()
+    {
+        var paidCat = new Category { Id = 30, Title = "Paid30", Free = false };
+        _dbContext.Categories.Add(paidCat);
+        _videoCommon.CategoryId = _categoryNews.Id;
+        _videoCommon.Category = _categoryNews;
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 300,
+            VideoId = _videoCommon.Id,
+            Video = _videoCommon,
+            PlaylistId = _playlistAccount1.Id,
+            Playlist = _playlistAccount1,
+            Position = 10
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem { Ids = [_videoCommon.Id], CategoryId = paidCat.Id });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_WithImpactForceCleanup_RemovesItems()
+    {
+        var paidCat = new Category { Id = 31, Title = "Paid31", Free = false };
+        _dbContext.Categories.Add(paidCat);
+        _videoCommon.CategoryId = _categoryNews.Id;
+        _videoCommon.Category = _categoryNews;
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 310,
+            VideoId = _videoCommon.Id,
+            Video = _videoCommon,
+            PlaylistId = _playlistAccount1.Id,
+            Playlist = _playlistAccount1,
+            Position = 10
+        });
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(_admin.Id);
+        var result = await _controller.UpdateVideoCategories(
+            new VideoBatchCategoryUpdateItem
+            {
+                Ids = [_videoCommon.Id],
+                CategoryId = paidCat.Id,
+                ForcePlaylistCleanup = true
+            });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.Id == 310), Is.False);
     }
 
 }

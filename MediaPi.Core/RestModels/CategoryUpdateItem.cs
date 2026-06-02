@@ -10,6 +10,7 @@ public class CategoryUpdateItem
 {
     public string? Title { get; set; }
     public bool? Free { get; set; }
+    public bool ForcePlaylistCleanup { get; set; }
 
     public override string ToString()
     {
