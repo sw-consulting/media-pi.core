@@ -49,6 +49,7 @@ builder.Services
     .Configure<SubscriptionSettings>(config.GetSection("SubscriptionSettings"))
     .Configure<DeviceMonitorSettings>(config.GetSection("DeviceMonitoringSettings"))
     .AddScoped<IJwtUtils, JwtUtils>()
+    .AddScoped<IVideoPlaybackTokenService, VideoPlaybackTokenService>()
     .AddScoped<IUserInformationService, UserInformationService>()
     .AddSingleton<ISubscriptionTimeService, SubscriptionTimeService>()
     .AddScoped<IPlaylistAccessService, PlaylistAccessService>()

@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using MediaPi.Core.Authorization;
 using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
@@ -32,6 +33,7 @@ public class VideosControllerTests
     private Mock<IHttpContextAccessor> _mockHttpContextAccessor;
     private Mock<ILogger<VideosController>> _mockLogger;
     private Mock<IVideoStorageService> _mockVideoStorageService;
+    private Mock<IVideoPlaybackTokenService> _mockVideoPlaybackTokenService;
     private AppDbContext _dbContext;
     private VideosController _controller;
     private UserInformationService _userInformationService;
@@ -121,6 +123,7 @@ public class VideosControllerTests
         _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         _mockLogger = new Mock<ILogger<VideosController>>();
         _mockVideoStorageService = new Mock<IVideoStorageService>();
+        _mockVideoPlaybackTokenService = new Mock<IVideoPlaybackTokenService>();
         _userInformationService = new UserInformationService(_dbContext);
     }
 
@@ -138,6 +141,7 @@ public class VideosControllerTests
             _userInformationService,
             _mockVideoStorageService.Object,
             SubscriptionTestServices.PlaylistAccessService(_dbContext),
+            _mockVideoPlaybackTokenService.Object,
             _dbContext,
             _mockLogger.Object)
         {
@@ -197,6 +201,186 @@ public class VideosControllerTests
         var result = await _controller.GetVideo(3);
         Assert.That(result.Value, Is.Not.Null);
         Assert.That(result.Value!.Id, Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task CreatePlaybackToken_ManagerOwnVideo_ReturnsTokenResponse()
+    {
+        var expiresAt = DateTime.UtcNow.AddMinutes(60);
+        _mockVideoPlaybackTokenService
+            .Setup(s => s.Generate(_managerAccount1.Id, _videoAccount1.Id))
+            .Returns(new VideoPlaybackToken("playback-token", expiresAt));
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.CreatePlaybackToken(_videoAccount1.Id, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoPlaybackTokenViewItem)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.Token, Is.EqualTo("playback-token"));
+        Assert.That(body.ExpiresAt, Is.EqualTo(expiresAt));
+        Assert.That(body.Url, Is.EqualTo($"/api/videos/{_videoAccount1.Id}/file?playbackToken=playback-token"));
+    }
+
+    [Test]
+    public async Task CreatePlaybackToken_MissingVideo_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.CreatePlaybackToken(999, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+        _mockVideoPlaybackTokenService.Verify(s => s.Generate(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Test]
+    public async Task CreatePlaybackToken_ManagerOtherAccount_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.CreatePlaybackToken(_videoAccount2.Id, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _mockVideoPlaybackTokenService.Verify(s => s.Generate(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Test]
+    public async Task GetVideoFile_NotFound_Returns404()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetVideoFile(999, ct: CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+        Assert.That((obj.Value as ErrMessage)?.Msg, Does.Contain("999"));
+    }
+
+    [Test]
+    public async Task GetVideoFile_ManagerOtherAccount_Returns403()
+    {
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.GetVideoFile(_videoAccount2.Id, ct: CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _mockVideoStorageService.Verify(s => s.GetAbsolutePath(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public async Task GetVideoFile_ManagerCommonVideo_ReturnsPhysicalFileResult()
+    {
+        var expectedPath = "/storage/0001/public.mp4";
+        _mockVideoStorageService.Setup(s => s.GetAbsolutePath(_videoCommon.Filename)).Returns(expectedPath);
+        SetCurrentUser(_managerAccount1.Id);
+
+        var result = await _controller.GetVideoFile(_videoCommon.Id, ct: CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<PhysicalFileResult>());
+        var fileResult = (PhysicalFileResult)result;
+        Assert.That(fileResult.FileName, Is.EqualTo(expectedPath));
+        Assert.That(fileResult.ContentType, Is.EqualTo("video/mp4"));
+        Assert.That(fileResult.FileDownloadName, Is.Null.Or.Empty);
+        Assert.That(_controller.Response.Headers["Content-Disposition"].ToString(), Does.Contain("inline"));
+        Assert.That(_controller.Response.Headers["Content-Disposition"].ToString(), Does.Contain(_videoCommon.OriginalFilename));
+    }
+
+    [Test]
+    public async Task GetVideoFile_ValidPlaybackToken_ReturnsPhysicalFileResult()
+    {
+        var expectedPath = "/storage/0001/public.mp4";
+        _mockVideoStorageService.Setup(s => s.GetAbsolutePath(_videoCommon.Filename)).Returns(expectedPath);
+        _mockVideoPlaybackTokenService
+            .Setup(s => s.Validate("valid-token", _videoCommon.Id))
+            .Returns(_managerAccount1.Id);
+        SetCurrentUser(null);
+
+        var result = await _controller.GetVideoFile(_videoCommon.Id, "valid-token", CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<PhysicalFileResult>());
+        var fileResult = (PhysicalFileResult)result;
+        Assert.That(fileResult.FileName, Is.EqualTo(expectedPath));
+        Assert.That(fileResult.ContentType, Is.EqualTo("video/mp4"));
+        Assert.That(fileResult.FileDownloadName, Is.Null.Or.Empty);
+        Assert.That(_controller.Response.Headers["Content-Disposition"].ToString(), Does.Contain("inline"));
+        Assert.That(_controller.Response.Headers["Content-Disposition"].ToString(), Does.Contain(_videoCommon.OriginalFilename));
+        Assert.That(fileResult.EnableRangeProcessing, Is.True);
+    }
+
+    [TestCase(null)]
+    [TestCase("expired-token")]
+    [TestCase("wrong-video-token")]
+    [TestCase("wrong-purpose-token")]
+    public async Task GetVideoFile_InvalidPlaybackTokenWithoutBearer_Returns401(string? playbackToken)
+    {
+        if (playbackToken != null)
+        {
+            _mockVideoPlaybackTokenService
+                .Setup(s => s.Validate(playbackToken, _videoCommon.Id))
+                .Returns((int?)null);
+        }
+        SetCurrentUser(null);
+
+        var result = await _controller.GetVideoFile(_videoCommon.Id, playbackToken, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
+        _mockVideoStorageService.Verify(s => s.GetAbsolutePath(It.IsAny<string>()), Times.Never);
+    }
+
+    [TestCase("clip.mp4",  "video/mp4")]
+    [TestCase("clip.m4v",  "video/x-m4v")]
+    [TestCase("clip.webm", "video/webm")]
+    [TestCase("clip.ogv",  "video/ogg")]
+    [TestCase("clip.ogg",  "video/ogg")]
+    [TestCase("clip.mov",  "video/quicktime")]
+    [TestCase("clip.avi",  "video/x-msvideo")]
+    [TestCase("clip.mkv",  "video/x-matroska")]
+    [TestCase("clip.bin",  "application/octet-stream")]
+    public async Task GetVideoFile_ReturnsCorrectContentTypeForExtension(string originalFilename, string expectedContentType)
+    {
+        var video = new Video
+        {
+            Id = 100,
+            Title = "Mime Test",
+            Filename = $"0001/{originalFilename}",
+            OriginalFilename = originalFilename,
+            FileSizeBytes = 1024,
+            AccountId = _account1.Id,
+            Account = _account1
+        };
+        _dbContext.Videos.Add(video);
+        _dbContext.SaveChanges();
+
+        _mockVideoStorageService.Setup(s => s.GetAbsolutePath(video.Filename)).Returns($"/storage/{video.Filename}");
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetVideoFile(video.Id, ct: CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<PhysicalFileResult>());
+        Assert.That(((PhysicalFileResult)result).ContentType, Is.EqualTo(expectedContentType));
+    }
+
+    [Test]
+    public async Task GetVideoFile_ValidId_ReturnsCorrectPhysicalPathDownloadNameAndRangeSupport()
+    {
+        var expectedPath = "/storage/0001/video1.mp4";
+        _mockVideoStorageService.Setup(s => s.GetAbsolutePath(_videoAccount1.Filename)).Returns(expectedPath);
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.GetVideoFile(_videoAccount1.Id, ct: CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<PhysicalFileResult>());
+        var fileResult = (PhysicalFileResult)result;
+        Assert.That(fileResult.FileName, Is.EqualTo(expectedPath));
+        Assert.That(fileResult.FileDownloadName, Is.Null.Or.Empty);
+        Assert.That(_controller.Response.Headers["Content-Disposition"].ToString(), Does.Contain("inline"));
+        Assert.That(_controller.Response.Headers["Content-Disposition"].ToString(), Does.Contain(_videoAccount1.OriginalFilename));
+        Assert.That(fileResult.ContentType, Is.EqualTo("video/mp4"));
+        Assert.That(fileResult.EnableRangeProcessing, Is.True);
     }
 
     [Test]
