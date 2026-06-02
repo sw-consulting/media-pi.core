@@ -657,7 +657,7 @@ public class VideosController(
             if (userId.HasValue) return await LoadUser(userId.Value, ct);
         }
 
-        return await CurrentUser();
+return _curUserId == 0 ? null : await CurrentUser();
     }
 
     private async Task<User?> LoadUser(int userId, CancellationToken ct)
