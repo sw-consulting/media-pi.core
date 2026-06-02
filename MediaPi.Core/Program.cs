@@ -71,7 +71,7 @@ builder.Services.Configure<FormOptions>(options =>
 builder.Services.AddHttpClient<IMediaPiAgentClient, DeviceAgentRestClient>(client =>
 {
     // timeout for all agent requests
-    client.Timeout = TimeSpan.FromSeconds(15);
+    client.Timeout = TimeSpan.FromSeconds(60);
 })
 ;
 
@@ -79,7 +79,7 @@ builder.Services.AddScoped<LoggingHandler>();
 
 builder.Services.AddHttpClient<IMediaPiAgentClient2, MediaPiAgentClient2>(client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(15);
+    client.Timeout = TimeSpan.FromSeconds(60);
 })
 .AddHttpMessageHandler<LoggingHandler>();
 
