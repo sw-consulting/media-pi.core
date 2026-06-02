@@ -13,6 +13,7 @@ using MediaPi.Core.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 
 namespace MediaPi.Core.Controllers;
 
@@ -26,12 +27,14 @@ public class VideosController(
     IUserInformationService userInformationService,
     IVideoStorageService videoStorageService,
     IPlaylistAccessService playlistAccessService,
+    IVideoPlaybackTokenService videoPlaybackTokenService,
     AppDbContext db,
     ILogger<VideosController> logger) : MediaPiControllerBase(httpContextAccessor, db, logger)
 {
     private readonly IUserInformationService _userInformationService = userInformationService;
     private readonly IVideoStorageService _videoStorageService = videoStorageService;
     private readonly IPlaylistAccessService _playlistAccessService = playlistAccessService;
+    private readonly IVideoPlaybackTokenService _videoPlaybackTokenService = videoPlaybackTokenService;
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<VideoViewItem>))]
@@ -129,6 +132,57 @@ public class VideosController(
         if (!_userInformationService.UserCanViewVideo(user, video.AccountId)) return _403();
 
         return video.ToViewItem();
+    }
+
+    [HttpPost("{id:int}/playback-token")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoPlaybackTokenViewItem))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<ActionResult<VideoPlaybackTokenViewItem>> CreatePlaybackToken(int id, CancellationToken ct = default)
+    {
+        var user = await CurrentUser();
+        if (user == null) return _403();
+
+        var video = await _db.Videos.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (video == null) return _404Video(id);
+
+        if (!_userInformationService.UserCanViewVideo(user, video.AccountId)) return _403();
+
+        var token = _videoPlaybackTokenService.Generate(user.Id, video.Id);
+        return Ok(new VideoPlaybackTokenViewItem
+        {
+            Token = token.Token,
+            ExpiresAt = token.ExpiresAt,
+            Url = BuildPlaybackUrl(video.Id, token.Token)
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id:int}/file")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
+    public async Task<IActionResult> GetVideoFile(int id, [FromQuery] string? playbackToken = null, CancellationToken ct = default)
+    {
+        var user = await ResolvePlaybackUser(id, playbackToken, ct);
+        if (user == null) return _401PlaybackToken();
+
+        var video = await _db.Videos.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (video == null) return _404Video(id);
+
+        if (!_userInformationService.UserCanViewVideo(user, video.AccountId)) return _403();
+
+        var path = _videoStorageService.GetAbsolutePath(video.Filename);
+        var contentType = ResolveVideoContentType(video.OriginalFilename);
+        Response.Headers[HeaderNames.ContentDisposition] = new ContentDispositionHeaderValue("inline")
+        {
+            FileNameStar = video.OriginalFilename
+        }.ToString();
+        return new PhysicalFileResult(path, contentType)
+        {
+            EnableRangeProcessing = true
+        };
     }
 
     [HttpPost("upload")]
@@ -572,6 +626,47 @@ public class VideosController(
     private static int? NormalizeAccountId(int accountId) => accountId == 0 ? null : accountId;
     private static int? NormalizeCategoryId(int categoryId) => categoryId == 0 ? null : categoryId;
     private static int? ResolveCategoryId(int? categoryId) => categoryId.HasValue ? NormalizeCategoryId(categoryId.Value) : null;
+
+    private static string ResolveVideoContentType(string filename) =>
+        Path.GetExtension(filename).ToLowerInvariant() switch
+        {
+            ".mp4"  => "video/mp4",
+            ".m4v"  => "video/x-m4v",
+            ".webm" => "video/webm",
+            ".ogv" or ".ogg" => "video/ogg",
+            ".mov"  => "video/quicktime",
+            ".avi"  => "video/x-msvideo",
+            ".mkv"  => "video/x-matroska",
+            _       => "application/octet-stream"
+        };
+
+    private static string BuildPlaybackUrl(int videoId, string token) =>
+        $"/api/videos/{videoId}/file?playbackToken={Uri.EscapeDataString(token)}";
+
+    private ObjectResult _401PlaybackToken()
+    {
+        return StatusCode(StatusCodes.Status401Unauthorized,
+                          new ErrMessage { Msg = "Недействительная или просроченная ссылка на видеофайл" });
+    }
+
+    private async Task<User?> ResolvePlaybackUser(int videoId, string? playbackToken, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(playbackToken))
+        {
+            var userId = _videoPlaybackTokenService.Validate(playbackToken, videoId);
+            if (userId.HasValue) return await LoadUser(userId.Value, ct);
+        }
+
+return _curUserId == 0 ? null : await CurrentUser();
+    }
+
+    private async Task<User?> LoadUser(int userId, CancellationToken ct)
+    {
+        return await _db.Users
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.UserAccounts)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct);
+    }
 
     private async Task<ObjectResult?> ValidateCategory(int? categoryId, CancellationToken ct)
     {
