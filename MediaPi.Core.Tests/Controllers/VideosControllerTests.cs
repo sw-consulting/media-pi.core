@@ -186,7 +186,7 @@ public class VideosControllerTests
     [Test]
     public async Task GetVideos_Engineer_Returns403()
     {
-        var engineerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Engineer" };
+        var engineerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Installation Engineer" };
         _dbContext.Roles.Add(engineerRole);
         var engineer = new User
         {

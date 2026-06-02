@@ -38,7 +38,7 @@ public class VideoPlaybackTokenService : IVideoPlaybackTokenService
         if (string.IsNullOrEmpty(_appSettings.Secret))
         {
             _logger.LogError("JWT secret not configured");
-            throw new Exception("JWT secret not configured");
+            throw new InvalidOperationException("JWT secret not configured");
         }
     }
 

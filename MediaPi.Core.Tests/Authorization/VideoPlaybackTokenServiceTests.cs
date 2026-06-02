@@ -70,7 +70,7 @@ public class VideoPlaybackTokenServiceTests
     [Test]
     public void Constructor_NullSecret_ThrowsException()
     {
-        Assert.Throws<Exception>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
             new VideoPlaybackTokenService(
                 Options.Create(new AppSettings { Secret = null, JwtTokenExpirationDays = 7 }),
                 Mock.Of<ILogger<VideoPlaybackTokenService>>()));
@@ -79,7 +79,7 @@ public class VideoPlaybackTokenServiceTests
     [Test]
     public void Constructor_EmptySecret_ThrowsException()
     {
-        Assert.Throws<Exception>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
             new VideoPlaybackTokenService(
                 Options.Create(new AppSettings { Secret = string.Empty, JwtTokenExpirationDays = 7 }),
                 Mock.Of<ILogger<VideoPlaybackTokenService>>()));
