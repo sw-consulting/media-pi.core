@@ -67,6 +67,49 @@ public class VideoPlaybackTokenServiceTests
         Assert.That(userId, Is.Null);
     }
 
+    [Test]
+    public void Constructor_NullSecret_ThrowsException()
+    {
+        Assert.Throws<Exception>(() =>
+            new VideoPlaybackTokenService(
+                Options.Create(new AppSettings { Secret = null, JwtTokenExpirationDays = 7 }),
+                Mock.Of<ILogger<VideoPlaybackTokenService>>()));
+    }
+
+    [Test]
+    public void Constructor_EmptySecret_ThrowsException()
+    {
+        Assert.Throws<Exception>(() =>
+            new VideoPlaybackTokenService(
+                Options.Create(new AppSettings { Secret = string.Empty, JwtTokenExpirationDays = 7 }),
+                Mock.Of<ILogger<VideoPlaybackTokenService>>()));
+    }
+
+    [Test]
+    public void Validate_TokenSignedWithDifferentKey_ReturnsNull()
+    {
+        var service = CreateService();
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var differentKey = SHA256.HashData(Encoding.UTF8.GetBytes("different-secret:video-playback"));
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[]
+            {
+                new Claim("id", "7"),
+                new Claim("videoId", "11"),
+                new Claim("purpose", "video-playback")
+            }),
+            Expires = DateTime.UtcNow.AddMinutes(60),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(differentKey), SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = tokenHandler.WriteToken(tokenHandler.CreateToken(tokenDescriptor));
+
+        var userId = service.Validate(token, videoId: 11);
+
+        Assert.That(userId, Is.Null);
+    }
+
     private static VideoPlaybackTokenService CreateService()
     {
         return new VideoPlaybackTokenService(

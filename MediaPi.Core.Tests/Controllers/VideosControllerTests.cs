@@ -184,6 +184,28 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task GetVideos_Engineer_Returns403()
+    {
+        var engineerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Engineer" };
+        _dbContext.Roles.Add(engineerRole);
+        var engineer = new User
+        {
+            Id = 10,
+            Email = "engineer@example.com",
+            Password = "hash",
+            UserRoles = [new UserRole { UserId = 10, RoleId = engineerRole.Id, Role = engineerRole }]
+        };
+        _dbContext.Users.Add(engineer);
+        _dbContext.SaveChanges();
+        SetCurrentUser(engineer.Id);
+
+        var result = await _controller.GetVideos();
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
     public async Task GetVideo_ManagerOtherAccount_Returns403()
     {
         SetCurrentUser(_managerAccount1.Id);
@@ -813,6 +835,71 @@ public class VideosControllerTests
         Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0002/first.mp4", It.IsAny<CancellationToken>()), Times.Once);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0001/video1.mp4", It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void UploadVideos_SaveThrows_RethrowsAfterCleanup()
+    {
+        SetCurrentUser(_admin.Id);
+        var file1 = CreateFormFile("one.mp4", "one");
+        var file2 = CreateFormFile("two.mp4", "two");
+        var file1SaveResult = new VideoSaveResult
+        {
+            Filename = "0099/one.mp4",
+            OriginalFilename = "one.mp4",
+            FileSizeBytes = (uint)file1.Length,
+            DurationSeconds = 60
+        };
+        _mockVideoStorageService
+            .SetupSequence(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(file1SaveResult)
+            .ThrowsAsync(new InvalidOperationException("Storage failure"));
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var item = new VideoBatchUploadItem
+        {
+            AccountId = _account1.Id,
+            Files = [file1, file2],
+            Titles = ["First Video", "Second Video"]
+        };
+
+        Assert.ThrowsAsync<InvalidOperationException>(() => _controller.UploadVideos(item, CancellationToken.None));
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void UploadVideos_SaveThrows_CleanupDeleteFails_LogsWarningAndRethrows()
+    {
+        SetCurrentUser(_admin.Id);
+        var file1 = CreateFormFile("one.mp4", "one");
+        var file2 = CreateFormFile("two.mp4", "two");
+        var file1SaveResult = new VideoSaveResult
+        {
+            Filename = "0099/one.mp4",
+            OriginalFilename = "one.mp4",
+            FileSizeBytes = (uint)file1.Length,
+            DurationSeconds = 60
+        };
+        _mockVideoStorageService
+            .SetupSequence(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(file1SaveResult)
+            .ThrowsAsync(new InvalidOperationException("Storage failure"));
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Delete failed"));
+
+        var item = new VideoBatchUploadItem
+        {
+            AccountId = _account1.Id,
+            Files = [file1, file2],
+            Titles = ["First Video", "Second Video"]
+        };
+
+        // The original save exception is rethrown; the delete failure is swallowed
+        Assert.ThrowsAsync<InvalidOperationException>(() => _controller.UploadVideos(item, CancellationToken.None));
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
