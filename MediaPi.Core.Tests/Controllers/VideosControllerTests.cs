@@ -1830,6 +1830,84 @@ public class VideosControllerTests
         Assert.That((await _dbContext.Videos.FindAsync(61))!.CategoryId, Is.EqualTo(_categoryNews.Id));
     }
 
+    [Test]
+    public async Task UploadVideo_DuplicateOriginalFilenameInUncategorized_Returns409WithoutSavingFile()
+    {
+        // _videoCommon has AccountId=null, CategoryId=null (uncategorized)
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile(_videoCommon.OriginalFilename);
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Duplicate uncategorized",
+            AccountId = 0,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        AssertDuplicateOriginalFilename(obj.Value, _videoCommon.OriginalFilename, null, null);
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task UploadVideos_BatchFileConflictsWithExistingInDb_Returns409WithoutSavingFiles()
+    {
+        // _videoCommon.OriginalFilename already exists in the uncategorized space
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile(_videoCommon.OriginalFilename);
+
+        var result = await _controller.UploadVideos(new VideoBatchUploadItem
+        {
+            AccountId = 0,
+            Files = [file]
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        AssertDuplicateOriginalFilename(obj.Value, _videoCommon.OriginalFilename, null, null);
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_TwoVideosInBatchHaveSameOriginalFilename_SecondIsRejectedAsDuplicate()
+    {
+        // Two uncategorized videos share the same originalFilename (in-memory DB allows this).
+        // When moving both to the same category, the first should succeed and
+        // the second must be rejected via the acceptedOriginalFilenames batch dedup.
+        _dbContext.Videos.Add(new Video
+        {
+            Id = 70,
+            Title = "Sibling",
+            Filename = "0001/sibling.mp4",
+            OriginalFilename = _videoCommon.OriginalFilename,
+            FileSizeBytes = 100,
+            AccountId = null,
+            CategoryId = null
+        });
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(new VideoBatchCategoryUpdateItem
+        {
+            Ids = [_videoCommon.Id, 70],
+            CategoryId = _categoryNews.Id
+        });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
+        // First video is accepted, second rejected as duplicate original filename
+        Assert.That(body.UpdatedIds, Has.Count.EqualTo(1));
+        Assert.That(body.Failures, Has.Count.EqualTo(1));
+        Assert.That(body.Failures[0].Id, Is.EqualTo(70));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(body.Failures[0].Message, Does.Contain(_videoCommon.OriginalFilename));
+    }
+
     private static void AssertDuplicateOriginalFilename(object? value, string originalFilename, int? accountId, int? categoryId)
     {
         Assert.That(value, Is.TypeOf<ErrMessage>());
