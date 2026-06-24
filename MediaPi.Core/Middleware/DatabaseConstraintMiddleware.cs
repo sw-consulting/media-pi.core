@@ -62,6 +62,13 @@ public class DatabaseConstraintMiddleware
         var innerMessage = ex.InnerException?.Message ?? "";
         if (innerMessage.Contains("unique", StringComparison.OrdinalIgnoreCase))
         {
+            if (innerMessage.Contains("IX_videos_account_id_original_filename", StringComparison.OrdinalIgnoreCase)
+                || innerMessage.Contains("IX_videos_category_id_original_filename", StringComparison.OrdinalIgnoreCase)
+                || innerMessage.Contains("IX_videos_common_uncategorized_original_filename", StringComparison.OrdinalIgnoreCase))
+            {
+                return DuplicateOriginalFilenameError();
+            }
+
             return new ErrMessage { Msg = "Нарушено уникальное ограничение базы данных" };
         }
 
@@ -101,6 +108,13 @@ public class DatabaseConstraintMiddleware
                 return new ErrMessage { Msg = "Группа устройств может иметь не более одного проигрываемого плейлиста" };
             }
 
+            if (ex.ConstraintName?.Contains("ix_videos_account_id_original_filename", StringComparison.OrdinalIgnoreCase) == true
+                || ex.ConstraintName?.Contains("ix_videos_category_id_original_filename", StringComparison.OrdinalIgnoreCase) == true
+                || ex.ConstraintName?.Contains("ix_videos_common_uncategorized_original_filename", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return DuplicateOriginalFilenameError();
+            }
+
             return new ErrMessage { Msg = "Нарушено уникальное ограничение базы данных" };
         }
 
@@ -123,5 +137,14 @@ public class DatabaseConstraintMiddleware
         }
 
         return new ErrMessage { Msg = "Нарушено ограничение целостности базы данных" };
+    }
+
+    private static ErrMessage DuplicateOriginalFilenameError()
+    {
+        return new ErrMessage
+        {
+            Msg = "В выбранном разделе уже есть видеофайл с таким именем",
+            Reason = "duplicateOriginalFilename"
+        };
     }
 }

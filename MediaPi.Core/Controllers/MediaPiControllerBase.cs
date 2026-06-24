@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace MediaPi.Core.Controllers;
 public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
 {
+    protected const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
+
     protected readonly AppDbContext _db = db;
     protected readonly ILogger _logger = logger;
 
@@ -120,6 +122,22 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
         return StatusCode(StatusCodes.Status409Conflict,
                           new ErrMessage { Msg = $"Видео с таким именем файла уже существует [filename = {filename}]" });
     }
+
+    protected ObjectResult _409VideoOriginalFilename(string originalFilename, int? accountId = null, int? categoryId = null)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage
+                          {
+                              Msg = VideoOriginalFilenameConflictMessage(originalFilename),
+                              Reason = DuplicateOriginalFilenameReason,
+                              OriginalFilename = originalFilename,
+                              AccountId = accountId,
+                              CategoryId = categoryId
+                          });
+    }
+
+    protected static string VideoOriginalFilenameConflictMessage(string originalFilename) =>
+        $"В выбранном разделе уже есть видеофайл с таким именем [filename = {originalFilename}]";
 
     protected ObjectResult _409PlaylistFilename(string filename)
     {
