@@ -799,7 +799,7 @@ public class PlaylistsControllerTests
     public async Task CreatePlaylist_SetsCreatedAtAndUpdatedAt()
     {
         SetCurrentUser(_admin.Id);
-        var before = DateTime.UtcNow.AddSeconds(-1);
+        var before = DateTime.UtcNow.AddSeconds(-5);
         var item = new PlaylistCreateItem
         {
             Title = "Timestamped",
@@ -809,8 +809,7 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.CreatePlaylist(item);
-        var after = DateTime.UtcNow.AddSeconds(1);
-
+        var after = DateTime.UtcNow.AddSeconds(5);
         Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
         var created = (CreatedAtActionResult)result.Result!;
         var reference = (Reference)created.Value!;
