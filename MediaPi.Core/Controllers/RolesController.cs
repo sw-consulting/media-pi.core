@@ -49,7 +49,7 @@ namespace MediaPi.Core.Controllers
             if (role == null)
             {
                 return StatusCode(StatusCodes.Status404NotFound,
-                    new ErrMessage { Msg = $"Не удалось найти роль [id={id}]" });
+                    new ErrMessage { Msg = $"Роль с ID {id} не найдена" });
             }
 
             return new RoleViewItem
@@ -71,7 +71,7 @@ namespace MediaPi.Core.Controllers
             if (role == null)
             {
                 return StatusCode(StatusCodes.Status404NotFound,
-                    new ErrMessage { Msg = $"Не удалось найти роль [roleId={roleId}]" });
+                    new ErrMessage { Msg = $"Роль с кодом \"{roleId}\" не найдена" });
             }
 
             return new RoleViewItem

@@ -36,7 +36,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _400DevicePortInvalid(ushort port)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Неверный порт устройства [{port}]. Порт должен быть в диапазоне 1-65535" });
+                          new ErrMessage { Msg = $"Неверный порт устройства {port}. Порт должен быть в диапазоне 1-65535" });
     }
 
     protected ObjectResult _400DeviceServerKeyMissing()
@@ -47,7 +47,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _400Ip(string ip)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Неверный формат IP адреса [{ip}]" });
+                          new ErrMessage { Msg = $"Неверный формат IP адреса \"{ip}\"" });
     }
     protected ObjectResult _401()
     {
@@ -62,65 +62,65 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _404User(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти пользователя [id={id}]" });
+                          new ErrMessage { Msg = $"Пользователь с ID {id} не найден" });
     }
     protected ObjectResult _404Device(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
+                          new ErrMessage { Msg = $"Устройство с ID {id} не найдено" });
     }
     protected ObjectResult _404DeviceGroup(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти группу устройств [id={id}]" });
+                          new ErrMessage { Msg = $"Группа устройств с ID {id} не найдена" });
     }
     protected ObjectResult _404Account(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти лицевой счёт [id={id}]" });
+                          new ErrMessage { Msg = $"Лицевой счёт с ID {id} не найден" });
     }
     protected ObjectResult _404Playlist(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти плейлист [id={id}]" });
+                          new ErrMessage { Msg = $"Плейлист с ID {id} не найден" });
     }
     protected ObjectResult _404Video(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти видеофайл [id={id}]" });
+                          new ErrMessage { Msg = $"Видеофайл с ID {id} не найден" });
     }
     protected ObjectResult _404Screenshot(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти скриншот [id={id}]" });
+                          new ErrMessage { Msg = $"Скриншот с ID {id} не найден" });
     }
     protected ObjectResult _404Category(int id)
     {
         return StatusCode(StatusCodes.Status404NotFound,
-                          new ErrMessage { Msg = $"Не удалось найти категорию [id={id}]" });
+                          new ErrMessage { Msg = $"Категория с ID {id} не найдена" });
     }
     protected ObjectResult _409Email(string email)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Пользователь с таким адресом электронной почты уже зарегистрирован [email = {email}]" });
+                          new ErrMessage { Msg = $"Пользователь с адресом электронной почты \"{email}\" уже зарегистрирован" });
     }
 
     protected ObjectResult _409Ip(string ip)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Устройство с таким IP адресом уже зарегистрировано [ip = {ip}]" });
+                          new ErrMessage { Msg = $"Устройство с IP адресом \"{ip}\" уже зарегистрировано" });
     }
 
     protected ObjectResult _409Account(string name)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Лицевой счёт с таким именем уже существует [name = {name}]" });
+                          new ErrMessage { Msg = $"Лицевой счёт с именем \"{name}\" уже существует" });
     }
 
     protected ObjectResult _409VideoFilename(string filename)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Видео с таким именем файла уже существует [filename = {filename}]" });
+                          new ErrMessage { Msg = $"Видео с именем файла \"{filename}\" уже существует" });
     }
 
     protected ObjectResult _409VideoOriginalFilename(string originalFilename, int? accountId = null, int? categoryId = null)
@@ -137,42 +137,42 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     }
 
     protected static string VideoOriginalFilenameConflictMessage(string originalFilename) =>
-        $"В выбранном разделе уже есть видеофайл с таким именем [filename = {originalFilename}]";
+        $"В выбранном разделе уже есть видеофайл с именем \"{originalFilename}\"";
 
     protected ObjectResult _409PlaylistFilename(string filename)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Плейлист с таким именем файла уже существует [filename = {filename}]" });
+                          new ErrMessage { Msg = $"Плейлист с именем файла \"{filename}\" уже существует" });
     }
 
     protected ObjectResult _409Category(string title)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Категория с таким названием уже существует [title = {title}]" });
+                          new ErrMessage { Msg = $"Категория с названием \"{title}\" уже существует" });
     }
 
     protected ObjectResult _409CategoryInUse(int id)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Невозможно удалить категорию [id={id}], так как она используется" });
+                          new ErrMessage { Msg = $"Невозможно удалить категорию с ID {id}, так как она используется" });
     }
 
     protected ObjectResult _400PlaylistVideoAccountMismatch(int videoId, int accountId)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Видео [id={videoId}] не относится к лицевому счёту [id={accountId}]" });
+                          new ErrMessage { Msg = $"Видео с ID {videoId} не относится к лицевому счёту с ID {accountId}" });
     }
 
     protected ObjectResult _400PlaylistVideoAccessDenied(int videoId, int accountId)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Видео [id={videoId}] недоступно для плейлиста лицевого счёта [id={accountId}] по условиям подписки" });
+                          new ErrMessage { Msg = $"Видео с ID {videoId} недоступно для плейлиста лицевого счёта с ID {accountId} по условиям подписки" });
     }
 
     protected ObjectResult _400VideoPlaylistAccountMismatch(int playlistId, int accountId)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Плейлист [id={playlistId}] не относится к лицевому счёту [id={accountId}]" });
+                          new ErrMessage { Msg = $"Плейлист с ID {playlistId} не относится к лицевому счёту с ID {accountId}" });
     }
 
     protected ObjectResult _400PlaylistItemPositionsNegative()
@@ -189,16 +189,16 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
 
     protected ObjectResult _409DeviceGroupAccountMismatch(int deviceGroupId, int? deviceAccountId)
     {
-        var deviceAccountMsg = deviceAccountId.HasValue ? $"лицевого счёта [id={deviceAccountId}]" : "не назначено лицевого счёта";
+        var deviceAccountMsg = deviceAccountId.HasValue ? $"лицевого счёта с ID {deviceAccountId}" : "не назначено лицевого счёта";
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Группа устройств [id={deviceGroupId}] не принадлежит к тому же лицевому счёту, что и устройство ({deviceAccountMsg})" });
+                          new ErrMessage { Msg = $"Группа устройств с ID {deviceGroupId} не принадлежит к тому же лицевому счёту, что и устройство ({deviceAccountMsg})" });
     }
 
     protected ObjectResult _400ServiceUnit(string? unit)
     {
         var displayValue = string.IsNullOrWhiteSpace(unit) ? "<пусто>" : unit;
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Неверное имя сервиса [{displayValue}]" });
+                          new ErrMessage { Msg = $"Неверное имя сервиса \"{displayValue}\"" });
     }
 
     protected ObjectResult _400VideoFileMissing()
@@ -240,7 +240,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _400SubscriptionCategoryFree(int categoryId)
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = $"Категория [id={categoryId}] доступна без подписки" });
+                          new ErrMessage { Msg = $"Категория с ID {categoryId} доступна без подписки" });
     }
 
     protected ObjectResult _400RequestPayloadMissing()
@@ -260,7 +260,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _500Mapping(string fname)
     {
         return StatusCode(StatusCodes.Status500InternalServerError,
-                          new ErrMessage { Msg = $"Не найдена спецификация файла реестра [имя файла = {fname}]" });
+                          new ErrMessage { Msg = $"Не найдена спецификация файла реестра с именем \"{fname}\"" });
     }
 
     protected ObjectResult _500UploadRegister()
@@ -272,7 +272,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _500VideoManifestFieldMissing(int videoId, string fieldName)
     {
         return StatusCode(StatusCodes.Status500InternalServerError,
-                          new ErrMessage { Msg = $"Отсутствует обязательное поле {fieldName} для видео [id={videoId}]" });
+                          new ErrMessage { Msg = $"Отсутствует обязательное поле \"{fieldName}\" для видео с ID {videoId}" });
     }
 
     protected ObjectResult _500DeviceIdMissing()
@@ -290,7 +290,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
     {
         return StatusCode(StatusCodes.Status403Forbidden,
-                          new ErrMessage { Msg = $"Устройство [id={deviceId}] не имеет доступа к видео [id={videoId}]" });
+                          new ErrMessage { Msg = $"Устройство с ID {deviceId} не имеет доступа к видео с ID {videoId}" });
     }
 
     /// <summary>

@@ -913,7 +913,10 @@ public class PlaylistsControllerTests
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         
         var errMessage = (ErrMessage)obj.Value!;
-        Assert.That(errMessage.Msg, Does.Contain("p1.json"));
+        Assert.That(errMessage.Msg, Does.Contain("\"p1.json\""));
+        Assert.That(errMessage.Msg, Does.Not.Contain("["));
+        Assert.That(errMessage.Msg, Does.Not.Contain("]"));
+        Assert.That(errMessage.Msg, Does.Not.Contain("filename ="));
         
         // Verify playlist count didn't increase
         Assert.That(_dbContext.Playlists.Count(), Is.EqualTo(2));
