@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using MediaPi.Core.Models;
 
 namespace MediaPi.Core.Data
@@ -26,6 +27,23 @@ namespace MediaPi.Core.Data
         public DbSet<PlaylistDeviceGroup> PlaylistDeviceGroups => Set<PlaylistDeviceGroup>();
         public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
         public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
+
+        public override int SaveChanges() => SaveChanges(true);
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            ApplyPlaylistTimestamps();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            SaveChangesAsync(true, cancellationToken);
+
+        public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            await ApplyPlaylistTimestampsAsync(cancellationToken);
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -111,6 +129,14 @@ namespace MediaPi.Core.Data
                  .IsUnique()
                  .HasFilter("\"play\" = true");
 
+            modelBuilder.Entity<Playlist>()
+                .Property(p => p.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            modelBuilder.Entity<Playlist>()
+                .Property(p => p.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
             modelBuilder.Entity<Category>()
                 .Property(c => c.Free)
                 .HasDefaultValue(true)
@@ -154,6 +180,152 @@ namespace MediaPi.Core.Data
             modelBuilder.Entity<UserRole>().HasData(
                 new UserRole { UserId = 1, RoleId = 1 }
             );
+        }
+
+        private void ApplyPlaylistTimestamps()
+        {
+            var (updatedAt, playlistEntries, touchedPlaylistIds) = PreparePlaylistTimestampChanges();
+            TouchPlaylists(touchedPlaylistIds, updatedAt, playlistEntries);
+        }
+
+        private async Task ApplyPlaylistTimestampsAsync(CancellationToken cancellationToken)
+        {
+            var (updatedAt, playlistEntries, touchedPlaylistIds) = PreparePlaylistTimestampChanges();
+            await TouchPlaylistsAsync(touchedPlaylistIds, updatedAt, playlistEntries, cancellationToken);
+        }
+
+        private (DateTime UpdatedAt, List<EntityEntry<Playlist>> PlaylistEntries, List<int> TouchedPlaylistIds) PreparePlaylistTimestampChanges()
+        {
+            ChangeTracker.DetectChanges();
+
+            var now = DateTime.UtcNow;
+            var playlistEntries = ChangeTracker.Entries<Playlist>().ToList();
+
+            foreach (var entry in playlistEntries)
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    if (entry.Entity.CreatedAt == default)
+                    {
+                        entry.Entity.CreatedAt = now;
+                    }
+
+                    if (entry.Entity.UpdatedAt == default)
+                    {
+                        entry.Entity.UpdatedAt = entry.Entity.CreatedAt;
+                    }
+                }
+                else if (entry.State == EntityState.Modified && HasPlaylistContentChange(entry))
+                {
+                    entry.Entity.UpdatedAt = now;
+                }
+            }
+
+            var deletedPlaylistIds = playlistEntries
+                .Where(entry => entry.State == EntityState.Deleted)
+                .Select(entry => entry.Entity.Id)
+                .ToHashSet();
+            var touchedPlaylistIds = ChangeTracker.Entries<VideoPlaylist>()
+                .Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                .SelectMany(GetAffectedPlaylistIds)
+                .Where(id => id > 0 && !deletedPlaylistIds.Contains(id))
+                .Distinct()
+                .ToList();
+
+            return (now, playlistEntries, touchedPlaylistIds);
+        }
+
+        private static bool HasPlaylistContentChange(EntityEntry<Playlist> entry) =>
+            entry.Properties.Any(property =>
+                property.IsModified
+                && property.Metadata.Name is not nameof(Playlist.CreatedAt)
+                && property.Metadata.Name is not nameof(Playlist.UpdatedAt));
+
+        private static IEnumerable<int> GetAffectedPlaylistIds(EntityEntry<VideoPlaylist> entry)
+        {
+            if (entry.State is EntityState.Modified or EntityState.Deleted)
+            {
+                var originalPlaylistId = entry.Property(vp => vp.PlaylistId).OriginalValue;
+                if (originalPlaylistId > 0)
+                {
+                    yield return originalPlaylistId;
+                }
+            }
+
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                var currentPlaylistId = entry.Entity.PlaylistId;
+                if (currentPlaylistId > 0)
+                {
+                    yield return currentPlaylistId;
+                }
+            }
+        }
+
+        private void TouchPlaylists(
+            IReadOnlyCollection<int> playlistIds,
+            DateTime updatedAt,
+            IReadOnlyCollection<EntityEntry<Playlist>> playlistEntries)
+        {
+            var untrackedIds = TouchTrackedPlaylists(playlistIds, updatedAt, playlistEntries);
+            if (untrackedIds.Count == 0) return;
+
+            var playlists = Playlists
+                .Where(playlist => untrackedIds.Contains(playlist.Id))
+                .ToList();
+
+            foreach (var playlist in playlists)
+            {
+                playlist.UpdatedAt = updatedAt;
+            }
+        }
+
+        private async Task TouchPlaylistsAsync(
+            IReadOnlyCollection<int> playlistIds,
+            DateTime updatedAt,
+            IReadOnlyCollection<EntityEntry<Playlist>> playlistEntries,
+            CancellationToken cancellationToken)
+        {
+            var untrackedIds = TouchTrackedPlaylists(playlistIds, updatedAt, playlistEntries);
+            if (untrackedIds.Count == 0) return;
+
+            var playlists = await Playlists
+                .Where(playlist => untrackedIds.Contains(playlist.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var playlist in playlists)
+            {
+                playlist.UpdatedAt = updatedAt;
+            }
+        }
+
+        private static List<int> TouchTrackedPlaylists(
+            IReadOnlyCollection<int> playlistIds,
+            DateTime updatedAt,
+            IReadOnlyCollection<EntityEntry<Playlist>> playlistEntries)
+        {
+            var entryById = playlistEntries
+                .Where(e => e.Entity.Id > 0)
+                .ToDictionary(e => e.Entity.Id);
+
+            var untrackedIds = new List<int>();
+            foreach (var playlistId in playlistIds)
+            {
+                if (!entryById.TryGetValue(playlistId, out var trackedEntry))
+                {
+                    untrackedIds.Add(playlistId);
+                    continue;
+                }
+
+                if (trackedEntry.State is EntityState.Added or EntityState.Deleted)
+                {
+                    continue;
+                }
+
+                trackedEntry.Entity.UpdatedAt = updatedAt;
+            }
+
+            return untrackedIds;
         }
     }
 }
