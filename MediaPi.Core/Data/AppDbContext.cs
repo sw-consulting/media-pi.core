@@ -304,11 +304,14 @@ namespace MediaPi.Core.Data
             DateTime updatedAt,
             IReadOnlyCollection<EntityEntry<Playlist>> playlistEntries)
         {
+            var entryById = playlistEntries
+                .Where(e => e.Entity.Id > 0)
+                .ToDictionary(e => e.Entity.Id);
+
             var untrackedIds = new List<int>();
             foreach (var playlistId in playlistIds)
             {
-                var trackedEntry = playlistEntries.FirstOrDefault(entry => entry.Entity.Id == playlistId);
-                if (trackedEntry == null)
+                if (!entryById.TryGetValue(playlistId, out var trackedEntry))
                 {
                     untrackedIds.Add(playlistId);
                     continue;
