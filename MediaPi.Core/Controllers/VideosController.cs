@@ -206,6 +206,9 @@ public class VideosController(
         var title = item.Title.Trim();
         var accountId = NormalizeAccountId(item.AccountId);
         var categoryId = ResolveCategoryId(item.CategoryId);
+        var originalFilenameConflict = await ValidateOriginalFilenameAvailable(item.File.FileName, accountId, categoryId, null, ct);
+        if (originalFilenameConflict != null) return originalFilenameConflict;
+
         var saveResult = await _videoStorageService.SaveVideoAsync(item.File, title, ct);
 
         // Check for duplicate filename before saving to database
@@ -218,8 +221,16 @@ public class VideosController(
 
         var video = CreateVideo(title, saveResult, accountId, categoryId);
 
-        _db.Videos.Add(video);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            _db.Videos.Add(video);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            await CleanupSavedVideos([saveResult.Filename], ct);
+            throw;
+        }
 
         return CreatedAtAction(nameof(GetVideo), new { id = video.Id }, new Reference { Id = video.Id });
     }
@@ -249,6 +260,26 @@ public class VideosController(
 
         var accountId = NormalizeAccountId(item.AccountId);
         var categoryId = ResolveCategoryId(item.CategoryId);
+        var duplicateBatchOriginalFilename = item.Files
+            .Select(file => file.FileName)
+            .GroupBy(filename => filename, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)
+            ?.Key;
+        if (duplicateBatchOriginalFilename != null)
+        {
+            return _409VideoOriginalFilename(duplicateBatchOriginalFilename, accountId, categoryId);
+        }
+
+        var existingOriginalFilenameConflict = await FindExistingOriginalFilenameConflict(
+            item.Files.Select(file => file.FileName),
+            accountId,
+            categoryId,
+            ct);
+        if (existingOriginalFilenameConflict != null)
+        {
+            return _409VideoOriginalFilename(existingOriginalFilenameConflict, accountId, categoryId);
+        }
+
         var savedFilenames = new List<string>();
         var videosToCreate = new List<Video>();
 
@@ -266,6 +297,13 @@ public class VideosController(
                 {
                     await CleanupSavedVideos(savedFilenames, ct);
                     return _409VideoFilename(saveResult.Filename);
+                }
+
+                if (videosToCreate.Any(v => v.OriginalFilename == saveResult.OriginalFilename)
+                    || await HasOriginalFilenameConflictAsync(saveResult.OriginalFilename, accountId, categoryId, null, ct))
+                {
+                    await CleanupSavedVideos(savedFilenames, ct);
+                    return _409VideoOriginalFilename(saveResult.OriginalFilename, accountId, categoryId);
                 }
 
                 videosToCreate.Add(CreateVideo(title, saveResult, accountId, categoryId));
@@ -326,6 +364,9 @@ public class VideosController(
             PlaylistAccessImpact? impact = null;
             if (video.CategoryId != normalizedCategoryId)
             {
+                var originalFilenameConflict = await ValidateOriginalFilenameAvailable(video.OriginalFilename, null, normalizedCategoryId, video.Id, ct);
+                if (originalFilenameConflict != null) return originalFilenameConflict;
+
                 impact = await _playlistAccessService.BuildVideoCategoryChangeImpactAsync([video.Id], normalizedCategoryId, ct);
                 if (impact.HasImpact && !item.ForcePlaylistCleanup)
                 {
@@ -371,6 +412,7 @@ public class VideosController(
         var videosById = videos.ToDictionary(v => v.Id);
         var normalizedCategoryId = NormalizeCategoryId(item.CategoryId.Value);
         var videosToUpdate = new List<Video>();
+        var acceptedOriginalFilenames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var id in ids)
         {
@@ -407,6 +449,14 @@ public class VideosController(
                 continue;
             }
 
+            if (acceptedOriginalFilenames.Contains(video.OriginalFilename)
+                || await HasOriginalFilenameConflictAsync(video.OriginalFilename, null, normalizedCategoryId, video.Id, ct))
+            {
+                result.Failures.Add(DuplicateOriginalFilenameFailure(video));
+                continue;
+            }
+
+            acceptedOriginalFilenames.Add(video.OriginalFilename);
             videosToUpdate.Add(video);
             result.UpdatedIds.Add(video.Id);
         }
@@ -621,6 +671,80 @@ public class VideosController(
         if (categoryError != null) return categoryError;
 
         return null;
+    }
+
+    private async Task<ObjectResult?> ValidateOriginalFilenameAvailable(
+        string originalFilename,
+        int? accountId,
+        int? categoryId,
+        int? excludedVideoId,
+        CancellationToken ct)
+    {
+        return await HasOriginalFilenameConflictAsync(originalFilename, accountId, categoryId, excludedVideoId, ct)
+            ? _409VideoOriginalFilename(originalFilename, accountId, categoryId)
+            : null;
+    }
+
+    private async Task<string?> FindExistingOriginalFilenameConflict(
+        IEnumerable<string> originalFilenames,
+        int? accountId,
+        int? categoryId,
+        CancellationToken ct)
+    {
+        var orderedFilenames = originalFilenames
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (orderedFilenames.Count == 0) return null;
+
+        var conflicts = await InVideoContainer(_db.Videos.AsNoTracking(), accountId, categoryId)
+            .Where(v => orderedFilenames.Contains(v.OriginalFilename))
+            .Select(v => v.OriginalFilename)
+            .ToListAsync(ct);
+        var conflictSet = conflicts.ToHashSet(StringComparer.Ordinal);
+
+        return orderedFilenames.FirstOrDefault(conflictSet.Contains);
+    }
+
+    private async Task<bool> HasOriginalFilenameConflictAsync(
+        string originalFilename,
+        int? accountId,
+        int? categoryId,
+        int? excludedVideoId,
+        CancellationToken ct)
+    {
+        var query = InVideoContainer(_db.Videos.AsNoTracking(), accountId, categoryId)
+            .Where(v => v.OriginalFilename == originalFilename);
+        if (excludedVideoId.HasValue)
+        {
+            query = query.Where(v => v.Id != excludedVideoId.Value);
+        }
+
+        return await query.AnyAsync(ct);
+    }
+
+    private static IQueryable<Video> InVideoContainer(IQueryable<Video> query, int? accountId, int? categoryId)
+    {
+        if (accountId.HasValue)
+        {
+            return query.Where(v => v.AccountId == accountId.Value);
+        }
+
+        if (categoryId.HasValue)
+        {
+            return query.Where(v => v.AccountId == null && v.CategoryId == categoryId.Value);
+        }
+
+        return query.Where(v => v.AccountId == null && v.CategoryId == null);
+    }
+
+    private VideoBatchOperationFailure DuplicateOriginalFilenameFailure(Video video)
+    {
+        return new VideoBatchOperationFailure
+        {
+            Id = video.Id,
+            Reason = DuplicateOriginalFilenameReason,
+            Message = VideoOriginalFilenameConflictMessage(video.OriginalFilename)
+        };
     }
 
     private static int? NormalizeAccountId(int accountId) => accountId == 0 ? null : accountId;
