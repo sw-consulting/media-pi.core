@@ -226,6 +226,14 @@ public class VideosController(
             _db.Videos.Add(video);
             await _db.SaveChangesAsync(ct);
         }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" } pg
+                                           && (pg.ConstraintName?.Contains("IX_videos_account_id_original_filename", StringComparison.OrdinalIgnoreCase) == true
+                                               || pg.ConstraintName?.Contains("IX_videos_category_id_original_filename", StringComparison.OrdinalIgnoreCase) == true
+                                               || pg.ConstraintName?.Contains("IX_videos_common_uncategorized_original_filename", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            await CleanupSavedVideos([saveResult.Filename], ct);
+            return _409VideoOriginalFilename(saveResult.OriginalFilename, accountId, categoryId);
+        }
         catch (DbUpdateException)
         {
             await CleanupSavedVideos([saveResult.Filename], ct);
