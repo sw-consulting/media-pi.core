@@ -429,7 +429,7 @@ public class VideosController(
                 {
                     Id = id,
                     Reason = "notFound",
-                    Message = $"Не удалось найти видеофайл [id={id}]"
+                    Message = $"Видеофайл с ID {id} не найден"
                 });
                 continue;
             }
@@ -440,7 +440,7 @@ public class VideosController(
                 {
                     Id = id,
                     Reason = "forbidden",
-                    Message = $"Недостаточно прав для изменения видеофайла [id={id}]"
+                    Message = $"Недостаточно прав для изменения видеофайла с ID {id}"
                 });
                 continue;
             }
@@ -451,7 +451,7 @@ public class VideosController(
                 {
                     Id = id,
                     Reason = "accountLinked",
-                    Message = $"Категория может быть назначена только общему видеофайлу [id={id}]"
+                    Message = $"Категория может быть назначена только общему видеофайлу; видео с ID {id} привязано к лицевому счёту"
                 });
                 continue;
             }
@@ -527,7 +527,7 @@ public class VideosController(
                 {
                     Id = id,
                     Reason = "notFound",
-                    Message = $"Не удалось найти видеофайл [id={id}]"
+                    Message = $"Видеофайл с ID {id} не найден"
                 });
                 continue;
             }
@@ -538,7 +538,7 @@ public class VideosController(
                 {
                     Id = id,
                     Reason = "forbidden",
-                    Message = $"Недостаточно прав для удаления видеофайла [id={id}]"
+                    Message = $"Недостаточно прав для удаления видеофайла с ID {id}"
                 });
                 continue;
             }
@@ -565,7 +565,7 @@ public class VideosController(
                 {
                     Id = video.Id,
                     Reason = "fileDeleteFailed",
-                    Message = $"Не удалось удалить файл видео [id={video.Id}]"
+                    Message = $"Не удалось удалить файл видео с ID {video.Id}"
                 });
             }
         }

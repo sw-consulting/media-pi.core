@@ -238,7 +238,8 @@ public class DeviceSyncControllerTests
         var errMessage = obj.Value as ErrMessage;
         Assert.That(errMessage, Is.Not.Null);
         Assert.That(errMessage!.Msg, Does.Contain("sha256"));
-        Assert.That(errMessage.Msg, Does.Contain($"id={video.Id}"));
+        Assert.That(errMessage.Msg, Does.Contain($"ID {video.Id}"));
+        Assert.That(errMessage.Msg, Does.Not.Contain("["));
     }
 
     [Test]
@@ -274,7 +275,8 @@ public class DeviceSyncControllerTests
         var errMessage = obj.Value as ErrMessage;
         Assert.That(errMessage, Is.Not.Null);
         Assert.That(errMessage!.Msg, Does.Contain("filename"));
-        Assert.That(errMessage.Msg, Does.Contain($"id={video.Id}"));
+        Assert.That(errMessage.Msg, Does.Contain($"ID {video.Id}"));
+        Assert.That(errMessage.Msg, Does.Not.Contain("["));
     }
 
     [Test]

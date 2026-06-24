@@ -156,6 +156,8 @@ public class CategoriesControllerTests
         var result = await _controller.GetCategory(999);
 
         AssertObjectStatus(result.Result, StatusCodes.Status404NotFound);
+        var error = (ErrMessage)((ObjectResult)result.Result!).Value!;
+        Assert.That(error.Msg, Is.EqualTo("Категория с ID 999 не найдена"));
     }
 
     [Test]
@@ -206,6 +208,9 @@ public class CategoriesControllerTests
         AssertObjectStatus(result.Result, StatusCodes.Status409Conflict);
         var error = (ErrMessage)((ObjectResult)result.Result!).Value!;
         Assert.That(error.Msg, Does.Contain("Категория"));
+        Assert.That(error.Msg, Does.Contain("\"Movies\""));
+        Assert.That(error.Msg, Does.Not.Contain("["));
+        Assert.That(error.Msg, Does.Not.Contain("title ="));
     }
 
     [Test]

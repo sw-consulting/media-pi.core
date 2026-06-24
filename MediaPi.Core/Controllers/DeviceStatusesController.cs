@@ -34,7 +34,7 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
         var snapshot = await monitoringService.Test(id, ct);
         if (snapshot is null)
         {
-            return NotFound(new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
+            return NotFound(new ErrMessage { Msg = $"Устройство с ID {id} не найдено" });
         }
         return Ok(new DeviceStatusItem(id, snapshot));
     }
@@ -47,7 +47,7 @@ public class DeviceStatusesController(IDeviceMonitoringService monitoringService
         var snapshot = await monitoringService.Test(id, ct);
         if (snapshot is null)
         {
-            return NotFound(new ErrMessage { Msg = $"Не удалось найти устройство [id={id}]" });
+            return NotFound(new ErrMessage { Msg = $"Устройство с ID {id} не найдено" });
         }
         return Ok(new DeviceStatusItem(id, snapshot));
     }
