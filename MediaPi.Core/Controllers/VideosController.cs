@@ -307,8 +307,7 @@ public class VideosController(
                     return _409VideoFilename(saveResult.Filename);
                 }
 
-                if (videosToCreate.Any(v => v.OriginalFilename == saveResult.OriginalFilename)
-                    || await HasOriginalFilenameConflictAsync(saveResult.OriginalFilename, accountId, categoryId, null, ct))
+                if (videosToCreate.Any(v => v.OriginalFilename == saveResult.OriginalFilename))
                 {
                     await CleanupSavedVideos(savedFilenames, ct);
                     return _409VideoOriginalFilename(saveResult.OriginalFilename, accountId, categoryId);
