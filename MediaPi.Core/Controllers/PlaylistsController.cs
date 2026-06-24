@@ -134,14 +134,11 @@ public class PlaylistsController(
         var itemValidationError = await ValidatePlaylistItems(items, account.Id, ct);
         if (itemValidationError != null) return itemValidationError;
 
-        var now = DateTime.UtcNow;
         var playlist = new Playlist
         {
             Title = item.Title,
             Filename = item.Filename,
             AccountId = item.AccountId,
-            CreatedAt = now,
-            UpdatedAt = now
         };
 
         // Add items with their positions
@@ -214,7 +211,6 @@ public class PlaylistsController(
             });
         }
 
-        playlist.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return NoContent();
     }
