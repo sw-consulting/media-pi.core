@@ -277,7 +277,7 @@ public class VideosControllerTests
         Assert.That(result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
-        Assert.That((obj.Value as ErrMessage)?.Msg, Does.Contain("999"));
+        Assert.That((obj.Value as ErrMessage)?.Msg, Is.EqualTo("Видеофайл с ID 999 не найден"));
     }
 
     [Test]
@@ -1159,6 +1159,10 @@ public class VideosControllerTests
         var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
         Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { _videoCommon.Id }));
         Assert.That(body.Failures.Select(f => f.Reason), Is.EquivalentTo(new[] { "accountLinked", "notFound" }));
+        Assert.That(body.Failures.Single(f => f.Reason == "accountLinked").Message,
+            Is.EqualTo($"Категория может быть назначена только общему видеофайлу; видео с ID {_videoAccount1.Id} привязано к лицевому счёту"));
+        Assert.That(body.Failures.Single(f => f.Reason == "notFound").Message,
+            Is.EqualTo("Видеофайл с ID 999 не найден"));
         Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.EqualTo(_categorySport.Id));
         Assert.That((await _dbContext.Videos.FindAsync(_videoAccount1.Id))!.CategoryId, Is.Null);
     }
@@ -1175,6 +1179,8 @@ public class VideosControllerTests
         var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
         Assert.That(body.UpdatedIds, Is.Empty);
         Assert.That(body.Failures.Single().Reason, Is.EqualTo("forbidden"));
+        Assert.That(body.Failures.Single().Message,
+            Is.EqualTo($"Недостаточно прав для изменения видеофайла с ID {_videoCommon.Id}"));
         Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
     }
 
@@ -1222,7 +1228,10 @@ public class VideosControllerTests
         Assert.That(body.DeletedIds, Is.EquivalentTo(new[] { _videoAccount1.Id }));
         Assert.That(body.Failures.Select(f => f.Id), Is.EquivalentTo(new[] { _videoAccount2.Id, 999 }));
         Assert.That(body.Failures.Single(f => f.Id == _videoAccount2.Id).Reason, Is.EqualTo("forbidden"));
+        Assert.That(body.Failures.Single(f => f.Id == _videoAccount2.Id).Message,
+            Is.EqualTo($"Недостаточно прав для удаления видеофайла с ID {_videoAccount2.Id}"));
         Assert.That(body.Failures.Single(f => f.Id == 999).Reason, Is.EqualTo("notFound"));
+        Assert.That(body.Failures.Single(f => f.Id == 999).Message, Is.EqualTo("Видеофайл с ID 999 не найден"));
         Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.False);
         Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount2.Id), Is.True);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
@@ -1249,6 +1258,7 @@ public class VideosControllerTests
         Assert.That(body.Failures, Has.Count.EqualTo(1));
         Assert.That(body.Failures[0].Id, Is.EqualTo(_videoAccount1.Id));
         Assert.That(body.Failures[0].Reason, Is.EqualTo("fileDeleteFailed"));
+        Assert.That(body.Failures[0].Message, Is.EqualTo($"Не удалось удалить файл видео с ID {_videoAccount1.Id}"));
         Assert.That(_dbContext.Videos.Any(v => v.Id == _videoAccount1.Id), Is.True);
         Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.VideoId == _videoAccount1.Id), Is.True);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(_videoAccount1.Filename, It.IsAny<CancellationToken>()), Times.Once);
@@ -1301,6 +1311,7 @@ public class VideosControllerTests
         Assert.That(body.Failures, Has.Count.EqualTo(1));
         Assert.That(body.Failures[0].Id, Is.EqualTo(3));
         Assert.That(body.Failures[0].Reason, Is.EqualTo("forbidden"));
+        Assert.That(body.Failures[0].Message, Is.EqualTo("Недостаточно прав для удаления видеофайла с ID 3"));
         Assert.That(_dbContext.Videos.Any(v => v.Id == 3), Is.True);
         _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }

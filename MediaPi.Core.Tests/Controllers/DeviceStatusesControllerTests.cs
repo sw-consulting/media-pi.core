@@ -118,7 +118,7 @@ public class DeviceStatusesControllerTests
         {
             Assert.That(notFound.Value, Is.TypeOf<ErrMessage>());
             var err = notFound.Value as ErrMessage;
-            Assert.That(err?.Msg, Does.Contain("99"));
+            Assert.That(err?.Msg, Is.EqualTo("Устройство с ID 99 не найдено"));
         }
     }
 
