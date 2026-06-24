@@ -796,6 +796,61 @@ public class PlaylistsControllerTests
     }
 
     [Test]
+    public async Task CreatePlaylist_SetsCreatedAtAndUpdatedAt()
+    {
+        SetCurrentUser(_admin.Id);
+        var before = DateTime.UtcNow.AddSeconds(-1);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Timestamped",
+            Filename = "timestamped.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+        var after = DateTime.UtcNow.AddSeconds(1);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
+        var reference = (Reference)created.Value!;
+        var playlist = await _dbContext.Playlists.FindAsync(reference.Id);
+
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.CreatedAt, Is.InRange(before, after));
+        Assert.That(playlist.UpdatedAt, Is.EqualTo(playlist.CreatedAt));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_PreservesCreatedAtAndRefreshesUpdatedAt()
+    {
+        var createdAt = new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc);
+        var oldUpdatedAt = new DateTime(2026, 1, 2, 10, 0, 0, DateTimeKind.Utc);
+        _playlist1.CreatedAt = createdAt;
+        _playlist1.UpdatedAt = oldUpdatedAt;
+        await _dbContext.SaveChangesAsync();
+
+        SetCurrentUser(_admin.Id);
+        var before = DateTime.UtcNow.AddSeconds(-1);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Timestamp Updated",
+            Filename = _playlist1.Filename,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+        var after = DateTime.UtcNow.AddSeconds(1);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.CreatedAt, Is.EqualTo(createdAt));
+        Assert.That(playlist.UpdatedAt, Is.InRange(before, after));
+        Assert.That(playlist.UpdatedAt, Is.GreaterThan(oldUpdatedAt));
+    }
+
+    [Test]
     public void PlaylistViewItem_WithLargeFileSizes_HandlesUlongCorrectly()
     {
         // Create test videos with file sizes that would exceed uint when combined

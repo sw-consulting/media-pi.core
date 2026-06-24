@@ -14,6 +14,8 @@ public class PlaylistViewItem
     public string Title { get; set; }
     public string Filename { get; set; }
     public int AccountId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     
     public IEnumerable<PlaylistItemDto> Items { get; set; }
     
@@ -31,6 +33,8 @@ public class PlaylistViewItem
         Title = playlist.Title;
         Filename = playlist.Filename;
         AccountId = playlist.AccountId;
+        CreatedAt = playlist.CreatedAt;
+        UpdatedAt = playlist.UpdatedAt;
         Items = playlist.VideosPlaylist
             .OrderBy(vp => vp.Position)
             .Select(vp => new PlaylistItemDto { VideoId = vp.VideoId, Position = vp.Position });

@@ -111,6 +111,14 @@ namespace MediaPi.Core.Data
                  .IsUnique()
                  .HasFilter("\"play\" = true");
 
+            modelBuilder.Entity<Playlist>()
+                .Property(p => p.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            modelBuilder.Entity<Playlist>()
+                .Property(p => p.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
             modelBuilder.Entity<Category>()
                 .Property(c => c.Free)
                 .HasDefaultValue(true)

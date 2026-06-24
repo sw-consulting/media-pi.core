@@ -207,6 +207,7 @@ namespace MediaPi.Core.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Filename")
@@ -221,6 +222,7 @@ namespace MediaPi.Core.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP")
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
