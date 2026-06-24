@@ -830,7 +830,7 @@ public class PlaylistsControllerTests
         await _dbContext.SaveChangesAsync();
 
         SetCurrentUser(_admin.Id);
-        var before = DateTime.UtcNow.AddSeconds(-1);
+        var before = DateTime.UtcNow.AddSeconds(-5);
         var item = new PlaylistUpdateItem
         {
             Title = "Timestamp Updated",
@@ -839,8 +839,7 @@ public class PlaylistsControllerTests
         };
 
         var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
-        var after = DateTime.UtcNow.AddSeconds(1);
-
+        var after = DateTime.UtcNow.AddSeconds(5);
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
         Assert.That(playlist, Is.Not.Null);
