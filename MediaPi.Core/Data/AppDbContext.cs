@@ -148,6 +148,24 @@ namespace MediaPi.Core.Data
                 .HasDatabaseName("IX_categories_title");
 
             modelBuilder.Entity<Video>()
+                .HasIndex(v => new { v.AccountId, v.OriginalFilename })
+                .IsUnique()
+                .HasDatabaseName("IX_videos_account_id_original_filename")
+                .HasFilter("\"account_id\" IS NOT NULL");
+
+            modelBuilder.Entity<Video>()
+                .HasIndex(v => new { v.CategoryId, v.OriginalFilename })
+                .IsUnique()
+                .HasDatabaseName("IX_videos_category_id_original_filename")
+                .HasFilter("\"account_id\" IS NULL AND \"category_id\" IS NOT NULL");
+
+            modelBuilder.Entity<Video>()
+                .HasIndex(v => v.OriginalFilename)
+                .IsUnique()
+                .HasDatabaseName("IX_videos_common_uncategorized_original_filename")
+                .HasFilter("\"account_id\" IS NULL AND \"category_id\" IS NULL");
+
+            modelBuilder.Entity<Video>()
                 .HasOne(v => v.Category)
                 .WithMany(c => c.Videos)
                 .HasForeignKey(v => v.CategoryId)

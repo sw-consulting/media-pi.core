@@ -6,6 +6,11 @@ namespace MediaPi.Core.RestModels;
 public class ErrMessage
 {
     public required string Msg { get; set; }
+    public string? Reason { get; set; }
+    public string? OriginalFilename { get; set; }
+    public int? AccountId { get; set; }
+    public int? CategoryId { get; set; }
+
     public override string ToString()
     {
         return $"Error: \"{Msg}\"";

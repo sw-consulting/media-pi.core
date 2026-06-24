@@ -1617,4 +1617,227 @@ public class VideosControllerTests
         Assert.That(_dbContext.VideoPlaylists.Any(vp => vp.Id == 310), Is.False);
     }
 
+    [Test]
+    public async Task UploadVideo_DuplicateOriginalFilenameInAccount_Returns409WithoutSavingFile()
+    {
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile(_videoAccount1.OriginalFilename);
+        var item = new VideoUploadItem
+        {
+            Title = "Duplicate",
+            AccountId = _account1.Id,
+            File = file
+        };
+
+        var result = await _controller.UploadVideo(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        AssertDuplicateOriginalFilename(obj.Value, _videoAccount1.OriginalFilename, _account1.Id, null);
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task UploadVideo_SameOriginalFilenameInDifferentAccount_SavesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile(_videoAccount1.OriginalFilename);
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/account2-same-name.mp4",
+            OriginalFilename = _videoAccount1.OriginalFilename,
+            FileSizeBytes = (uint)file.Length,
+            DurationSeconds = 45
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Allowed duplicate in another account",
+            AccountId = _account2.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (Reference)((CreatedAtActionResult)result.Result!).Value!;
+        var video = await _dbContext.Videos.FindAsync(reference.Id);
+        Assert.That(video, Is.Not.Null);
+        Assert.That(video!.AccountId, Is.EqualTo(_account2.Id));
+        Assert.That(video.OriginalFilename, Is.EqualTo(_videoAccount1.OriginalFilename));
+    }
+
+    [Test]
+    public async Task UploadVideo_DuplicateOriginalFilenameInCategory_Returns409WithoutSavingFile()
+    {
+        _videoCommon.CategoryId = _categoryNews.Id;
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile(_videoCommon.OriginalFilename);
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Duplicate common category file",
+            AccountId = 0,
+            CategoryId = _categoryNews.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        AssertDuplicateOriginalFilename(obj.Value, _videoCommon.OriginalFilename, null, _categoryNews.Id);
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task UploadVideo_SameOriginalFilenameInDifferentCategory_SavesSuccessfully()
+    {
+        _videoCommon.CategoryId = _categoryNews.Id;
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile(_videoCommon.OriginalFilename);
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/sport-same-name.mp4",
+            OriginalFilename = _videoCommon.OriginalFilename,
+            FileSizeBytes = (uint)file.Length,
+            DurationSeconds = 45
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Allowed duplicate in another category",
+            AccountId = 0,
+            CategoryId = _categorySport.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (Reference)((CreatedAtActionResult)result.Result!).Value!;
+        var video = await _dbContext.Videos.FindAsync(reference.Id);
+        Assert.That(video, Is.Not.Null);
+        Assert.That(video!.CategoryId, Is.EqualTo(_categorySport.Id));
+        Assert.That(video.OriginalFilename, Is.EqualTo(_videoCommon.OriginalFilename));
+    }
+
+    [Test]
+    public async Task UploadVideos_DuplicateOriginalFilenameInsideBatch_Returns409WithoutSavingFiles()
+    {
+        SetCurrentUser(_admin.Id);
+        var file1 = CreateFormFile("same.mp4", "first");
+        var file2 = CreateFormFile("same.mp4", "second");
+
+        var result = await _controller.UploadVideos(new VideoBatchUploadItem
+        {
+            AccountId = 0,
+            CategoryId = _categoryNews.Id,
+            Files = [file1, file2]
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        AssertDuplicateOriginalFilename(obj.Value, "same.mp4", null, _categoryNews.Id);
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task UpdateVideo_CategoryMoveDuplicateOriginalFilename_Returns409BeforePlaylistImpact()
+    {
+        var paidCat = new Category { Id = 50, Title = "Paid50", Free = false };
+        _dbContext.Categories.Add(paidCat);
+        _dbContext.Videos.Add(new Video
+        {
+            Id = 51,
+            Title = "Duplicate target",
+            Filename = "0001/duplicate-target.mp4",
+            OriginalFilename = _videoCommon.OriginalFilename,
+            FileSizeBytes = 100,
+            AccountId = null,
+            CategoryId = paidCat.Id
+        });
+        _dbContext.VideoPlaylists.Add(new VideoPlaylist
+        {
+            Id = 510,
+            VideoId = _videoCommon.Id,
+            Video = _videoCommon,
+            PlaylistId = _playlistAccount1.Id,
+            Playlist = _playlistAccount1,
+            Position = 10
+        });
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideo(_videoCommon.Id, new VideoUpdateItem { CategoryId = paidCat.Id });
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        AssertDuplicateOriginalFilename(obj.Value, _videoCommon.OriginalFilename, null, paidCat.Id);
+        Assert.That(obj.Value, Is.Not.TypeOf<PlaylistAccessImpact>());
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
+    }
+
+    [Test]
+    public async Task UpdateVideoCategories_DuplicateOriginalFilenameReportsFailureAndUpdatesValidVideos()
+    {
+        _dbContext.Videos.AddRange(
+            new Video
+            {
+                Id = 60,
+                Title = "Duplicate target",
+                Filename = "0001/category-duplicate.mp4",
+                OriginalFilename = _videoCommon.OriginalFilename,
+                FileSizeBytes = 100,
+                AccountId = null,
+                CategoryId = _categoryNews.Id
+            },
+            new Video
+            {
+                Id = 61,
+                Title = "Movable",
+                Filename = "0001/movable.mp4",
+                OriginalFilename = "movable.mp4",
+                FileSizeBytes = 100,
+                AccountId = null,
+                CategoryId = null
+            });
+        await _dbContext.SaveChangesAsync();
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateVideoCategories(new VideoBatchCategoryUpdateItem
+        {
+            Ids = [_videoCommon.Id, 61],
+            CategoryId = _categoryNews.Id
+        });
+
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var body = (VideoBatchCategoryUpdateResult)((OkObjectResult)result.Result!).Value!;
+        Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { 61 }));
+        Assert.That(body.Failures, Has.Count.EqualTo(1));
+        Assert.That(body.Failures[0].Id, Is.EqualTo(_videoCommon.Id));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(body.Failures[0].Message, Does.Contain(_videoCommon.OriginalFilename));
+        Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
+        Assert.That((await _dbContext.Videos.FindAsync(61))!.CategoryId, Is.EqualTo(_categoryNews.Id));
+    }
+
+    private static void AssertDuplicateOriginalFilename(object? value, string originalFilename, int? accountId, int? categoryId)
+    {
+        Assert.That(value, Is.TypeOf<ErrMessage>());
+        var error = (ErrMessage)value!;
+        Assert.That(error.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error.OriginalFilename, Is.EqualTo(originalFilename));
+        Assert.That(error.AccountId, Is.EqualTo(accountId));
+        Assert.That(error.CategoryId, Is.EqualTo(categoryId));
+        Assert.That(error.Msg, Does.Contain(originalFilename));
+    }
 }
