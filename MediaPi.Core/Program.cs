@@ -157,6 +157,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app
+    .UseMiddleware<UploadExceptionMiddleware>()
     .UseMiddleware<JwtMiddleware>()
     .UseMiddleware<AuthorizeDeviceByXIdMiddleware>()
     .UseMiddleware<DatabaseConstraintMiddleware>()

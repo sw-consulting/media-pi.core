@@ -231,7 +231,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _400VideoFileMissing()
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует файл" });
+                          new ErrMessage { Msg = "Не удалось загрузить видеофайл: отсутствует файл" });
     }
 
     protected ObjectResult _400ScreenshotFileMissing()
@@ -243,7 +243,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _400VideoTitleMissing()
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует описание" });
+                          new ErrMessage { Msg = "Не удалось загрузить видеофайл: отсутствует описание" });
     }
 
     protected ObjectResult _400VideoCategoryOnlyForCommon()
@@ -314,10 +314,70 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage { Msg = "Внутренняя ошибка при сохранении снимка экрана" });
     }
 
+    protected ObjectResult _500VideoStorageSaveFailed(string originalFilename, int? accountId = null, int? categoryId = null)
+    {
+        return VideoUploadError(
+            StatusCodes.Status500InternalServerError,
+            $"Не удалось сохранить видеофайл \"{originalFilename}\" на сервере",
+            ConflictReasons.VideoStorageSaveFailed,
+            originalFilename,
+            accountId,
+            categoryId);
+    }
+
+    protected ObjectResult _500VideoUploadCleanupFailed(string originalFilename, int? accountId = null, int? categoryId = null)
+    {
+        return VideoUploadError(
+            StatusCodes.Status500InternalServerError,
+            $"Не удалось очистить временный файл после ошибки загрузки видеофайла \"{originalFilename}\"",
+            ConflictReasons.VideoUploadCleanupFailed,
+            originalFilename,
+            accountId,
+            categoryId);
+    }
+
+    protected ObjectResult _500VideoUploadProcessingFailed(string originalFilename, int? accountId = null, int? categoryId = null)
+    {
+        return VideoUploadError(
+            StatusCodes.Status500InternalServerError,
+            $"Внутренняя ошибка при обработке видеофайла \"{originalFilename}\"",
+            ConflictReasons.VideoUploadProcessingFailed,
+            originalFilename,
+            accountId,
+            categoryId);
+    }
+
+    protected ObjectResult _413VideoUploadTooLarge()
+    {
+        return VideoUploadError(
+            StatusCodes.Status413PayloadTooLarge,
+            "Размер загружаемого файла превышает допустимый предел",
+            ConflictReasons.VideoUploadTooLarge);
+    }
+
     protected ObjectResult _403DeviceUnauthorizedVideo(int deviceId, int videoId)
     {
         return StatusCode(StatusCodes.Status403Forbidden,
                           new ErrMessage { Msg = $"Устройство с ID {deviceId} не имеет доступа к видео с ID {videoId}" });
+    }
+
+    protected ObjectResult VideoUploadError(
+        int statusCode,
+        string message,
+        string reason,
+        string? originalFilename = null,
+        int? accountId = null,
+        int? categoryId = null)
+    {
+        return StatusCode(statusCode,
+                          new ErrMessage
+                          {
+                              Msg = message,
+                              Reason = reason,
+                              OriginalFilename = originalFilename,
+                              AccountId = accountId,
+                              CategoryId = categoryId
+                          });
     }
 
     /// <summary>

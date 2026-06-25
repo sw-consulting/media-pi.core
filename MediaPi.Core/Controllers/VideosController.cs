@@ -212,13 +212,29 @@ public class VideosController(
         var titleConflict = await ValidateVideoDescriptionAvailable(title, accountId, categoryId, null, ct);
         if (titleConflict != null) return titleConflict;
 
-        var saveResult = await _videoStorageService.SaveVideoAsync(item.File, title, ct);
+        VideoSaveResult saveResult;
+        try
+        {
+            saveResult = await _videoStorageService.SaveVideoAsync(item.File, title, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save uploaded video file {OriginalFilename}", item.File.FileName);
+            return _500VideoStorageSaveFailed(item.File.FileName, accountId, categoryId);
+        }
 
         // Check for duplicate filename before saving to database
         if (await _db.Videos.AnyAsync(v => v.Filename == saveResult.Filename, ct))
         {
             // Clean up the saved file since we can't use it
-            await _videoStorageService.DeleteVideoAsync(saveResult.Filename, ct);
+            if (!await DeleteUploadedVideoFile(saveResult.Filename, ct))
+            {
+                return _500VideoUploadCleanupFailed(saveResult.OriginalFilename, accountId, categoryId);
+            }
             return _409VideoFilename(saveResult.Filename);
         }
 
@@ -232,19 +248,42 @@ public class VideosController(
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" } pg
                                            && IsOriginalFilenameConstraint(pg.ConstraintName))
         {
-            await CleanupSavedVideos([saveResult.Filename], ct);
+            if (!await CleanupSavedVideos([saveResult.Filename], ct))
+            {
+                return _500VideoUploadCleanupFailed(saveResult.OriginalFilename, accountId, categoryId);
+            }
             return _409VideoOriginalFilename(saveResult.OriginalFilename, accountId, categoryId);
         }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" } pg
                                            && IsVideoDescriptionConstraint(pg.ConstraintName))
         {
-            await CleanupSavedVideos([saveResult.Filename], ct);
+            if (!await CleanupSavedVideos([saveResult.Filename], ct))
+            {
+                return _500VideoUploadCleanupFailed(saveResult.OriginalFilename, accountId, categoryId);
+            }
             return _409VideoDescription(title, accountId, categoryId);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            await CleanupSavedVideos([saveResult.Filename], ct);
+            if (!await CleanupSavedVideos([saveResult.Filename], ct))
+            {
+                return _500VideoUploadCleanupFailed(saveResult.OriginalFilename, accountId, categoryId);
+            }
+            _logger.LogError(ex, "Failed to process uploaded video file {OriginalFilename}", saveResult.OriginalFilename);
+            return _500VideoUploadProcessingFailed(saveResult.OriginalFilename, accountId, categoryId);
+        }
+        catch (OperationCanceledException)
+        {
             throw;
+        }
+        catch (Exception ex)
+        {
+            if (!await CleanupSavedVideos([saveResult.Filename], ct))
+            {
+                return _500VideoUploadCleanupFailed(saveResult.OriginalFilename, accountId, categoryId);
+            }
+            _logger.LogError(ex, "Failed to process uploaded video file {OriginalFilename}", saveResult.OriginalFilename);
+            return _500VideoUploadProcessingFailed(saveResult.OriginalFilename, accountId, categoryId);
         }
 
         return CreatedAtAction(nameof(GetVideo), new { id = video.Id }, new Reference { Id = video.Id });
@@ -800,7 +839,7 @@ return _curUserId == 0 ? null : await CurrentUser();
         };
     }
 
-    private async Task CleanupSavedVideos(IEnumerable<string> filenames, CancellationToken ct)
+    private async Task<bool> CleanupSavedVideos(IEnumerable<string> filenames, CancellationToken ct)
     {
         var uniqueFilenames = filenames
             .Distinct(StringComparer.Ordinal)
@@ -811,19 +850,36 @@ return _curUserId == 0 ? null : await CurrentUser();
             .Select(v => v.Filename)
             .ToListAsync(ct);
         var persistedFilenameSet = persistedFilenames.ToHashSet(StringComparer.Ordinal);
+        var succeeded = true;
 
         foreach (var filename in uniqueFilenames)
         {
             if (persistedFilenameSet.Contains(filename)) continue;
 
-            try
+            if (!await DeleteUploadedVideoFile(filename, ct))
             {
-                await _videoStorageService.DeleteVideoAsync(filename, ct);
+                succeeded = false;
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to cleanup uploaded video file {Filename}", filename);
-            }
+        }
+
+        return succeeded;
+    }
+
+    private async Task<bool> DeleteUploadedVideoFile(string filename, CancellationToken ct)
+    {
+        try
+        {
+            await _videoStorageService.DeleteVideoAsync(filename, ct);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cleanup uploaded video file {Filename}", filename);
+            return false;
         }
     }
 
