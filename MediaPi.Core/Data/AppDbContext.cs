@@ -137,6 +137,11 @@ namespace MediaPi.Core.Data
                 .Property(p => p.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            modelBuilder.Entity<Playlist>()
+                .HasIndex(p => new { p.AccountId, p.Title })
+                .IsUnique()
+                .HasDatabaseName("IX_playlists_account_id_title");
+
             modelBuilder.Entity<Category>()
                 .Property(c => c.Free)
                 .HasDefaultValue(true)

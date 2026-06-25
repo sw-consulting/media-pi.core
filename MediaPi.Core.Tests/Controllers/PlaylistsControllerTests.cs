@@ -923,6 +923,111 @@ public class PlaylistsControllerTests
     }
 
     [Test]
+    public async Task CreatePlaylist_DuplicateDescriptionInSameAccount_Returns409()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Playlist 1",
+            Filename = "unique-description.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+
+        var errMessage = (ErrMessage)obj.Value!;
+        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+        Assert.That(errMessage.Msg, Does.Contain("\"Playlist 1\""));
+        Assert.That(_dbContext.Playlists.Count(), Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_SameDescriptionInDifferentAccount_CreatesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "Playlist 1",
+            Filename = "same-description-other-account.json",
+            AccountId = _account2.Id,
+            Items = [new PlaylistItemDto { VideoId = _videoAcc2.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
+        var reference = (Reference)created.Value!;
+        var playlist = await _dbContext.Playlists.FindAsync(reference.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.AccountId, Is.EqualTo(_account2.Id));
+        Assert.That(playlist.Title, Is.EqualTo("Playlist 1"));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_TrimsDescriptionBeforeSavingAndCheckingDuplicates()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "  Trimmed Playlist  ",
+            Filename = "trimmed.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (Reference)((CreatedAtActionResult)result.Result!).Value!;
+        var playlist = await _dbContext.Playlists.FindAsync(reference.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Title, Is.EqualTo("Trimmed Playlist"));
+
+        var duplicateItem = new PlaylistCreateItem
+        {
+            Title = "Trimmed Playlist",
+            Filename = "trimmed-duplicate.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var duplicateResult = await _controller.CreatePlaylist(duplicateItem);
+
+        Assert.That(duplicateResult.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)duplicateResult.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var errMessage = (ErrMessage)obj.Value!;
+        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+    }
+
+    [Test]
+    public async Task CreatePlaylist_CaseOnlyDescriptionDifference_CreatesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistCreateItem
+        {
+            Title = "playlist 1",
+            Filename = "case-description.json",
+            AccountId = _account1.Id,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.CreatePlaylist(item);
+
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var created = (CreatedAtActionResult)result.Result!;
+        var playlist = await _dbContext.Playlists.FindAsync(((Reference)created.Value!).Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Title, Is.EqualTo("playlist 1"));
+    }
+
+    [Test]
     public async Task CreatePlaylist_UniqueFilename_CreatesSuccessfully()
     {
         SetCurrentUser(_admin.Id);
@@ -970,6 +1075,99 @@ public class PlaylistsControllerTests
         Assert.That(playlist, Is.Not.Null);
         Assert.That(playlist!.Filename, Is.EqualTo("p2.json"));
         Assert.That(playlist.Title, Is.EqualTo("Updated"));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_DuplicateFilenameInSameAccount_Returns409()
+    {
+        SetCurrentUser(_admin.Id);
+        var otherPlaylist = new Playlist
+        {
+            Id = 51,
+            Title = "Filename Conflict Playlist",
+            Filename = "account-1-conflict.json",
+            AccountId = _account1.Id,
+            Account = _account1
+        };
+        _dbContext.Playlists.Add(otherPlaylist);
+        await _dbContext.SaveChangesAsync();
+
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Unique Updated Title",
+            Filename = "account-1-conflict.json",
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var errMessage = (ErrMessage)obj.Value!;
+        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistFilename"));
+
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Filename, Is.EqualTo("p1.json"));
+        Assert.That(playlist.Title, Is.EqualTo("Playlist 1"));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_DuplicateDescriptionInSameAccount_Returns409AndDoesNotMutate()
+    {
+        SetCurrentUser(_admin.Id);
+        var otherPlaylist = new Playlist
+        {
+            Id = 50,
+            Title = "Second Account 1 Playlist",
+            Filename = "second-account-1.json",
+            AccountId = _account1.Id,
+            Account = _account1
+        };
+        _dbContext.Playlists.Add(otherPlaylist);
+        await _dbContext.SaveChangesAsync();
+
+        var item = new PlaylistUpdateItem
+        {
+            Title = "Second Account 1 Playlist",
+            Filename = _playlist1.Filename,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var errMessage = (ErrMessage)obj.Value!;
+        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Title, Is.EqualTo("Playlist 1"));
+        Assert.That(playlist.Filename, Is.EqualTo("p1.json"));
+    }
+
+    [Test]
+    public async Task UpdatePlaylist_SameTrimmedDescription_UpdatesSuccessfully()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new PlaylistUpdateItem
+        {
+            Title = "  Playlist 1  ",
+            Filename = _playlist1.Filename,
+            Items = [new PlaylistItemDto { VideoId = _video1Acc1.Id, Position = 0 }]
+        };
+
+        var result = await _controller.UpdatePlaylist(_playlist1.Id, item);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
+        Assert.That(playlist, Is.Not.Null);
+        Assert.That(playlist!.Title, Is.EqualTo("Playlist 1"));
+        Assert.That(playlist.Filename, Is.EqualTo(_playlist1.Filename));
     }
 
     [Test]

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using MediaPi.Core.Middleware;
 using MediaPi.Core.RestModels;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -116,6 +117,81 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
     }
 
+    [Test]
+    public async Task InvokeAsync_FallbackPath_PlaylistDescriptionConstraint_ReturnsDuplicatePlaylistDescriptionReason()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            "unique constraint violated: IX_playlists_account_id_title"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_FallbackPath_PlaylistFilenameConstraint_ReturnsDuplicatePlaylistFilenameReason()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            "unique constraint violated: IX_playlists_account_id_filename"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistFilename"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_FallbackPath_UnknownUniqueConstraint_ReturnsGenericUniqueMessage()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            "unique constraint violated: IX_unknown_unique_constraint"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Msg, Is.EqualTo("Нарушено уникальное ограничение базы данных"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_FallbackPath_ForeignKeyConstraint_ReturnsForeignKeyMessage()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            "foreign key constraint violated"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Msg, Is.EqualTo("Нарушено ограничение внешнего ключа базы данных"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_FallbackPath_OtherConstraint_ReturnsIntegrityMessage()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            "check constraint violated"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Msg, Is.EqualTo("Нарушено ограничение целостности базы данных"));
+    }
+
     // ── PostgreSQL path ──────────────────────────────────────────────────────
 
     [Test]
@@ -161,5 +237,114 @@ public class DatabaseConstraintMiddlewareTests
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
         Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_PostgresPath_PlaylistDescriptionConstraint_ReturnsDuplicatePlaylistDescriptionReason()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakePostgresException(
+            "IX_playlists_account_id_title"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_PostgresPath_PlaylistFilenameConstraint_ReturnsDuplicatePlaylistFilenameReason()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakePostgresException(
+            "IX_playlists_account_id_filename"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistFilename"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_PostgresPath_PlaylistDeviceGroupConstraint_ReturnsPlaylistDeviceGroupMessage()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakePostgresException(
+            "IX_playlist_device_group_device_group_id"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Msg, Is.EqualTo("Группа устройств может иметь не более одного проигрываемого плейлиста"));
+    }
+
+    [Test]
+    public async Task InvokeAsync_PostgresPath_UnknownUniqueConstraint_ReturnsGenericUniqueMessage()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakePostgresException(
+            "IX_unknown_unique_constraint"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Msg, Is.EqualTo("Нарушено уникальное ограничение базы данных"));
+    }
+
+    [TestCase("23503", "Нарушено ограничение внешнего ключа базы данных")]
+    [TestCase("23514", "Данные не соответствуют ограничениям на значения полей")]
+    [TestCase("23001", "Нарушено ограничение целостности базы данных")]
+    [TestCase("23000", "Нарушено ограничение целостности базы данных")]
+    public async Task InvokeAsync_PostgresPath_NonUniqueConstraint_ReturnsMappedMessage(string sqlState, string expectedMessage)
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakePostgresException(
+            "constraint_name", sqlState));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Msg, Is.EqualTo(expectedMessage));
+    }
+
+    [Test]
+    public void InvokeAsync_ResponseAlreadyStarted_RethrowsOriginalException()
+    {
+        var context = new DefaultHttpContext();
+        context.Features.Set<IHttpResponseFeature>(new StartedResponseFeature());
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            "unique constraint violated: IX_unknown_unique_constraint"));
+
+        var ex = Assert.ThrowsAsync<DbUpdateException>(async () => await middleware.InvokeAsync(context));
+
+        Assert.That(ex, Is.Not.Null);
+        Assert.That(context.Response.HasStarted, Is.True);
+    }
+
+    private sealed class StartedResponseFeature : IHttpResponseFeature
+    {
+        public int StatusCode { get; set; } = StatusCodes.Status200OK;
+        public string? ReasonPhrase { get; set; }
+        public IHeaderDictionary Headers { get; set; } = new HeaderDictionary();
+        public Stream Body { get; set; } = new MemoryStream();
+        public bool HasStarted => true;
+
+        public void OnCompleted(Func<object, Task> callback, object state)
+        {
+        }
+
+        public void OnStarting(Func<object, Task> callback, object state)
+        {
+        }
     }
 }

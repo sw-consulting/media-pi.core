@@ -14,6 +14,10 @@ namespace MediaPi.Core.Middleware;
 /// </summary>
 public class DatabaseConstraintMiddleware
 {
+    private const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
+    private const string DuplicatePlaylistDescriptionReason = "duplicatePlaylistDescription";
+    private const string DuplicatePlaylistFilenameReason = "duplicatePlaylistFilename";
+
     private readonly RequestDelegate _next;
     private readonly ILogger<DatabaseConstraintMiddleware> _logger;
 
@@ -69,6 +73,16 @@ public class DatabaseConstraintMiddleware
                 return DuplicateOriginalFilenameError();
             }
 
+            if (innerMessage.Contains("IX_playlists_account_id_title", StringComparison.OrdinalIgnoreCase))
+            {
+                return DuplicatePlaylistDescriptionError();
+            }
+
+            if (innerMessage.Contains("IX_playlists_account_id_filename", StringComparison.OrdinalIgnoreCase))
+            {
+                return DuplicatePlaylistFilenameError();
+            }
+
             return new ErrMessage { Msg = "Нарушено уникальное ограничение базы данных" };
         }
 
@@ -115,6 +129,16 @@ public class DatabaseConstraintMiddleware
                 return DuplicateOriginalFilenameError();
             }
 
+            if (ex.ConstraintName?.Contains("ix_playlists_account_id_title", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return DuplicatePlaylistDescriptionError();
+            }
+
+            if (ex.ConstraintName?.Contains("ix_playlists_account_id_filename", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return DuplicatePlaylistFilenameError();
+            }
+
             return new ErrMessage { Msg = "Нарушено уникальное ограничение базы данных" };
         }
 
@@ -144,7 +168,25 @@ public class DatabaseConstraintMiddleware
         return new ErrMessage
         {
             Msg = "В выбранном разделе уже есть видеофайл с таким именем",
-            Reason = "duplicateOriginalFilename"
+            Reason = DuplicateOriginalFilenameReason
+        };
+    }
+
+    private static ErrMessage DuplicatePlaylistDescriptionError()
+    {
+        return new ErrMessage
+        {
+            Msg = "Плейлист с таким описанием уже существует",
+            Reason = DuplicatePlaylistDescriptionReason
+        };
+    }
+
+    private static ErrMessage DuplicatePlaylistFilenameError()
+    {
+        return new ErrMessage
+        {
+            Msg = "Плейлист с таким именем файла уже существует",
+            Reason = DuplicatePlaylistFilenameReason
         };
     }
 }
