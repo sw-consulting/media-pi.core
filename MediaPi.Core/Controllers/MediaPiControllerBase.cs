@@ -11,6 +11,7 @@ namespace MediaPi.Core.Controllers;
 public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
 {
     protected const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
+    protected const string DuplicateVideoDescriptionReason = "duplicateVideoDescription";
     protected const string DuplicatePlaylistDescriptionReason = "duplicatePlaylistDescription";
     protected const string DuplicatePlaylistFilenameReason = "duplicatePlaylistFilename";
 
@@ -141,6 +142,21 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected static string VideoOriginalFilenameConflictMessage(string originalFilename) =>
         $"В выбранном разделе уже есть видеофайл с именем \"{originalFilename}\"";
 
+    protected ObjectResult _409VideoDescription(string title, int? accountId = null, int? categoryId = null)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage
+                          {
+                              Msg = VideoDescriptionConflictMessage(title),
+                              Reason = DuplicateVideoDescriptionReason,
+                              AccountId = accountId,
+                              CategoryId = categoryId
+                          });
+    }
+
+    protected static string VideoDescriptionConflictMessage(string title) =>
+        $"В выбранном разделе уже есть видеофайл с описанием \"{title}\"";
+
     protected ObjectResult _409PlaylistFilename(string filename)
     {
         return StatusCode(StatusCodes.Status409Conflict,
@@ -232,7 +248,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _400VideoTitleMissing()
     {
         return StatusCode(StatusCodes.Status400BadRequest,
-                          new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует название" });
+                          new ErrMessage { Msg = "Не удалось загрузить видео: отсутствует описание" });
     }
 
     protected ObjectResult _400VideoCategoryOnlyForCommon()

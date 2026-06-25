@@ -117,6 +117,23 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
     }
 
+    [TestCase("IX_videos_account_id_title")]
+    [TestCase("IX_videos_category_id_title")]
+    [TestCase("IX_videos_common_uncategorized_title")]
+    public async Task InvokeAsync_FallbackPath_VideoDescriptionConstraint_ReturnsDuplicateVideoDescriptionReason(string indexName)
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakeFallbackException(
+            $"unique constraint violated: {indexName}"));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Reason, Is.EqualTo("duplicateVideoDescription"));
+    }
+
     [Test]
     public async Task InvokeAsync_FallbackPath_PlaylistDescriptionConstraint_ReturnsDuplicatePlaylistDescriptionReason()
     {
@@ -237,6 +254,22 @@ public class DatabaseConstraintMiddlewareTests
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
         Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+    }
+
+    [TestCase("IX_videos_account_id_title")]
+    [TestCase("IX_videos_category_id_title")]
+    [TestCase("IX_videos_common_uncategorized_title")]
+    public async Task InvokeAsync_PostgresPath_VideoDescriptionConstraint_ReturnsDuplicateVideoDescriptionReason(string indexName)
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw MakePostgresException(indexName));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+        var error = await ReadResponseBody(context);
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Reason, Is.EqualTo("duplicateVideoDescription"));
     }
 
     [Test]

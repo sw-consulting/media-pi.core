@@ -59,6 +59,34 @@ public class AppDbContextCategoryTests
     }
 
     [Test]
+    public void VideoDescription_HasUniqueContainerIndexes()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"video_description_model_test_db_{Guid.NewGuid()}")
+            .Options;
+
+        using var db = new AppDbContext(options);
+
+        var indexes = db.Model
+            .FindEntityType(typeof(Video))!
+            .GetIndexes()
+            .ToDictionary(index => index.GetDatabaseName()!);
+
+        AssertVideoIndex(
+            indexes["IX_videos_account_id_title"],
+            [nameof(Video.AccountId), nameof(Video.Title)],
+            "\"account_id\" IS NOT NULL");
+        AssertVideoIndex(
+            indexes["IX_videos_category_id_title"],
+            [nameof(Video.CategoryId), nameof(Video.Title)],
+            "\"account_id\" IS NULL AND \"category_id\" IS NOT NULL");
+        AssertVideoIndex(
+            indexes["IX_videos_common_uncategorized_title"],
+            [nameof(Video.Title)],
+            "\"account_id\" IS NULL AND \"category_id\" IS NULL");
+    }
+
+    [Test]
     public void PlaylistTitle_HasUniqueAccountIndex()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
