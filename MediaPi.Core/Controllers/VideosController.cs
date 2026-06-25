@@ -250,113 +250,6 @@ public class VideosController(
         return CreatedAtAction(nameof(GetVideo), new { id = video.Id }, new Reference { Id = video.Id });
     }
 
-    [HttpPost("upload/batch")]
-    [Consumes("multipart/form-data")]
-    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(IEnumerable<Reference>))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrMessage))]
-    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrMessage))]
-    public async Task<ActionResult<IEnumerable<Reference>>> UploadVideos([FromForm] VideoBatchUploadItem item, CancellationToken ct = default)
-    {
-        var user = await CurrentUser();
-        if (user == null) return _403();
-
-        if (item.Files == null || item.Files.Count == 0 || item.Files.Any(file => file == null || file.Length == 0))
-        {
-            return _400VideoFileMissing();
-        }
-
-        var titles = item.Files.Select((file, index) => ResolveBatchUploadTitle(item, file, index)).ToList();
-        if (titles.Any(string.IsNullOrWhiteSpace)) return _400VideoTitleMissing();
-
-        var validationError = await ValidateVideoUploadTarget(user, item.AccountId, item.CategoryId, ct);
-        if (validationError != null) return validationError;
-
-        var accountId = NormalizeAccountId(item.AccountId);
-        var categoryId = ResolveCategoryId(item.CategoryId);
-        var duplicateBatchOriginalFilename = item.Files
-            .Select(file => file.FileName)
-            .GroupBy(filename => filename, StringComparer.Ordinal)
-            .FirstOrDefault(group => group.Count() > 1)
-            ?.Key;
-        if (duplicateBatchOriginalFilename != null)
-        {
-            return _409VideoOriginalFilename(duplicateBatchOriginalFilename, accountId, categoryId);
-        }
-
-        var existingOriginalFilenameConflict = await FindExistingOriginalFilenameConflict(
-            item.Files.Select(file => file.FileName),
-            accountId,
-            categoryId,
-            ct);
-        if (existingOriginalFilenameConflict != null)
-        {
-            return _409VideoOriginalFilename(existingOriginalFilenameConflict, accountId, categoryId);
-        }
-
-        var duplicateBatchTitle = titles
-            .GroupBy(title => title, StringComparer.Ordinal)
-            .FirstOrDefault(group => group.Count() > 1)
-            ?.Key;
-        if (duplicateBatchTitle != null)
-        {
-            return _409VideoDescription(duplicateBatchTitle, accountId, categoryId);
-        }
-
-        var existingTitleConflict = await FindExistingVideoDescriptionConflict(titles, accountId, categoryId, ct);
-        if (existingTitleConflict != null)
-        {
-            return _409VideoDescription(existingTitleConflict, accountId, categoryId);
-        }
-
-        var savedFilenames = new List<string>();
-        var videosToCreate = new List<Video>();
-
-        try
-        {
-            for (var index = 0; index < item.Files.Count; index++)
-            {
-                var file = item.Files[index];
-                var title = titles[index];
-                var saveResult = await _videoStorageService.SaveVideoAsync(file, title, ct);
-                savedFilenames.Add(saveResult.Filename);
-
-                if (videosToCreate.Any(v => v.Filename == saveResult.Filename)
-                    || await _db.Videos.AnyAsync(v => v.Filename == saveResult.Filename, ct))
-                {
-                    await CleanupSavedVideos(savedFilenames, ct);
-                    return _409VideoFilename(saveResult.Filename);
-                }
-
-                if (videosToCreate.Any(v => v.OriginalFilename == saveResult.OriginalFilename))
-                {
-                    await CleanupSavedVideos(savedFilenames, ct);
-                    return _409VideoOriginalFilename(saveResult.OriginalFilename, accountId, categoryId);
-                }
-
-                if (videosToCreate.Any(v => v.Title == title))
-                {
-                    await CleanupSavedVideos(savedFilenames, ct);
-                    return _409VideoDescription(title, accountId, categoryId);
-                }
-
-                videosToCreate.Add(CreateVideo(title, saveResult, accountId, categoryId));
-            }
-
-            _db.Videos.AddRange(videosToCreate);
-            await _db.SaveChangesAsync(ct);
-        }
-        catch
-        {
-            await CleanupSavedVideos(savedFilenames, ct);
-            throw;
-        }
-
-        var references = videosToCreate.Select(v => new Reference { Id = v.Id }).ToList();
-        return StatusCode(StatusCodes.Status201Created, references);
-    }
-
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ErrMessage))]
@@ -741,26 +634,6 @@ public class VideosController(
             : null;
     }
 
-    private async Task<string?> FindExistingOriginalFilenameConflict(
-        IEnumerable<string> originalFilenames,
-        int? accountId,
-        int? categoryId,
-        CancellationToken ct)
-    {
-        var orderedFilenames = originalFilenames
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        if (orderedFilenames.Count == 0) return null;
-
-        var conflicts = await InVideoContainer(_db.Videos.AsNoTracking(), accountId, categoryId)
-            .Where(v => orderedFilenames.Contains(v.OriginalFilename))
-            .Select(v => v.OriginalFilename)
-            .ToListAsync(ct);
-        var conflictSet = conflicts.ToHashSet(StringComparer.Ordinal);
-
-        return orderedFilenames.FirstOrDefault(conflictSet.Contains);
-    }
-
     private async Task<ObjectResult?> ValidateVideoDescriptionAvailable(
         string title,
         int? accountId,
@@ -771,26 +644,6 @@ public class VideosController(
         return await HasVideoDescriptionConflictAsync(title, accountId, categoryId, excludedVideoId, ct)
             ? _409VideoDescription(title, accountId, categoryId)
             : null;
-    }
-
-    private async Task<string?> FindExistingVideoDescriptionConflict(
-        IEnumerable<string> titles,
-        int? accountId,
-        int? categoryId,
-        CancellationToken ct)
-    {
-        var orderedTitles = titles
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        if (orderedTitles.Count == 0) return null;
-
-        var conflicts = await InVideoContainer(_db.Videos.AsNoTracking(), accountId, categoryId)
-            .Where(v => orderedTitles.Contains(v.Title))
-            .Select(v => v.Title)
-            .ToListAsync(ct);
-        var conflictSet = conflicts.ToHashSet(StringComparer.Ordinal);
-
-        return orderedTitles.FirstOrDefault(conflictSet.Contains);
     }
 
     private async Task<bool> HasOriginalFilenameConflictAsync(
@@ -930,16 +783,6 @@ return _curUserId == 0 ? null : await CurrentUser();
     {
         if (video.AccountId != null) return _400VideoCategoryOnlyForCommon();
         return await ValidateCategory(categoryId, ct);
-    }
-
-    private static string ResolveBatchUploadTitle(VideoBatchUploadItem item, IFormFile file, int index)
-    {
-        if (item.Titles.Count > index && !string.IsNullOrWhiteSpace(item.Titles[index]))
-        {
-            return item.Titles[index].Trim();
-        }
-
-        return file.FileName?.Trim() ?? string.Empty;
     }
 
     private static Video CreateVideo(string title, VideoSaveResult saveResult, int? accountId, int? categoryId)
