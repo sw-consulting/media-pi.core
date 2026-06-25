@@ -117,10 +117,16 @@ public class PlaylistsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
+        var normalizedTitle = item.Title.Trim();
         var account = await _db.Accounts.FindAsync([item.AccountId], ct);
         if (account == null) return _404Account(item.AccountId);
 
         if (!_userInformationService.UserCanManageAccount(user, item.AccountId)) return _403();
+
+        if (await _db.Playlists.AnyAsync(p => p.AccountId == item.AccountId && p.Title == normalizedTitle, ct))
+        {
+            return _409PlaylistDescription(normalizedTitle);
+        }
 
         // Check for duplicate filename before creating playlist
         if (await _db.Playlists.AnyAsync(p => p.AccountId == item.AccountId && p.Filename == item.Filename, ct))
@@ -136,7 +142,7 @@ public class PlaylistsController(
 
         var playlist = new Playlist
         {
-            Title = item.Title,
+            Title = normalizedTitle,
             Filename = item.Filename,
             AccountId = item.AccountId,
         };
@@ -178,6 +184,12 @@ public class PlaylistsController(
 
         if (!_userInformationService.UserCanManageAccount(user, playlist.AccountId)) return _403();
 
+        var normalizedTitle = item.Title.Trim();
+        if (await _db.Playlists.AnyAsync(p => p.AccountId == playlist.AccountId && p.Title == normalizedTitle && p.Id != id, ct))
+        {
+            return _409PlaylistDescription(normalizedTitle);
+        }
+
         // Check for duplicate filename before updating (exclude current playlist)
         if (await _db.Playlists.AnyAsync(p => p.AccountId == playlist.AccountId && p.Filename == item.Filename && p.Id != id, ct))
         {
@@ -185,6 +197,7 @@ public class PlaylistsController(
         }
 
         playlist.UpdateFrom(item);
+        playlist.Title = normalizedTitle;
 
         // Allow empty playlists: treat missing/null items as empty list
         var items = item.Items ?? new List<PlaylistItemDto>();

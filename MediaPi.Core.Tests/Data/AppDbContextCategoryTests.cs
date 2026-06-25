@@ -58,6 +58,25 @@ public class AppDbContextCategoryTests
             "\"account_id\" IS NULL AND \"category_id\" IS NULL");
     }
 
+    [Test]
+    public void PlaylistTitle_HasUniqueAccountIndex()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"playlist_title_model_test_db_{Guid.NewGuid()}")
+            .Options;
+
+        using var db = new AppDbContext(options);
+
+        var index = db.Model
+            .FindEntityType(typeof(Playlist))!
+            .GetIndexes()
+            .Single(index => index.GetDatabaseName() == "IX_playlists_account_id_title");
+
+        Assert.That(index.IsUnique, Is.True);
+        Assert.That(index.Properties.Select(property => property.Name), Is.EqualTo(
+            [nameof(Playlist.AccountId), nameof(Playlist.Title)]));
+    }
+
     private static void AssertVideoIndex(IIndex index, string[] propertyNames, string filter)
     {
         Assert.That(index.IsUnique, Is.True);
