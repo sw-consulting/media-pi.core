@@ -15,6 +15,7 @@ namespace MediaPi.Core.Middleware;
 public class DatabaseConstraintMiddleware
 {
     private const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
+    private const string DuplicateVideoDescriptionReason = "duplicateVideoDescription";
     private const string DuplicatePlaylistDescriptionReason = "duplicatePlaylistDescription";
     private const string DuplicatePlaylistFilenameReason = "duplicatePlaylistFilename";
 
@@ -78,6 +79,13 @@ public class DatabaseConstraintMiddleware
                 return DuplicatePlaylistDescriptionError();
             }
 
+            if (innerMessage.Contains("IX_videos_account_id_title", StringComparison.OrdinalIgnoreCase)
+                || innerMessage.Contains("IX_videos_category_id_title", StringComparison.OrdinalIgnoreCase)
+                || innerMessage.Contains("IX_videos_common_uncategorized_title", StringComparison.OrdinalIgnoreCase))
+            {
+                return DuplicateVideoDescriptionError();
+            }
+
             if (innerMessage.Contains("IX_playlists_account_id_filename", StringComparison.OrdinalIgnoreCase))
             {
                 return DuplicatePlaylistFilenameError();
@@ -134,6 +142,13 @@ public class DatabaseConstraintMiddleware
                 return DuplicatePlaylistDescriptionError();
             }
 
+            if (ex.ConstraintName?.Contains("ix_videos_account_id_title", StringComparison.OrdinalIgnoreCase) == true
+                || ex.ConstraintName?.Contains("ix_videos_category_id_title", StringComparison.OrdinalIgnoreCase) == true
+                || ex.ConstraintName?.Contains("ix_videos_common_uncategorized_title", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return DuplicateVideoDescriptionError();
+            }
+
             if (ex.ConstraintName?.Contains("ix_playlists_account_id_filename", StringComparison.OrdinalIgnoreCase) == true)
             {
                 return DuplicatePlaylistFilenameError();
@@ -178,6 +193,15 @@ public class DatabaseConstraintMiddleware
         {
             Msg = "Плейлист с таким описанием уже существует",
             Reason = DuplicatePlaylistDescriptionReason
+        };
+    }
+
+    private static ErrMessage DuplicateVideoDescriptionError()
+    {
+        return new ErrMessage
+        {
+            Msg = "В выбранном разделе уже есть видеофайл с таким описанием",
+            Reason = DuplicateVideoDescriptionReason
         };
     }
 
