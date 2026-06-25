@@ -15,14 +15,3 @@ public class VideoUploadItem
 
     public required IFormFile File { get; set; }
 }
-
-public class VideoBatchUploadItem
-{
-    public required int AccountId { get; set; }
-
-    public int? CategoryId { get; set; }
-
-    public List<IFormFile> Files { get; set; } = [];
-
-    public List<string> Titles { get; set; } = [];
-}

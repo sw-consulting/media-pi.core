@@ -576,62 +576,7 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_Admin_SavesMultipleVideos()
-    {
-        SetCurrentUser(_admin.Id);
-        var file1 = CreateFormFile("one.mp4", "one");
-        var file2 = CreateFormFile("two.mp4", "two");
-        var saveResults = new Queue<VideoSaveResult>([
-            new VideoSaveResult
-            {
-                Filename = "0002/one.mp4",
-                OriginalFilename = "one.mp4",
-                FileSizeBytes = (uint)file1.Length,
-                DurationSeconds = 60
-            },
-            new VideoSaveResult
-            {
-                Filename = "0002/two.mp4",
-                OriginalFilename = "two.mp4",
-                FileSizeBytes = (uint)file2.Length,
-                DurationSeconds = 90
-            }
-        ]);
-
-        _mockVideoStorageService
-            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => saveResults.Dequeue());
-
-        var item = new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = [file1, file2],
-            Titles = ["First Video", "Second Video"]
-        };
-
-        var result = await _controller.UploadVideos(item);
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
-        var references = ((IEnumerable<Reference>)obj.Value!).ToList();
-        Assert.That(references, Has.Count.EqualTo(2));
-        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(5));
-
-        var referenceIds = references.Select(r => r.Id).ToList();
-        var createdVideos = await _dbContext.Videos
-            .Where(v => referenceIds.Contains(v.Id))
-            .OrderBy(v => v.Title)
-            .ToListAsync();
-        Assert.That(createdVideos.Select(v => v.Title), Is.EquivalentTo(new[] { "First Video", "Second Video" }));
-        Assert.That(createdVideos.All(v => v.AccountId == _account1.Id), Is.True);
-
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(file1, "First Video", It.IsAny<CancellationToken>()), Times.Once);
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(file2, "Second Video", It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Test]
-    public async Task UploadVideos_Admin_CommonFiles_SavesWithNullAccount()
+    public async Task UploadVideo_Admin_CommonFile_SavesWithNullAccount()
     {
         SetCurrentUser(_admin.Id);
         var file = CreateFormFile("common.mp4");
@@ -646,18 +591,17 @@ public class VideosControllerTests
             .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(saveResult);
 
-        var item = new VideoBatchUploadItem
+        var item = new VideoUploadItem
         {
             AccountId = 0,
-            Files = [file]
+            Title = "common.mp4",
+            File = file
         };
 
-        var result = await _controller.UploadVideos(item);
+        var result = await _controller.UploadVideo(item);
 
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
-        var reference = ((IEnumerable<Reference>)obj.Value!).Single();
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (Reference)((CreatedAtActionResult)result.Result!).Value!;
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.AccountId, Is.Null);
@@ -667,7 +611,7 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_Admin_CommonFiles_SavesCategory()
+    public async Task UploadVideo_Admin_CommonFile_SavesCategory()
     {
         SetCurrentUser(_admin.Id);
         var file = CreateFormFile("categorized.mp4");
@@ -682,19 +626,18 @@ public class VideosControllerTests
             .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(saveResult);
 
-        var item = new VideoBatchUploadItem
+        var item = new VideoUploadItem
         {
             AccountId = 0,
             CategoryId = _categoryNews.Id,
-            Files = [file]
+            Title = "categorized.mp4",
+            File = file
         };
 
-        var result = await _controller.UploadVideos(item);
+        var result = await _controller.UploadVideo(item);
 
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
-        var reference = ((IEnumerable<Reference>)obj.Value!).Single();
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (Reference)((CreatedAtActionResult)result.Result!).Value!;
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.AccountId, Is.Null);
@@ -702,7 +645,7 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_Admin_CommonFiles_CategoryZeroSavesUncategorized()
+    public async Task UploadVideo_Admin_CommonFile_CategoryZeroSavesUncategorized()
     {
         SetCurrentUser(_admin.Id);
         var file = CreateFormFile("uncategorized.mp4");
@@ -717,36 +660,36 @@ public class VideosControllerTests
             .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(saveResult);
 
-        var item = new VideoBatchUploadItem
+        var item = new VideoUploadItem
         {
             AccountId = 0,
             CategoryId = 0,
-            Files = [file]
+            Title = "uncategorized.mp4",
+            File = file
         };
 
-        var result = await _controller.UploadVideos(item);
+        var result = await _controller.UploadVideo(item);
 
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status201Created));
-        var reference = ((IEnumerable<Reference>)obj.Value!).Single();
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var reference = (Reference)((CreatedAtActionResult)result.Result!).Value!;
         var video = await _dbContext.Videos.FindAsync(reference.Id);
         Assert.That(video, Is.Not.Null);
         Assert.That(video!.CategoryId, Is.Null);
     }
 
     [Test]
-    public async Task UploadVideos_AccountFileWithCategory_Returns400()
+    public async Task UploadVideo_AccountFileWithCategory_Returns400()
     {
         SetCurrentUser(_admin.Id);
-        var item = new VideoBatchUploadItem
+        var item = new VideoUploadItem
         {
             AccountId = _account1.Id,
             CategoryId = _categoryNews.Id,
-            Files = [CreateFormFile("account.mp4")]
+            Title = "account.mp4",
+            File = CreateFormFile("account.mp4")
         };
 
-        var result = await _controller.UploadVideos(item);
+        var result = await _controller.UploadVideo(item);
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
@@ -755,34 +698,17 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_MissingFiles_Returns400()
-    {
-        SetCurrentUser(_admin.Id);
-        var item = new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = []
-        };
-
-        var result = await _controller.UploadVideos(item);
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Test]
-    public async Task UploadVideos_Manager_CommonFiles_Returns403()
+    public async Task UploadVideo_Manager_CommonFile_Returns403()
     {
         SetCurrentUser(_managerAccount1.Id);
-        var item = new VideoBatchUploadItem
+        var item = new VideoUploadItem
         {
             AccountId = 0,
-            Files = [CreateFormFile("common.mp4")]
+            Title = "common.mp4",
+            File = CreateFormFile("common.mp4")
         };
 
-        var result = await _controller.UploadVideos(item);
+        var result = await _controller.UploadVideo(item);
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
@@ -841,156 +767,6 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_DuplicateDescriptionInBatch_Returns409WithoutSavingFiles()
-    {
-        SetCurrentUser(_admin.Id);
-
-        var result = await _controller.UploadVideos(new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = [CreateFormFile("first-description.mp4"), CreateFormFile("second-description.mp4")],
-            Titles = ["Same description", "Same description"]
-        });
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
-        AssertDuplicateVideoDescription(obj.Value, "Same description", _account1.Id, null);
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Test]
-    public async Task UploadVideos_DuplicateDescriptionFromDatabase_Returns409WithoutSavingFiles()
-    {
-        SetCurrentUser(_admin.Id);
-
-        var result = await _controller.UploadVideos(new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = [CreateFormFile("new-description-file.mp4")],
-            Titles = [_videoAccount1.Title]
-        });
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
-        AssertDuplicateVideoDescription(obj.Value, _videoAccount1.Title, _account1.Id, null);
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Test]
-    public async Task UploadVideos_DuplicateFilenameFromDatabase_Returns409WithoutDeletingPersistedFile()
-    {
-        SetCurrentUser(_admin.Id);
-        var file1 = CreateFormFile("first.mp4", "first");
-        var file2 = CreateFormFile("duplicate.mp4", "second");
-        var saveResults = new Queue<VideoSaveResult>([
-            new VideoSaveResult
-            {
-                Filename = "0002/first.mp4",
-                OriginalFilename = "first.mp4",
-                FileSizeBytes = (uint)file1.Length,
-                DurationSeconds = 60
-            },
-            new VideoSaveResult
-            {
-                Filename = "0001/video1.mp4",
-                OriginalFilename = "duplicate.mp4",
-                FileSizeBytes = (uint)file2.Length,
-                DurationSeconds = 90
-            }
-        ]);
-
-        _mockVideoStorageService
-            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => saveResults.Dequeue());
-        _mockVideoStorageService
-            .Setup(s => s.DeleteVideoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var item = new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = [file1, file2],
-            Titles = ["First", "Duplicate"]
-        };
-
-        var result = await _controller.UploadVideos(item);
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
-        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
-        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0002/first.mp4", It.IsAny<CancellationToken>()), Times.Once);
-        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0001/video1.mp4", It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Test]
-    public void UploadVideos_SaveThrows_RethrowsAfterCleanup()
-    {
-        SetCurrentUser(_admin.Id);
-        var file1 = CreateFormFile("one.mp4", "one");
-        var file2 = CreateFormFile("two.mp4", "two");
-        var file1SaveResult = new VideoSaveResult
-        {
-            Filename = "0099/one.mp4",
-            OriginalFilename = "one.mp4",
-            FileSizeBytes = (uint)file1.Length,
-            DurationSeconds = 60
-        };
-        _mockVideoStorageService
-            .SetupSequence(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(file1SaveResult)
-            .ThrowsAsync(new InvalidOperationException("Storage failure"));
-        _mockVideoStorageService
-            .Setup(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var item = new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = [file1, file2],
-            Titles = ["First Video", "Second Video"]
-        };
-
-        Assert.ThrowsAsync<InvalidOperationException>(() => _controller.UploadVideos(item, CancellationToken.None));
-        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Test]
-    public void UploadVideos_SaveThrows_CleanupDeleteFails_LogsWarningAndRethrows()
-    {
-        SetCurrentUser(_admin.Id);
-        var file1 = CreateFormFile("one.mp4", "one");
-        var file2 = CreateFormFile("two.mp4", "two");
-        var file1SaveResult = new VideoSaveResult
-        {
-            Filename = "0099/one.mp4",
-            OriginalFilename = "one.mp4",
-            FileSizeBytes = (uint)file1.Length,
-            DurationSeconds = 60
-        };
-        _mockVideoStorageService
-            .SetupSequence(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(file1SaveResult)
-            .ThrowsAsync(new InvalidOperationException("Storage failure"));
-        _mockVideoStorageService
-            .Setup(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new IOException("Delete failed"));
-
-        var item = new VideoBatchUploadItem
-        {
-            AccountId = _account1.Id,
-            Files = [file1, file2],
-            Titles = ["First Video", "Second Video"]
-        };
-
-        // The original save exception is rethrown; the delete failure is swallowed
-        Assert.ThrowsAsync<InvalidOperationException>(() => _controller.UploadVideos(item, CancellationToken.None));
-        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync("0099/one.mp4", It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Test]
     public async Task UploadVideo_MissingFile_Returns400()
     {
         SetCurrentUser(_admin.Id);
@@ -1005,6 +781,26 @@ public class VideosControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+    }
+
+    [Test]
+    public async Task UploadVideo_MissingTitle_Returns400()
+    {
+        SetCurrentUser(_admin.Id);
+        var item = new VideoUploadItem
+        {
+            Title = "   ",
+            AccountId = _account1.Id,
+            File = CreateFormFile("missing-title.mp4")
+        };
+
+        var result = await _controller.UploadVideo(item);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That((obj.Value as ErrMessage)?.Msg, Is.EqualTo("Не удалось загрузить видео: отсутствует описание"));
+        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
@@ -1876,28 +1672,6 @@ public class VideosControllerTests
     }
 
     [Test]
-    public async Task UploadVideos_DuplicateOriginalFilenameInsideBatch_Returns409WithoutSavingFiles()
-    {
-        SetCurrentUser(_admin.Id);
-        var file1 = CreateFormFile("same.mp4", "first");
-        var file2 = CreateFormFile("same.mp4", "second");
-
-        var result = await _controller.UploadVideos(new VideoBatchUploadItem
-        {
-            AccountId = 0,
-            CategoryId = _categoryNews.Id,
-            Files = [file1, file2]
-        });
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
-        AssertDuplicateOriginalFilename(obj.Value, "same.mp4", null, _categoryNews.Id);
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
-    }
-
-    [Test]
     public async Task UpdateVideo_CategoryMoveDuplicateOriginalFilename_Returns409BeforePlaylistImpact()
     {
         var paidCat = new Category { Id = 50, Title = "Paid50", Free = false };
@@ -2034,27 +1808,6 @@ public class VideosControllerTests
             Title = "Duplicate uncategorized",
             AccountId = 0,
             File = file
-        });
-
-        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
-        var obj = (ObjectResult)result.Result!;
-        Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
-        AssertDuplicateOriginalFilename(obj.Value, _videoCommon.OriginalFilename, null, null);
-        _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
-    }
-
-    [Test]
-    public async Task UploadVideos_BatchFileConflictsWithExistingInDb_Returns409WithoutSavingFiles()
-    {
-        // _videoCommon.OriginalFilename already exists in the uncategorized space
-        SetCurrentUser(_admin.Id);
-        var file = CreateFormFile(_videoCommon.OriginalFilename);
-
-        var result = await _controller.UploadVideos(new VideoBatchUploadItem
-        {
-            AccountId = 0,
-            Files = [file]
         });
 
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
