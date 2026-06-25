@@ -10,11 +10,6 @@ using Microsoft.EntityFrameworkCore;
 namespace MediaPi.Core.Controllers;
 public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
 {
-    protected const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
-    protected const string DuplicateVideoDescriptionReason = "duplicateVideoDescription";
-    protected const string DuplicatePlaylistDescriptionReason = "duplicatePlaylistDescription";
-    protected const string DuplicatePlaylistFilenameReason = "duplicatePlaylistFilename";
-
     protected readonly AppDbContext _db = db;
     protected readonly ILogger _logger = logger;
 
@@ -132,7 +127,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage
                           {
                               Msg = VideoOriginalFilenameConflictMessage(originalFilename),
-                              Reason = DuplicateOriginalFilenameReason,
+                              Reason = ConflictReasons.DuplicateOriginalFilename,
                               OriginalFilename = originalFilename,
                               AccountId = accountId,
                               CategoryId = categoryId
@@ -148,7 +143,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage
                           {
                               Msg = VideoDescriptionConflictMessage(title),
-                              Reason = DuplicateVideoDescriptionReason,
+                              Reason = ConflictReasons.DuplicateVideoDescription,
                               AccountId = accountId,
                               CategoryId = categoryId
                           });
@@ -163,7 +158,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage
                           {
                               Msg = $"Плейлист с именем файла \"{filename}\" уже существует",
-                              Reason = DuplicatePlaylistFilenameReason
+                              Reason = ConflictReasons.DuplicatePlaylistFilename
                           });
     }
 
@@ -173,7 +168,7 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
                           new ErrMessage
                           {
                               Msg = $"Плейлист с описанием \"{title}\" уже существует",
-                              Reason = DuplicatePlaylistDescriptionReason
+                              Reason = ConflictReasons.DuplicatePlaylistDescription
                           });
     }
 

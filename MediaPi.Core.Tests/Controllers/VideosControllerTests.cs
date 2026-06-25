@@ -1746,7 +1746,7 @@ public class VideosControllerTests
         Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { 61 }));
         Assert.That(body.Failures, Has.Count.EqualTo(1));
         Assert.That(body.Failures[0].Id, Is.EqualTo(_videoCommon.Id));
-        Assert.That(body.Failures[0].Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
         Assert.That(body.Failures[0].Message, Does.Contain(_videoCommon.OriginalFilename));
         Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
         Assert.That((await _dbContext.Videos.FindAsync(61))!.CategoryId, Is.EqualTo(_categoryNews.Id));
@@ -1790,7 +1790,7 @@ public class VideosControllerTests
         Assert.That(body.UpdatedIds, Is.EquivalentTo(new[] { 63 }));
         Assert.That(body.Failures, Has.Count.EqualTo(1));
         Assert.That(body.Failures[0].Id, Is.EqualTo(_videoCommon.Id));
-        Assert.That(body.Failures[0].Reason, Is.EqualTo("duplicateVideoDescription"));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo(ConflictReasons.DuplicateVideoDescription));
         Assert.That(body.Failures[0].Message, Does.Contain(_videoCommon.Title));
         Assert.That((await _dbContext.Videos.FindAsync(_videoCommon.Id))!.CategoryId, Is.Null);
         Assert.That((await _dbContext.Videos.FindAsync(63))!.CategoryId, Is.EqualTo(_categoryNews.Id));
@@ -1849,7 +1849,7 @@ public class VideosControllerTests
         Assert.That(body.UpdatedIds, Has.Count.EqualTo(1));
         Assert.That(body.Failures, Has.Count.EqualTo(1));
         Assert.That(body.Failures[0].Id, Is.EqualTo(70));
-        Assert.That(body.Failures[0].Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(body.Failures[0].Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
         Assert.That(body.Failures[0].Message, Does.Contain(_videoCommon.OriginalFilename));
     }
 
@@ -1857,7 +1857,7 @@ public class VideosControllerTests
     {
         Assert.That(value, Is.TypeOf<ErrMessage>());
         var error = (ErrMessage)value!;
-        Assert.That(error.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
         Assert.That(error.OriginalFilename, Is.EqualTo(originalFilename));
         Assert.That(error.AccountId, Is.EqualTo(accountId));
         Assert.That(error.CategoryId, Is.EqualTo(categoryId));
@@ -1868,7 +1868,7 @@ public class VideosControllerTests
     {
         Assert.That(value, Is.TypeOf<ErrMessage>());
         var error = (ErrMessage)value!;
-        Assert.That(error.Reason, Is.EqualTo("duplicateVideoDescription"));
+        Assert.That(error.Reason, Is.EqualTo(ConflictReasons.DuplicateVideoDescription));
         Assert.That(error.AccountId, Is.EqualTo(accountId));
         Assert.That(error.CategoryId, Is.EqualTo(categoryId));
         Assert.That(error.Msg, Does.Contain(title));

@@ -14,11 +14,6 @@ namespace MediaPi.Core.Middleware;
 /// </summary>
 public class DatabaseConstraintMiddleware
 {
-    private const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
-    private const string DuplicateVideoDescriptionReason = "duplicateVideoDescription";
-    private const string DuplicatePlaylistDescriptionReason = "duplicatePlaylistDescription";
-    private const string DuplicatePlaylistFilenameReason = "duplicatePlaylistFilename";
-
     private readonly RequestDelegate _next;
     private readonly ILogger<DatabaseConstraintMiddleware> _logger;
 
@@ -183,7 +178,7 @@ public class DatabaseConstraintMiddleware
         return new ErrMessage
         {
             Msg = "В выбранном разделе уже есть видеофайл с таким именем",
-            Reason = DuplicateOriginalFilenameReason
+            Reason = ConflictReasons.DuplicateOriginalFilename
         };
     }
 
@@ -192,7 +187,7 @@ public class DatabaseConstraintMiddleware
         return new ErrMessage
         {
             Msg = "Плейлист с таким описанием уже существует",
-            Reason = DuplicatePlaylistDescriptionReason
+            Reason = ConflictReasons.DuplicatePlaylistDescription
         };
     }
 
@@ -201,7 +196,7 @@ public class DatabaseConstraintMiddleware
         return new ErrMessage
         {
             Msg = "В выбранном разделе уже есть видеофайл с таким описанием",
-            Reason = DuplicateVideoDescriptionReason
+            Reason = ConflictReasons.DuplicateVideoDescription
         };
     }
 
@@ -210,7 +205,7 @@ public class DatabaseConstraintMiddleware
         return new ErrMessage
         {
             Msg = "Плейлист с таким именем файла уже существует",
-            Reason = DuplicatePlaylistFilenameReason
+            Reason = ConflictReasons.DuplicatePlaylistFilename
         };
     }
 }

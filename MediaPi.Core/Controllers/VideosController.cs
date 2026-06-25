@@ -700,7 +700,7 @@ public class VideosController(
         return new VideoBatchOperationFailure
         {
             Id = video.Id,
-            Reason = DuplicateOriginalFilenameReason,
+            Reason = ConflictReasons.DuplicateOriginalFilename,
             Message = VideoOriginalFilenameConflictMessage(video.OriginalFilename)
         };
     }
@@ -710,7 +710,7 @@ public class VideosController(
         return new VideoBatchOperationFailure
         {
             Id = video.Id,
-            Reason = DuplicateVideoDescriptionReason,
+            Reason = ConflictReasons.DuplicateVideoDescription,
             Message = VideoDescriptionConflictMessage(video.Title)
         };
     }
