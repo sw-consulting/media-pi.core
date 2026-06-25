@@ -12,7 +12,7 @@ namespace MediaPi.Core.Migrations
         {
             migrationBuilder.Sql("""
                 UPDATE playlists
-                SET title = btrim(title);
+                SET title = regexp_replace(title, '^[[:space:]]+|[[:space:]]+$', '', 'g');
 
                 DO $$
                 DECLARE
