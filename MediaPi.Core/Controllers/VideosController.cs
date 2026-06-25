@@ -394,7 +394,6 @@ public class VideosController(
             if (categoryError != null) return categoryError;
 
             var normalizedCategoryId = NormalizeCategoryId(item.CategoryId.Value);
-            nextCategoryId = normalizedCategoryId;
             PlaylistAccessImpact? impact = null;
             if (video.CategoryId != normalizedCategoryId)
             {
