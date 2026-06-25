@@ -84,7 +84,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
     }
 
     [Test]
@@ -99,7 +99,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
     }
 
     [Test]
@@ -114,7 +114,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
     }
 
     [TestCase("IX_videos_account_id_title")]
@@ -131,7 +131,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateVideoDescription"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateVideoDescription));
     }
 
     [Test]
@@ -146,7 +146,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistDescription));
     }
 
     [Test]
@@ -161,7 +161,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistFilename));
     }
 
     [Test]
@@ -223,7 +223,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
     }
 
     [Test]
@@ -238,7 +238,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
     }
 
     [Test]
@@ -253,7 +253,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateOriginalFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateOriginalFilename));
     }
 
     [TestCase("IX_videos_account_id_title")]
@@ -269,7 +269,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicateVideoDescription"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicateVideoDescription));
     }
 
     [Test]
@@ -284,7 +284,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistDescription));
     }
 
     [Test]
@@ -299,7 +299,7 @@ public class DatabaseConstraintMiddlewareTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var error = await ReadResponseBody(context);
         Assert.That(error, Is.Not.Null);
-        Assert.That(error!.Reason, Is.EqualTo("duplicatePlaylistFilename"));
+        Assert.That(error!.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistFilename));
     }
 
     [Test]

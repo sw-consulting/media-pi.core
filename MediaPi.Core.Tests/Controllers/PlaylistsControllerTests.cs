@@ -941,7 +941,7 @@ public class PlaylistsControllerTests
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
 
         var errMessage = (ErrMessage)obj.Value!;
-        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+        Assert.That(errMessage.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistDescription));
         Assert.That(errMessage.Msg, Does.Contain("\"Playlist 1\""));
         Assert.That(_dbContext.Playlists.Count(), Is.EqualTo(2));
     }
@@ -1003,7 +1003,7 @@ public class PlaylistsControllerTests
         var obj = (ObjectResult)duplicateResult.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var errMessage = (ErrMessage)obj.Value!;
-        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+        Assert.That(errMessage.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistDescription));
     }
 
     [Test]
@@ -1105,7 +1105,7 @@ public class PlaylistsControllerTests
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var errMessage = (ErrMessage)obj.Value!;
-        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistFilename"));
+        Assert.That(errMessage.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistFilename));
 
         var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
         Assert.That(playlist, Is.Not.Null);
@@ -1141,7 +1141,7 @@ public class PlaylistsControllerTests
         var obj = (ObjectResult)result;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
         var errMessage = (ErrMessage)obj.Value!;
-        Assert.That(errMessage.Reason, Is.EqualTo("duplicatePlaylistDescription"));
+        Assert.That(errMessage.Reason, Is.EqualTo(ConflictReasons.DuplicatePlaylistDescription));
 
         var playlist = await _dbContext.Playlists.FindAsync(_playlist1.Id);
         Assert.That(playlist, Is.Not.Null);
