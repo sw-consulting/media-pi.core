@@ -11,6 +11,8 @@ namespace MediaPi.Core.Controllers;
 public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : ControllerBase
 {
     protected const string DuplicateOriginalFilenameReason = "duplicateOriginalFilename";
+    protected const string DuplicatePlaylistDescriptionReason = "duplicatePlaylistDescription";
+    protected const string DuplicatePlaylistFilenameReason = "duplicatePlaylistFilename";
 
     protected readonly AppDbContext _db = db;
     protected readonly ILogger _logger = logger;
@@ -142,7 +144,21 @@ public class MediaPiControllerPreBase(AppDbContext db, ILogger logger) : Control
     protected ObjectResult _409PlaylistFilename(string filename)
     {
         return StatusCode(StatusCodes.Status409Conflict,
-                          new ErrMessage { Msg = $"Плейлист с именем файла \"{filename}\" уже существует" });
+                          new ErrMessage
+                          {
+                              Msg = $"Плейлист с именем файла \"{filename}\" уже существует",
+                              Reason = DuplicatePlaylistFilenameReason
+                          });
+    }
+
+    protected ObjectResult _409PlaylistDescription(string title)
+    {
+        return StatusCode(StatusCodes.Status409Conflict,
+                          new ErrMessage
+                          {
+                              Msg = $"Плейлист с описанием \"{title}\" уже существует",
+                              Reason = DuplicatePlaylistDescriptionReason
+                          });
     }
 
     protected ObjectResult _409Category(string title)
