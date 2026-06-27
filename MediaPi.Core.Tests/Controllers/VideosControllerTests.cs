@@ -799,7 +799,7 @@ public class VideosControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
-        Assert.That((obj.Value as ErrMessage)?.Msg, Is.EqualTo("Не удалось загрузить видео: отсутствует описание"));
+        Assert.That((obj.Value as ErrMessage)?.Msg, Is.EqualTo("Не удалось загрузить видеофайл: отсутствует описание"));
         _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -1346,6 +1346,77 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task UploadVideo_SaveVideoFails_ReturnsStructured500()
+    {
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile("broken.mp4");
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("disk full"));
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Broken upload",
+            AccountId = _account1.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        AssertUploadError(
+            obj,
+            StatusCodes.Status500InternalServerError,
+            "Не удалось сохранить видеофайл \"broken.mp4\" на сервере",
+            ConflictReasons.VideoStorageSaveFailed,
+            "broken.mp4",
+            _account1.Id,
+            null);
+        VerifyLoggerCalled(LogLevel.Error, "Failed to save uploaded video file");
+    }
+
+    [Test]
+    public async Task UploadVideo_DuplicateFilenameCleanupFails_ReturnsStructured500()
+    {
+        SetCurrentUser(_admin.Id);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "duplicate.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = _videoAccount1.Filename,
+            OriginalFilename = "duplicate.mp4",
+            FileSizeBytes = (uint)stream.Length,
+            DurationSeconds = 121
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("delete failed"));
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Duplicate Video",
+            AccountId = _account1.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        AssertUploadError(
+            obj,
+            StatusCodes.Status500InternalServerError,
+            "Не удалось очистить временный файл после ошибки загрузки видеофайла \"duplicate.mp4\"",
+            ConflictReasons.VideoUploadCleanupFailed,
+            "duplicate.mp4",
+            _account1.Id,
+            null);
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()), Times.Once);
+        VerifyLoggerCalled(LogLevel.Error, "Failed to cleanup uploaded video file");
+    }
+
+    [Test]
     public async Task UploadVideo_UniqueFilename_SavesSuccessfully()
     {
         SetCurrentUser(_admin.Id);
@@ -1862,6 +1933,37 @@ public class VideosControllerTests
         Assert.That(error.AccountId, Is.EqualTo(accountId));
         Assert.That(error.CategoryId, Is.EqualTo(categoryId));
         Assert.That(error.Msg, Does.Contain(originalFilename));
+    }
+
+    private static void AssertUploadError(
+        ObjectResult result,
+        int statusCode,
+        string message,
+        string reason,
+        string? originalFilename,
+        int? accountId,
+        int? categoryId)
+    {
+        Assert.That(result.StatusCode, Is.EqualTo(statusCode));
+        Assert.That(result.Value, Is.TypeOf<ErrMessage>());
+        var error = (ErrMessage)result.Value!;
+        Assert.That(error.Msg, Is.EqualTo(message));
+        Assert.That(error.Reason, Is.EqualTo(reason));
+        Assert.That(error.OriginalFilename, Is.EqualTo(originalFilename));
+        Assert.That(error.AccountId, Is.EqualTo(accountId));
+        Assert.That(error.CategoryId, Is.EqualTo(categoryId));
+    }
+
+    private void VerifyLoggerCalled(LogLevel level, string messageContains)
+    {
+        _mockLogger.Verify(
+            x => x.Log(
+                level,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(messageContains)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
     }
 
     private static void AssertDuplicateVideoDescription(object? value, string title, int? accountId, int? categoryId)

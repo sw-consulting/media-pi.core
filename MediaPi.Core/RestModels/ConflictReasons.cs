@@ -9,4 +9,8 @@ public static class ConflictReasons
     public const string DuplicateVideoDescription = "duplicateVideoDescription";
     public const string DuplicatePlaylistDescription = "duplicatePlaylistDescription";
     public const string DuplicatePlaylistFilename = "duplicatePlaylistFilename";
+    public const string VideoStorageSaveFailed = "videoStorageSaveFailed";
+    public const string VideoUploadCleanupFailed = "videoUploadCleanupFailed";
+    public const string VideoUploadProcessingFailed = "videoUploadProcessingFailed";
+    public const string VideoUploadTooLarge = "videoUploadTooLarge";
 }
