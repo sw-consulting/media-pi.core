@@ -37,6 +37,7 @@ public class VideosControllerTests
     private AppDbContext _dbContext;
     private VideosController _controller;
     private UserInformationService _userInformationService;
+    private string _dbName;
 
     private User _admin;
     private User _managerAccount1;
@@ -58,8 +59,9 @@ public class VideosControllerTests
     [SetUp]
     public void Setup()
     {
+        _dbName = $"videos_controller_test_db_{Guid.NewGuid()}";
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase($"videos_controller_test_db_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(_dbName)
             .Options;
 
         _dbContext = new AppDbContext(options);
@@ -799,7 +801,7 @@ public class VideosControllerTests
         Assert.That(result.Result, Is.TypeOf<ObjectResult>());
         var obj = (ObjectResult)result.Result!;
         Assert.That(obj.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
-        Assert.That((obj.Value as ErrMessage)?.Msg, Is.EqualTo("Не удалось загрузить видео: отсутствует описание"));
+        Assert.That((obj.Value as ErrMessage)?.Msg, Is.EqualTo("Не удалось загрузить видеофайл: отсутствует описание"));
         _mockVideoStorageService.Verify(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -1346,6 +1348,135 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task UploadVideo_SaveVideoFails_ReturnsStructured500()
+    {
+        SetCurrentUser(_admin.Id);
+        var file = CreateFormFile("broken.mp4");
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("disk full"));
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Broken upload",
+            AccountId = _account1.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        AssertUploadError(
+            obj,
+            StatusCodes.Status500InternalServerError,
+            "Не удалось сохранить видеофайл \"broken.mp4\" на сервере",
+            ConflictReasons.VideoStorageSaveFailed,
+            "broken.mp4",
+            _account1.Id,
+            null);
+        VerifyLoggerCalled(LogLevel.Error, "Failed to save uploaded video file");
+    }
+
+    [Test]
+    public async Task UploadVideo_DuplicateFilenameCleanupFails_ReturnsStructured500()
+    {
+        SetCurrentUser(_admin.Id);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("test"));
+        var file = new FormFile(stream, 0, stream.Length, "file", "duplicate.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = _videoAccount1.Filename,
+            OriginalFilename = "duplicate.mp4",
+            FileSizeBytes = (uint)stream.Length,
+            DurationSeconds = 121
+        };
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("delete failed"));
+
+        var result = await _controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Duplicate Video",
+            AccountId = _account1.Id,
+            File = file
+        });
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = (ObjectResult)result.Result!;
+        AssertUploadError(
+            obj,
+            StatusCodes.Status500InternalServerError,
+            "Не удалось очистить временный файл после ошибки загрузки видеофайла \"duplicate.mp4\"",
+            ConflictReasons.VideoUploadCleanupFailed,
+            "duplicate.mp4",
+            _account1.Id,
+            null);
+        Assert.That(_dbContext.Videos.Count(), Is.EqualTo(3));
+        _mockVideoStorageService.Verify(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()), Times.Once);
+        VerifyLoggerCalled(LogLevel.Error, "Failed to cleanup uploaded video file");
+    }
+
+    [Test]
+    public async Task UploadVideo_SaveChangesCancelled_CleansUpSavedFileWithIndependentTokenAndRethrows()
+    {
+        SetCurrentUser(_admin.Id);
+        using var cts = new CancellationTokenSource();
+        var file = CreateFormFile("cancelled.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/cancelled.mp4",
+            OriginalFilename = "cancelled.mp4",
+            FileSizeBytes = (uint)file.Length,
+            DurationSeconds = 60
+        };
+        CancellationToken? cleanupToken = null;
+
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()))
+            .Callback<string, CancellationToken>((_, token) => cleanupToken = token)
+            .Returns(Task.CompletedTask);
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(_dbName)
+            .Options;
+        await using var cancelingDb = new CancelingOnSaveDbContext(options, cts);
+        var controller = new VideosController(
+            _mockHttpContextAccessor.Object,
+            new UserInformationService(cancelingDb),
+            _mockVideoStorageService.Object,
+            SubscriptionTestServices.PlaylistAccessService(cancelingDb),
+            _mockVideoPlaybackTokenService.Object,
+            cancelingDb,
+            _mockLogger.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = _mockHttpContextAccessor.Object.HttpContext!
+            }
+        };
+
+        var ex = Assert.ThrowsAsync<OperationCanceledException>(async () => await controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Cancelled upload",
+            AccountId = _account1.Id,
+            File = file
+        }, cts.Token));
+
+        Assert.That(ex, Is.Not.Null);
+        Assert.That(cts.IsCancellationRequested, Is.True);
+        Assert.That(cleanupToken, Is.Not.Null);
+        Assert.That(cleanupToken!.Value.CanBeCanceled, Is.False);
+        _mockVideoStorageService.Verify(
+            s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
     public async Task UploadVideo_UniqueFilename_SavesSuccessfully()
     {
         SetCurrentUser(_admin.Id);
@@ -1864,6 +1995,37 @@ public class VideosControllerTests
         Assert.That(error.Msg, Does.Contain(originalFilename));
     }
 
+    private static void AssertUploadError(
+        ObjectResult result,
+        int statusCode,
+        string message,
+        string reason,
+        string? originalFilename,
+        int? accountId,
+        int? categoryId)
+    {
+        Assert.That(result.StatusCode, Is.EqualTo(statusCode));
+        Assert.That(result.Value, Is.TypeOf<ErrMessage>());
+        var error = (ErrMessage)result.Value!;
+        Assert.That(error.Msg, Is.EqualTo(message));
+        Assert.That(error.Reason, Is.EqualTo(reason));
+        Assert.That(error.OriginalFilename, Is.EqualTo(originalFilename));
+        Assert.That(error.AccountId, Is.EqualTo(accountId));
+        Assert.That(error.CategoryId, Is.EqualTo(categoryId));
+    }
+
+    private void VerifyLoggerCalled(LogLevel level, string messageContains)
+    {
+        _mockLogger.Verify(
+            x => x.Log(
+                level,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(messageContains)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
     private static void AssertDuplicateVideoDescription(object? value, string title, int? accountId, int? categoryId)
     {
         Assert.That(value, Is.TypeOf<ErrMessage>());
@@ -1872,5 +2034,22 @@ public class VideosControllerTests
         Assert.That(error.AccountId, Is.EqualTo(accountId));
         Assert.That(error.CategoryId, Is.EqualTo(categoryId));
         Assert.That(error.Msg, Does.Contain(title));
+    }
+
+    private sealed class CancelingOnSaveDbContext(
+        DbContextOptions<AppDbContext> options,
+        CancellationTokenSource cancellationTokenSource) : AppDbContext(options)
+    {
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationTokenSource.Cancel();
+            return Task.FromException<int>(new OperationCanceledException(cancellationToken));
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            cancellationTokenSource.Cancel();
+            return Task.FromException<int>(new OperationCanceledException(cancellationToken));
+        }
     }
 }
