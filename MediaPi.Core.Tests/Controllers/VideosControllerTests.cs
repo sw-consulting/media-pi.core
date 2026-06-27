@@ -37,6 +37,7 @@ public class VideosControllerTests
     private AppDbContext _dbContext;
     private VideosController _controller;
     private UserInformationService _userInformationService;
+    private string _dbName;
 
     private User _admin;
     private User _managerAccount1;
@@ -58,8 +59,9 @@ public class VideosControllerTests
     [SetUp]
     public void Setup()
     {
+        _dbName = $"videos_controller_test_db_{Guid.NewGuid()}";
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase($"videos_controller_test_db_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(_dbName)
             .Options;
 
         _dbContext = new AppDbContext(options);
@@ -1417,6 +1419,64 @@ public class VideosControllerTests
     }
 
     [Test]
+    public async Task UploadVideo_SaveChangesCancelled_CleansUpSavedFileWithIndependentTokenAndRethrows()
+    {
+        SetCurrentUser(_admin.Id);
+        using var cts = new CancellationTokenSource();
+        var file = CreateFormFile("cancelled.mp4");
+        var saveResult = new VideoSaveResult
+        {
+            Filename = "0002/cancelled.mp4",
+            OriginalFilename = "cancelled.mp4",
+            FileSizeBytes = (uint)file.Length,
+            DurationSeconds = 60
+        };
+        CancellationToken? cleanupToken = null;
+
+        _mockVideoStorageService
+            .Setup(s => s.SaveVideoAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saveResult);
+        _mockVideoStorageService
+            .Setup(s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()))
+            .Callback<string, CancellationToken>((_, token) => cleanupToken = token)
+            .Returns(Task.CompletedTask);
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(_dbName)
+            .Options;
+        await using var cancelingDb = new CancelingOnSaveDbContext(options, cts);
+        var controller = new VideosController(
+            _mockHttpContextAccessor.Object,
+            new UserInformationService(cancelingDb),
+            _mockVideoStorageService.Object,
+            SubscriptionTestServices.PlaylistAccessService(cancelingDb),
+            _mockVideoPlaybackTokenService.Object,
+            cancelingDb,
+            _mockLogger.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = _mockHttpContextAccessor.Object.HttpContext!
+            }
+        };
+
+        var ex = Assert.ThrowsAsync<OperationCanceledException>(async () => await controller.UploadVideo(new VideoUploadItem
+        {
+            Title = "Cancelled upload",
+            AccountId = _account1.Id,
+            File = file
+        }, cts.Token));
+
+        Assert.That(ex, Is.Not.Null);
+        Assert.That(cts.IsCancellationRequested, Is.True);
+        Assert.That(cleanupToken, Is.Not.Null);
+        Assert.That(cleanupToken!.Value.CanBeCanceled, Is.False);
+        _mockVideoStorageService.Verify(
+            s => s.DeleteVideoAsync(saveResult.Filename, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
     public async Task UploadVideo_UniqueFilename_SavesSuccessfully()
     {
         SetCurrentUser(_admin.Id);
@@ -1974,5 +2034,22 @@ public class VideosControllerTests
         Assert.That(error.AccountId, Is.EqualTo(accountId));
         Assert.That(error.CategoryId, Is.EqualTo(categoryId));
         Assert.That(error.Msg, Does.Contain(title));
+    }
+
+    private sealed class CancelingOnSaveDbContext(
+        DbContextOptions<AppDbContext> options,
+        CancellationTokenSource cancellationTokenSource) : AppDbContext(options)
+    {
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationTokenSource.Cancel();
+            return Task.FromException<int>(new OperationCanceledException(cancellationToken));
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            cancellationTokenSource.Cancel();
+            return Task.FromException<int>(new OperationCanceledException(cancellationToken));
+        }
     }
 }

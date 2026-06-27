@@ -274,6 +274,7 @@ public class VideosController(
         }
         catch (OperationCanceledException)
         {
+            await CleanupSavedVideosAfterCancellation([saveResult.Filename]);
             throw;
         }
         catch (Exception ex)
@@ -863,6 +864,30 @@ return _curUserId == 0 ? null : await CurrentUser();
         }
 
         return succeeded;
+    }
+
+    private async Task CleanupSavedVideosAfterCancellation(IEnumerable<string> filenames)
+    {
+        var uniqueFilenames = filenames
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        try
+        {
+            if (!await CleanupSavedVideos(uniqueFilenames, CancellationToken.None))
+            {
+                _logger.LogError(
+                    "Failed to cleanup uploaded video files after upload cancellation: {Filenames}",
+                    string.Join(", ", uniqueFilenames));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to cleanup uploaded video files after upload cancellation: {Filenames}",
+                string.Join(", ", uniqueFilenames));
+        }
     }
 
     private async Task<bool> DeleteUploadedVideoFile(string filename, CancellationToken ct)
