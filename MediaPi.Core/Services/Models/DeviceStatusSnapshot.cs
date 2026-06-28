@@ -7,7 +7,8 @@ public class DeviceStatusSnapshot
 {
     public string IpAddress { get; set; } = string.Empty;
     public bool IsOnline { get; set; }
-    public DateTime LastChecked { get; set; }
+    public DateTimeOffset? LastChecked { get; set; }
+    public DateTimeOffset ServerLastChecked { get; set; }
     public long ConnectLatencyMs { get; set; }
     public long TotalLatencyMs { get; set; }
     public string? SoftwareVersion { get; set; }

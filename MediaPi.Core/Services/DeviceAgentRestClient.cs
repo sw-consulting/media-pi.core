@@ -87,6 +87,7 @@ public sealed class DeviceAgentRestClient : IMediaPiAgentClient
             Status = data?.Status,
             Uptime = data?.Uptime,
             Version = data?.Version,
+            Time = data?.Time,
             ServiceStatus = data?.ServiceStatus
         };
     }
