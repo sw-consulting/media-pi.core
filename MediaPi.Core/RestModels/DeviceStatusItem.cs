@@ -7,7 +7,7 @@ using MediaPi.Core.Settings;
 
 namespace MediaPi.Core.RestModels;
 
-public class DeviceStatusItem
+public class    DeviceStatusItem
 {
     public int DeviceId { get; set; }
     public bool IsOnline { get; set; }

@@ -109,7 +109,7 @@ public class MediaPiAgentClient2Tests
                     playlist = new { destination = "d" },
                     schedule = new { playlist = new[] { "one" }, video = Array.Empty<string>(), rest = Array.Empty<object>() },
                     audio = new { output = "HDMI" },
-                    screenshot = new { timers = new[] { "0:00:30", "0:30:00" } }
+                    screenshot = new { timers = new[] { "00:00:30", "00:30:00" } }
                 }
             });
             return Task.FromResult(TrackResponse(responses, new HttpResponseMessage(HttpStatusCode.OK)
@@ -140,7 +140,7 @@ public class MediaPiAgentClient2Tests
         Assert.That(model!.Audio.Output, Is.EqualTo("HDMI"));
         Assert.That(model.Playlist.Destination, Is.EqualTo("d"));
         Assert.That(model.Schedule.Playlist, Does.Contain("one"));
-        Assert.That(model.Screenshot.Timers, Is.EqualTo(new[] { "0:00:30", "0:30:00" }));
+        Assert.That(model.Screenshot.Timers, Is.EqualTo(new[] { "00:00:30", "00:30:00" }));
     }
 
     [Test]
@@ -384,7 +384,7 @@ public class MediaPiAgentClient2Tests
                 Rest = [new RestTimePairDto { Stop = "10:00", Start = "09:00" }]
             },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { Timers = ["0:00:30", "0:30:00"] }
+            Screenshot = new ScreenshotSettingsDto { Timers = ["00:00:30", "00:30:00"] }
         };
 
         MediaPiMenuCommandResponse response;
@@ -398,7 +398,7 @@ public class MediaPiAgentClient2Tests
         }
 
         Assert.That(response.Result, Is.EqualTo("updated"));
-        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"},\"screenshot\":{\"timers\":[\"0:00:30\",\"0:30:00\"]}}"));
+        Assert.That(observedContent, Is.EqualTo("{\"playlist\":{\"destination\":\"local\"},\"schedule\":{\"playlist\":[\"morning\"],\"video\":[\"clip\"],\"rest\":[{\"stop\":\"10:00\",\"start\":\"09:00\"}]},\"audio\":{\"output\":\"HDMI\"},\"screenshot\":{\"timers\":[\"00:00:30\",\"00:30:00\"]}}"));
     }
 
     [Test]

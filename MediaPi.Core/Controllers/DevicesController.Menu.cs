@@ -226,6 +226,14 @@ public partial class DevicesController
         var (device, error) = await GetDeviceForServiceAsync(id, ct);
         if (error != null) return error;
 
+        if (payload?.Screenshot?.Timers == null || payload.Screenshot.Timers.Any(timer => !IsValidPhotoTimer(timer)))
+        {
+            return BadRequest(new ErrMessage
+            {
+                Msg = "Некорректный формат таймера фотоотчёта. Используйте HH:mm:ss"
+            });
+        }
+
         var targetDevice = device!;
 
         try
@@ -260,6 +268,24 @@ public partial class DevicesController
             logger.LogError(ex, "Ошибка при выполнении операции update configuration для устройства {DeviceId}", id);
             return _502Agent();
         }
+    }
+
+    private static bool IsValidPhotoTimer(string? timer)
+    {
+        var value = timer?.Trim();
+        if (value is not { Length: 8 }) return false;
+        if (value[2] != ':' || value[5] != ':') return false;
+        if (!char.IsDigit(value[0]) || !char.IsDigit(value[1]) ||
+            !char.IsDigit(value[3]) || !char.IsDigit(value[4]) ||
+            !char.IsDigit(value[6]) || !char.IsDigit(value[7]))
+        {
+            return false;
+        }
+
+        var hours = ((value[0] - '0') * 10) + (value[1] - '0');
+        var minutes = ((value[3] - '0') * 10) + (value[4] - '0');
+        var seconds = ((value[6] - '0') * 10) + (value[7] - '0');
+        return hours <= 23 && minutes <= 59 && seconds <= 59;
     }
 
     [HttpPost("{id}/system/reboot")]

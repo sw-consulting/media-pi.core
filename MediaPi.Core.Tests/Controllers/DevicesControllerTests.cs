@@ -1261,6 +1261,29 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task UpdateConfiguration_InvalidPhotoTimer_ReturnsBadRequest()
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = new ConfigurationSettingsDto
+        {
+            Playlist = new PlaylistSettingsDto { Destination = "d" },
+            Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
+            Audio = new AudioSettingsDto { Output = "LINE" },
+            Screenshot = new ScreenshotSettingsDto { Timers = ["0:00:30"] }
+        };
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        var badRequest = result.Result as BadRequestObjectResult;
+        Assert.That(badRequest, Is.Not.Null);
+        var message = badRequest!.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("HH:mm:ss"));
+        _agentClient2Mock.Verify(
+            c => c.UpdateConfigurationAsync(It.IsAny<Device>(), It.IsAny<ConfigurationSettingsDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
     public async Task StartStopPlaylistUpload_Admin_ReturnsAgentResponses()
     {
         SetCurrentUser(_admin.Id);
