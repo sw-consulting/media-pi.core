@@ -1204,7 +1204,7 @@ public class DevicesControllerTests
             Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
         var agentResponse = new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = true, Data = dto };
         _agentClient2Mock
@@ -1242,7 +1242,7 @@ public class DevicesControllerTests
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
             Audio = new AudioSettingsDto { Output = "LINE" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
         var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
         _agentClient2Mock
@@ -1303,7 +1303,7 @@ public class DevicesControllerTests
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
 
         // Make UpdateConfiguration succeed

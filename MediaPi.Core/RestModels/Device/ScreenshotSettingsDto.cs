@@ -7,7 +7,7 @@ namespace MediaPi.Core.RestModels.Device
 {
     public class ScreenshotSettingsDto
     {
-        [JsonPropertyName("intervalMinutes")]
-        public int IntervalMinutes { get; set; }
+        [JsonPropertyName("timers")]
+        public IList<string> Timers { get; set; } = [];
     }
 }
