@@ -55,6 +55,7 @@ namespace MediaPi.Core.Services.Models
         [JsonPropertyName("status")] public string? Status { get; init; }
         [JsonPropertyName("uptime")] public double? Uptime { get; init; }
         [JsonPropertyName("version")] public string? Version { get; init; }
+        [JsonPropertyName("time")] public DateTimeOffset? Time { get; init; }
         [JsonPropertyName("serviceStatus")] public ServiceStatusDto? ServiceStatus { get; init; }
     }
 }

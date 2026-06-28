@@ -88,9 +88,10 @@ public class DeviceMonitoringServiceTests
         return new DeviceEventsService();
     }
 
-    private static IMediaPiAgentClient CreateAgentClient(bool isHealthy = true, string? error = null, string? version = "1.0.0")
+    private static IMediaPiAgentClient CreateAgentClient(bool isHealthy = true, string? error = null, string? version = "1.0.0", DateTimeOffset? deviceTime = null)
     {
         var mock = new Mock<IMediaPiAgentClient>();
+        var responseTime = deviceTime ?? new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3));
         
         mock.Setup(c => c.CheckHealthAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MediaPiAgentHealthResponse
@@ -99,7 +100,8 @@ public class DeviceMonitoringServiceTests
                 ErrMsg = error,
                 Status = isHealthy ? "healthy" : "unhealthy",
                 Uptime = 12345.67,
-                Version = version
+                Version = version,
+                Time = responseTime
             });
 
         return mock.Object;
@@ -119,6 +121,27 @@ public class DeviceMonitoringServiceTests
         // With
         Assert.That(service.Snapshot, Is.Not.Null);
         Assert.That(service.TryGetStatus(123, out var _), Is.False);
+    }
+
+    [Test]
+    public void EstimateServerCheckTime_ReturnsMidpointBetweenRequestAndResponse()
+    {
+        var started = new DateTimeOffset(2026, 6, 28, 9, 0, 0, TimeSpan.Zero);
+        var ended = started.AddMilliseconds(80);
+
+        var result = DeviceMonitoringService.EstimateServerCheckTime(started, ended);
+
+        Assert.That(result, Is.EqualTo(started.AddMilliseconds(40)));
+    }
+
+    [Test]
+    public void EstimateServerCheckTime_WhenRequestStartMissing_ReturnsEndTime()
+    {
+        var ended = new DateTimeOffset(2026, 6, 28, 9, 0, 0, TimeSpan.Zero);
+
+        var result = DeviceMonitoringService.EstimateServerCheckTime(null, ended);
+
+        Assert.That(result, Is.EqualTo(ended));
     }
 
     [Test]
@@ -143,6 +166,8 @@ public class DeviceMonitoringServiceTests
         Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
         var snapshot = service.Snapshot[device.Id];
         Assert.That(snapshot.SoftwareVersion, Is.EqualTo("2.1.0"));
+        Assert.That(snapshot.LastChecked, Is.Not.Null);
+        Assert.That(snapshot.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
         
         // Use thread-safe check for logs with a small delay to allow pending log writes
         await Task.Delay(100);
@@ -230,6 +255,8 @@ public class DeviceMonitoringServiceTests
         var result = await task!;
         Assert.That(result.IsOnline, Is.False);
         Assert.That(result.SoftwareVersion, Is.Null); // Software version should be null for invalid IP
+        Assert.That(result.LastChecked, Is.Null);
+        Assert.That(result.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
     }
 
     [Test]
@@ -252,6 +279,8 @@ public class DeviceMonitoringServiceTests
         
         var result = await task!;
         Assert.That(result.IsOnline, Is.True); // IsOnline should be true
+        Assert.That(result.LastChecked, Is.EqualTo(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3))));
+        Assert.That(result.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
         Assert.That(result.SoftwareVersion, Is.EqualTo("test-version-1.2.3")); // Software version should match
     }
 
@@ -299,6 +328,8 @@ public class DeviceMonitoringServiceTests
 
         var probes = db.DeviceProbes.Where(p => p.DeviceId == device.Id).ToList();
         Assert.That(probes, Is.Not.Empty);
+        var snapshot = service.Snapshot[device.Id];
+        Assert.That(probes.Last().Timestamp, Is.EqualTo(snapshot.ServerLastChecked.UtcDateTime));
     }
 
     [Test]
@@ -317,6 +348,8 @@ public class DeviceMonitoringServiceTests
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.SoftwareVersion, Is.EqualTo("3.2.1"));
+        Assert.That(result.LastChecked, Is.EqualTo(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3))));
+        Assert.That(result.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
         Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True);
         Assert.That(service.Snapshot[device.Id].SoftwareVersion, Is.EqualTo("3.2.1"));
     }
@@ -405,6 +438,8 @@ public class DeviceMonitoringServiceTests
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result?.IsOnline, Is.False);
+        Assert.That(result?.LastChecked, Is.Null);
+        Assert.That(result?.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
         Assert.That(result?.SoftwareVersion, Is.Null);
         
         // Check if warning was logged
@@ -464,6 +499,8 @@ public class DeviceMonitoringServiceTests
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result?.IsOnline, Is.False);
+        Assert.That(result?.LastChecked, Is.Null);
+        Assert.That(result?.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
         Assert.That(result?.SoftwareVersion, Is.Null);
     }
 
@@ -525,6 +562,8 @@ public class DeviceMonitoringServiceTests
         {
             Assert.That(deletionEvent.Snapshot.SoftwareVersion, Is.Null);
             Assert.That(deletionEvent.Snapshot.IpAddress, Is.EqualTo(string.Empty));
+            Assert.That(deletionEvent.Snapshot.LastChecked, Is.Null);
+            Assert.That(deletionEvent.Snapshot.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
             Assert.That(deletionEvent.Snapshot.PlaybackServiceStatus, Is.Null);
             Assert.That(deletionEvent.Snapshot.PlaylistUploadServiceStatus, Is.Null);
             Assert.That(deletionEvent.Snapshot.VideoUploadServiceStatus, Is.Null);

@@ -11,7 +11,8 @@ public class DeviceStatusItem
 {
     public int DeviceId { get; set; }
     public bool IsOnline { get; set; }
-    public DateTime LastChecked { get; set; }
+    public DateTimeOffset? LastChecked { get; set; }
+    public DateTimeOffset ServerLastChecked { get; set; }
     public long ConnectLatencyMs { get; set; }
     public long TotalLatencyMs { get; set; }
     public string? SoftwareVersion { get; set; }
@@ -27,6 +28,7 @@ public class DeviceStatusItem
         DeviceId = deviceId;
         IsOnline = snapshot.IsOnline;
         LastChecked = snapshot.LastChecked;
+        ServerLastChecked = snapshot.ServerLastChecked;
         ConnectLatencyMs = snapshot.ConnectLatencyMs;
         TotalLatencyMs = snapshot.TotalLatencyMs;
         SoftwareVersion = snapshot.SoftwareVersion;
