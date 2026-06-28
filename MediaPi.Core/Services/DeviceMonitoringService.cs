@@ -109,7 +109,8 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             {
                 IpAddress = string.Empty,
                 IsOnline = false,
-                LastChecked = DateTime.UtcNow,
+                LastChecked = null,
+                ServerLastChecked = DateTimeOffset.Now,
                 ConnectLatencyMs = 0,
                 TotalLatencyMs = 0,
                 SoftwareVersion = null,
@@ -135,7 +136,8 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         {
             IpAddress = device.IpAddress,
             IsOnline = probeResult.IsOnline,
-            LastChecked = DateTime.UtcNow,
+            LastChecked = probeResult.LastChecked,
+            ServerLastChecked = probeResult.ServerLastChecked,
             ConnectLatencyMs = probeResult.ConnectMs,
             TotalLatencyMs = probeResult.TotalMs,
             SoftwareVersion = probeResult.SoftwareVersion,
@@ -150,7 +152,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
         var probe = new DeviceProbe
         {
             DeviceId = device.Id,
-            Timestamp = snap.LastChecked,
+            Timestamp = snap.ServerLastChecked.UtcDateTime,
             IsOnline = snap.IsOnline,
             ConnectLatencyMs = snap.ConnectLatencyMs,
             TotalLatencyMs = snap.TotalLatencyMs,
@@ -286,45 +288,62 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
     private async Task<DeviceProbeResult> Probe(Device device, CancellationToken token)
     {
         var sw = Stopwatch.StartNew();
+        DateTimeOffset? requestStarted = null;
         try
         {
             if (!IPAddress.TryParse(device.IpAddress, out var ipAddress))
             {
                 sw.Stop();
                 _logger.LogWarning("Probe skipped: Invalid IP address '{IpAddress}'", device.IpAddress);
-                return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
+                var checkedAt = DateTimeOffset.Now;
+                return new DeviceProbeResult(false, null, checkedAt, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
             }
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
 
             var connectWatch = Stopwatch.StartNew();
+            requestStarted = DateTimeOffset.Now;
             var healthResponse = await _agentClient.CheckHealthAsync(device, cts.Token).ConfigureAwait(false);
+            var responseEnded = DateTimeOffset.Now;
             connectWatch.Stop();
             sw.Stop();
 
             var connectMs = connectWatch.ElapsedMilliseconds;
+            var serverLastChecked = EstimateServerCheckTime(requestStarted.Value, responseEnded);
 
             if (!healthResponse.Ok)
             {
                 _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
                     device.Id, device.IpAddress, healthResponse.ErrMsg);
-                return new DeviceProbeResult(false, connectMs, sw.ElapsedMilliseconds, null, healthResponse.ServiceStatus);
+                return new DeviceProbeResult(false, healthResponse.Time, serverLastChecked, connectMs, sw.ElapsedMilliseconds, null, healthResponse.ServiceStatus);
             }
 
-            return new DeviceProbeResult(true, connectMs, sw.ElapsedMilliseconds, healthResponse.Version, healthResponse.ServiceStatus);
+            return new DeviceProbeResult(true, healthResponse.Time, serverLastChecked, connectMs, sw.ElapsedMilliseconds, healthResponse.Version, healthResponse.ServiceStatus);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             sw.Stop();
             _logger.LogWarning("Health probe for device {DeviceId} ({IpAddress}) timed out.", device.Id, device.IpAddress);
-            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
+            var serverLastChecked = EstimateServerCheckTime(requestStarted, DateTimeOffset.Now);
+            return new DeviceProbeResult(false, null, serverLastChecked, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
         }
         catch (Exception ex)
         {
             sw.Stop();
             _logger.LogWarning(ex, "Health probe failed for device {DeviceId} ({IpAddress}).", device.Id, device.IpAddress);
-            return new DeviceProbeResult(false, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
+            var serverLastChecked = EstimateServerCheckTime(requestStarted, DateTimeOffset.Now);
+            return new DeviceProbeResult(false, null, serverLastChecked, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, null, null);
         }
+    }
+
+    internal static DateTimeOffset EstimateServerCheckTime(DateTimeOffset? started, DateTimeOffset ended)
+    {
+        if (started is null)
+        {
+            return ended;
+        }
+
+        return started.Value + TimeSpan.FromTicks((ended - started.Value).Ticks / 2);
     }
 }

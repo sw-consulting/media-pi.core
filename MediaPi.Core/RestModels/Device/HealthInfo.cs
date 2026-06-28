@@ -8,5 +8,6 @@ public class HealthInfo
     public string? Status { get; init; }
     public double? Uptime { get; init; }
     public string? Version { get; init; }
+    public DateTimeOffset? Time { get; init; }
     public ServiceStatusDto? ServiceStatus { get; init; }
 }
