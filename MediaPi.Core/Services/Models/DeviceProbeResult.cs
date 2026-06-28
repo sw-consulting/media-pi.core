@@ -7,6 +7,8 @@ namespace MediaPi.Core.Services.Models;
 
 public record DeviceProbeResult(
     bool IsOnline,
+    DateTimeOffset? LastChecked,
+    DateTimeOffset ServerLastChecked,
     long ConnectMs,
     long TotalMs,
     string? SoftwareVersion,

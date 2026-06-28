@@ -150,7 +150,7 @@ public class DeviceAgentRestClientTests
             observedUri = request.RequestUri;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("""{"ok":true,"data":{"status":"healthy","uptime":12345.67,"version":"1.0.0","serviceStatus":{"playbackServiceStatus":true,"playlistUploadServiceStatus":false,"videoUploadServiceStatus":true}}}""", Encoding.UTF8, "application/json")
+                Content = new StringContent("""{"ok":true,"data":{"status":"healthy","uptime":12345.67,"version":"1.0.0","time":"2026-06-28T12:34:56+03:00","serviceStatus":{"playbackServiceStatus":true,"playlistUploadServiceStatus":false,"videoUploadServiceStatus":true}}}""", Encoding.UTF8, "application/json")
             });
         });
 
@@ -164,6 +164,7 @@ public class DeviceAgentRestClientTests
         Assert.That(result.Status, Is.EqualTo("healthy"));
         Assert.That(result.Uptime, Is.EqualTo(12345.67));
         Assert.That(result.Version, Is.EqualTo("1.0.0"));
+        Assert.That(result.Time, Is.EqualTo(new DateTimeOffset(2026, 6, 28, 12, 34, 56, TimeSpan.FromHours(3))));
         Assert.That(result.ServiceStatus, Is.Not.Null);
         Assert.That(result.ServiceStatus!.PlaybackServiceStatus, Is.True);
         Assert.That(result.ServiceStatus.PlaylistUploadServiceStatus, Is.False);

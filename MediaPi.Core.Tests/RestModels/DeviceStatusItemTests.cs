@@ -16,12 +16,14 @@ public class DeviceStatusItemTests
     public void Constructor_CopiesAllPropertiesFromSnapshot()
     {
         // Arrange
-        var now = DateTime.UtcNow;
+        var now = DateTimeOffset.UtcNow;
+        var serverNow = now.AddMilliseconds(25);
         var snapshot = new DeviceStatusSnapshot
         {
             IpAddress = "192.168.1.100",
             IsOnline = true,
             LastChecked = now,
+            ServerLastChecked = serverNow,
             ConnectLatencyMs = 150,
             TotalLatencyMs = 200,
             SoftwareVersion = "5.2.1",
@@ -37,6 +39,7 @@ public class DeviceStatusItemTests
         Assert.That(statusItem.DeviceId, Is.EqualTo(42));
         Assert.That(statusItem.IsOnline, Is.EqualTo(true));
         Assert.That(statusItem.LastChecked, Is.EqualTo(now));
+        Assert.That(statusItem.ServerLastChecked, Is.EqualTo(serverNow));
         Assert.That(statusItem.ConnectLatencyMs, Is.EqualTo(150));
         Assert.That(statusItem.TotalLatencyMs, Is.EqualTo(200));
         Assert.That(statusItem.SoftwareVersion, Is.EqualTo("5.2.1"));
@@ -101,7 +104,8 @@ public class DeviceStatusItemTests
         {
             IpAddress = "10.0.0.1",
             IsOnline = true,
-            LastChecked = new DateTime(2024, 1, 15, 10, 30, 45, DateTimeKind.Utc),
+            LastChecked = new DateTimeOffset(2024, 1, 15, 10, 30, 45, TimeSpan.Zero),
+            ServerLastChecked = new DateTimeOffset(2024, 1, 15, 10, 30, 46, TimeSpan.Zero),
             ConnectLatencyMs = 25,
             TotalLatencyMs = 50,
             SoftwareVersion = "6.0.0-beta"
@@ -119,6 +123,8 @@ public class DeviceStatusItemTests
         Assert.That(deserializedItem, Is.Not.Null);
         Assert.That(deserializedItem!.DeviceId, Is.EqualTo(123));
         Assert.That(deserializedItem.IsOnline, Is.True);
+        Assert.That(deserializedItem.LastChecked, Is.EqualTo(snapshot.LastChecked));
+        Assert.That(deserializedItem.ServerLastChecked, Is.EqualTo(snapshot.ServerLastChecked));
         Assert.That(deserializedItem.ConnectLatencyMs, Is.EqualTo(25));
         Assert.That(deserializedItem.TotalLatencyMs, Is.EqualTo(50));
         Assert.That(deserializedItem.SoftwareVersion, Is.EqualTo("6.0.0-beta"));
@@ -197,5 +203,25 @@ public class DeviceStatusItemTests
         Assert.That(statusItem.ConnectLatencyMs, Is.EqualTo(5000));
         Assert.That(statusItem.TotalLatencyMs, Is.EqualTo(10000));
         Assert.That(statusItem.SoftwareVersion, Is.EqualTo("0.9.9"));
+    }
+
+    [Test]
+    public void Constructor_AllowsMissingDeviceLastChecked()
+    {
+        var serverNow = DateTimeOffset.UtcNow;
+        var snapshot = new DeviceStatusSnapshot
+        {
+            IpAddress = "127.0.0.1",
+            IsOnline = false,
+            LastChecked = null,
+            ServerLastChecked = serverNow,
+            ConnectLatencyMs = 0,
+            TotalLatencyMs = 1
+        };
+
+        var statusItem = new DeviceStatusItem(5, snapshot);
+
+        Assert.That(statusItem.LastChecked, Is.Null);
+        Assert.That(statusItem.ServerLastChecked, Is.EqualTo(serverNow));
     }
 }

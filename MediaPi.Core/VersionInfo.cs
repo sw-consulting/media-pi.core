@@ -5,5 +5,5 @@ namespace MediaPi.Core;
 
 public static class VersionInfo
 {
-    public const string AppVersion = "0.10.3";
+    public const string AppVersion = "0.11.0";
 }

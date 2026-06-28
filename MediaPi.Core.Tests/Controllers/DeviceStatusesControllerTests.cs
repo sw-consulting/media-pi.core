@@ -45,10 +45,12 @@ public class DeviceStatusesControllerTests
     [Test]
     public void GetAll_ReturnsAllDeviceStatuses()
     {
+        var deviceTime = new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3));
+        var serverTime = new DateTimeOffset(2026, 6, 28, 9, 0, 1, TimeSpan.Zero);
         var snapshot = new Dictionary<int, DeviceStatusSnapshot>
         {
-            { 1, new DeviceStatusSnapshot { IpAddress = "192.168.1.10", IsOnline = true, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 10, TotalLatencyMs = 20, SoftwareVersion = "1.2.3" } },
-            { 2, new DeviceStatusSnapshot { IpAddress = "192.168.1.11", IsOnline = false, LastChecked = DateTime.UtcNow, ConnectLatencyMs = 30, TotalLatencyMs = 40, SoftwareVersion = null } }
+            { 1, new DeviceStatusSnapshot { IpAddress = "192.168.1.10", IsOnline = true, LastChecked = deviceTime, ServerLastChecked = serverTime, ConnectLatencyMs = 10, TotalLatencyMs = 20, SoftwareVersion = "1.2.3" } },
+            { 2, new DeviceStatusSnapshot { IpAddress = "192.168.1.11", IsOnline = false, LastChecked = null, ServerLastChecked = serverTime.AddSeconds(1), ConnectLatencyMs = 30, TotalLatencyMs = 40, SoftwareVersion = null } }
         };
         _monitoringServiceMock.Setup(s => s.Snapshot).Returns(snapshot);
 
@@ -62,7 +64,10 @@ public class DeviceStatusesControllerTests
             Assert.That(list.Count, Is.EqualTo(2));
             Assert.That(list[0].DeviceId, Is.EqualTo(1));
             Assert.That(list[0].SoftwareVersion, Is.EqualTo("1.2.3"));
+            Assert.That(list[0].LastChecked, Is.EqualTo(deviceTime));
+            Assert.That(list[0].ServerLastChecked, Is.EqualTo(serverTime));
             Assert.That(list[1].DeviceId, Is.EqualTo(2));
+            Assert.That(list[1].LastChecked, Is.Null);
             Assert.That(list[1].SoftwareVersion, Is.Null);
         }
     }
@@ -88,7 +93,8 @@ public class DeviceStatusesControllerTests
         {
             IpAddress = "192.168.1.10",
             IsOnline = true,
-            LastChecked = DateTime.UtcNow,
+            LastChecked = new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3)),
+            ServerLastChecked = new DateTimeOffset(2026, 6, 28, 9, 0, 1, TimeSpan.Zero),
             ConnectLatencyMs = 10,
             TotalLatencyMs = 20,
             SoftwareVersion = "2.4.6"
@@ -102,6 +108,8 @@ public class DeviceStatusesControllerTests
         {
             Assert.That(returnedItem.DeviceId, Is.EqualTo(1));
             Assert.That(returnedItem.IsOnline, Is.True);
+            Assert.That(returnedItem.LastChecked, Is.EqualTo(snapshot.LastChecked));
+            Assert.That(returnedItem.ServerLastChecked, Is.EqualTo(snapshot.ServerLastChecked));
             Assert.That(returnedItem.SoftwareVersion, Is.EqualTo("2.4.6"));
         }
     }
@@ -129,7 +137,8 @@ public class DeviceStatusesControllerTests
         {
             IpAddress = "192.168.1.10",
             IsOnline = true,
-            LastChecked = DateTime.UtcNow,
+            LastChecked = new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3)),
+            ServerLastChecked = new DateTimeOffset(2026, 6, 28, 9, 0, 1, TimeSpan.Zero),
             ConnectLatencyMs = 10,
             TotalLatencyMs = 20,
             SoftwareVersion = "3.1.4"
@@ -143,6 +152,8 @@ public class DeviceStatusesControllerTests
         {
             Assert.That(item.DeviceId, Is.EqualTo(1));
             Assert.That(item.IsOnline, Is.True);
+            Assert.That(item.LastChecked, Is.EqualTo(snapshot.LastChecked));
+            Assert.That(item.ServerLastChecked, Is.EqualTo(snapshot.ServerLastChecked));
             Assert.That(item.SoftwareVersion, Is.EqualTo("3.1.4"));
         }
     }
@@ -183,7 +194,8 @@ public class DeviceStatusesControllerTests
         {
             IpAddress = "192.168.1.10",
             IsOnline = true,
-            LastChecked = DateTime.UtcNow,
+            LastChecked = new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3)),
+            ServerLastChecked = new DateTimeOffset(2026, 6, 28, 9, 0, 1, TimeSpan.Zero),
             ConnectLatencyMs = 10,
             TotalLatencyMs = 20,
             SoftwareVersion = "4.2.0"
@@ -213,6 +225,8 @@ public class DeviceStatusesControllerTests
         Assert.That(jsonContent, Does.Contain("\"connectLatencyMs\":10"));
         Assert.That(jsonContent, Does.Contain("\"totalLatencyMs\":20"));
         Assert.That(jsonContent, Does.Contain("\"softwareVersion\":\"4.2.0\""));
+        Assert.That(jsonContent, Does.Contain("\"lastChecked\":\"2026-06-28T12:00:00+03:00\""));
+        Assert.That(jsonContent, Does.Contain("\"serverLastChecked\":\"2026-06-28T09:00:01+00:00\""));
     }
 
     [Test]
