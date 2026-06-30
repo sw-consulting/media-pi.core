@@ -230,7 +230,7 @@ public partial class DevicesController
         {
             return BadRequest(new ErrMessage
             {
-                Msg = "Некорректный формат таймера фотоотчёта. Используйте HH:mm:ss"
+                Msg = "Некорректный формат таймеров фотоотчёта. Используйте HH:mm:ss"
             });
         }
 
