@@ -541,6 +541,28 @@ public class DevicesControllerErrorTests
     }
 
     [Test]
+    public async Task CreateSnapshot_ManagerUnassignedDevice_ReturnsForbidden()
+    {
+        SetCurrentUser(_manager.Id);
+        var result = await _controller.CreateScreenshot(2, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClientMock.Verify(c => c.CreateScreenshotAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task CreateSnapshot_ManagerOtherAccountDevice_ReturnsForbidden()
+    {
+        SetCurrentUser(_manager.Id);
+        var result = await _controller.CreateScreenshot(3, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClientMock.Verify(c => c.CreateScreenshotAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
     public async Task CreateSnapshot_EngineerAssignedDevice_ReturnsForbidden()
     {
         SetCurrentUser(_engineer.Id);
