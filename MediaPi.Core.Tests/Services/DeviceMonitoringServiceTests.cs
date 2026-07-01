@@ -214,10 +214,13 @@ public class DeviceMonitoringServiceTests
         var snapshot = await service.Test(device.Id);
 
         Assert.That(snapshot, Is.Not.Null);
-        Assert.That(snapshot!.PlaylistActivation, Is.SameAs(playlistActivation));
+        Assert.That(snapshot!.PlaylistActivation, Is.Not.Null);
+        Assert.That(snapshot.PlaylistActivation!.State, Is.EqualTo(playlistActivation.State));
+        Assert.That(snapshot.PlaylistActivation.Phase, Is.EqualTo(playlistActivation.Phase));
+        Assert.That(snapshot.PlaylistActivation.Trigger, Is.EqualTo(playlistActivation.Trigger));
+        Assert.That(snapshot.PlaylistActivation.Error, Is.EqualTo(playlistActivation.Error));
         Assert.That(snapshot.PlaybackServiceStatus, Is.True);
         Assert.That(snapshot.PlaylistUploadServiceStatus, Is.False);
-    }
 
     [Test]
     public async Task ExecuteAsync_UpdatesSnapshot_ForOfflineDevice()
