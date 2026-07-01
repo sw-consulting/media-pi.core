@@ -527,7 +527,7 @@ public class DevicesControllerErrorTests
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "one" } },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
         _agentClient2Mock
             .Setup(c => c.GetConfigurationAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
@@ -620,6 +620,66 @@ public class DevicesControllerErrorTests
         _screenshotStorageServiceMock
             .Setup(s => s.DeleteScreenshotAsync(savedFilename, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+
+        var throwingController = new DevicesController(
+            _mockHttpContextAccessor.Object,
+            _userInformationService,
+            throwingDb,
+            _mockLogger.Object,
+            _deviceEventsService,
+            _monitoringServiceMock.Object,
+            _screenshotStorageServiceMock.Object,
+            _agentClientMock.Object,
+            _agentClient2Mock.Object
+        )
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = _mockHttpContextAccessor.Object.HttpContext!
+            }
+        };
+
+        var result = await throwingController.CreateScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        var obj = result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        _screenshotStorageServiceMock.Verify(
+            s => s.DeleteScreenshotAsync(savedFilename, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
+    public async Task CreateSnapshot_DbSaveThrowsAndCleanupThrows_ReturnsInternalServerError()
+    {
+        var throwingOptions = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(_dbName)
+            .Options;
+        await using var throwingDb = new ThrowingOnSaveDbContext(throwingOptions);
+
+        SetCurrentUser(_admin.Id);
+        var savedFilename = "0001/snapshot.jpg";
+        _agentClientMock
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
+            {
+                Content = [1, 2],
+                ContentType = "image/jpeg",
+                Filename = "snapshot.jpg"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = savedFilename,
+                OriginalFilename = "snapshot.jpg",
+                FileSizeBytes = 2,
+                Sha256 = "abc",
+                TimeCreated = DateTime.UtcNow
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.DeleteScreenshotAsync(savedFilename, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("cleanup failed"));
 
         var throwingController = new DevicesController(
             _mockHttpContextAccessor.Object,
