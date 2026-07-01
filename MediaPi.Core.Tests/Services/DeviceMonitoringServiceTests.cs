@@ -10,10 +10,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
+using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services;
-using MediaPi.Core.Settings;
-using MediaPi.Core.Services.Models;
 using MediaPi.Core.Services.Interfaces;
+using MediaPi.Core.Services.Models;
+using MediaPi.Core.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -63,10 +64,10 @@ public class DeviceMonitoringServiceTests
     {
         var logger = new Mock<ILogger<DeviceMonitoringService>>();
         logs ??= new List<string>();
-        
+
         // Use a lock to handle concurrent access to the logs list
         var lockObj = new object();
-        
+
         logger.Setup(l => l.Log(
             It.IsAny<LogLevel>(),
             It.IsAny<EventId>(),
@@ -88,11 +89,16 @@ public class DeviceMonitoringServiceTests
         return new DeviceEventsService();
     }
 
-    private static IMediaPiAgentClient CreateAgentClient(bool isHealthy = true, string? error = null, string? version = "1.0.0", DateTimeOffset? deviceTime = null)
+    private static IMediaPiAgentClient CreateAgentClient(
+        bool isHealthy = true,
+        string? error = null,
+        string? version = "1.0.0",
+        DateTimeOffset? deviceTime = null,
+        ServiceStatusDto? serviceStatus = null)
     {
         var mock = new Mock<IMediaPiAgentClient>();
         var responseTime = deviceTime ?? new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3));
-        
+
         mock.Setup(c => c.CheckHealthAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MediaPiAgentHealthResponse
             {
@@ -101,7 +107,8 @@ public class DeviceMonitoringServiceTests
                 Status = isHealthy ? "healthy" : "unhealthy",
                 Uptime = 12345.67,
                 Version = version,
-                Time = responseTime
+                Time = responseTime,
+                ServiceStatus = serviceStatus
             });
 
         return mock.Object;
@@ -168,7 +175,7 @@ public class DeviceMonitoringServiceTests
         Assert.That(snapshot.SoftwareVersion, Is.EqualTo("2.1.0"));
         Assert.That(snapshot.LastChecked, Is.Not.Null);
         Assert.That(snapshot.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
-        
+
         // Use thread-safe check for logs with a small delay to allow pending log writes
         await Task.Delay(100);
         bool hasProbeLog;
@@ -177,6 +184,43 @@ public class DeviceMonitoringServiceTests
             hasProbeLog = logs.Any(l => l.Contains("Probed device") && l.Contains("Version=2.1.0"));
         }
         Assert.That(hasProbeLog, Is.True);
+    }
+
+    [Test]
+    public async Task Test_CopiesPlaylistActivationIntoSnapshot()
+    {
+        var device = new Device { Id = 21, IpAddress = "127.0.0.1", Port = 8080, Name = "TestDevice21" };
+        var db = CreateDbContext(device);
+        var playlistActivation = new PlaylistActivationDto
+        {
+            State = "failed",
+            Phase = "playbackRestart",
+            Trigger = "manual",
+            Error = "restart failed"
+        };
+        var service = new DeviceMonitoringService(
+            CreateScopeFactory(db),
+            Options.Create(GetDefaultSettings()),
+            CreateLogger(new List<string>()),
+            CreateDeviceEventsService(),
+            CreateAgentClient(serviceStatus: new ServiceStatusDto
+            {
+                PlaybackServiceStatus = true,
+                PlaylistUploadServiceStatus = false,
+                VideoUploadServiceStatus = false,
+                PlaylistActivation = playlistActivation
+            }));
+
+        var snapshot = await service.Test(device.Id);
+
+        Assert.That(snapshot, Is.Not.Null);
+        Assert.That(snapshot!.PlaylistActivation, Is.Not.Null);
+        Assert.That(snapshot.PlaylistActivation!.State, Is.EqualTo(playlistActivation.State));
+        Assert.That(snapshot.PlaylistActivation.Phase, Is.EqualTo(playlistActivation.Phase));
+        Assert.That(snapshot.PlaylistActivation.Trigger, Is.EqualTo(playlistActivation.Trigger));
+        Assert.That(snapshot.PlaylistActivation.Error, Is.EqualTo(playlistActivation.Error));
+        Assert.That(snapshot.PlaybackServiceStatus, Is.True);
+        Assert.That(snapshot.PlaylistUploadServiceStatus, Is.False);
     }
 
     [Test]
@@ -220,10 +264,10 @@ public class DeviceMonitoringServiceTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var task = service.StartAsync(cts.Token);
-        
+
         // Wait for the device to be added to snapshot first
         await Task.Delay(1500);
-        
+
         // Verify device is in snapshot before deletion
         Assert.That(service.Snapshot.ContainsKey(device.Id), Is.True, "Device should be in snapshot before deletion");
 
@@ -273,10 +317,10 @@ public class DeviceMonitoringServiceTests
 
         var method = typeof(DeviceMonitoringService).GetMethod("Probe", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.That(method, Is.Not.Null);
-        
+
         var task = method?.Invoke(service, new object[] { device, CancellationToken.None }) as Task<DeviceProbeResult>;
         Assert.That(task, Is.Not.Null);
-        
+
         var result = await task!;
         Assert.That(result.IsOnline, Is.True); // IsOnline should be true
         Assert.That(result.LastChecked, Is.EqualTo(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.FromHours(3))));
@@ -298,10 +342,10 @@ public class DeviceMonitoringServiceTests
 
         var method = typeof(DeviceMonitoringService).GetMethod("Probe", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.That(method, Is.Not.Null);
-        
+
         var task = method?.Invoke(service, new object[] { device, CancellationToken.None }) as Task<DeviceProbeResult>;
         Assert.That(task, Is.Not.Null);
-        
+
         var result = await task!;
         Assert.That(result.IsOnline, Is.False); // IsOnline should be false
         Assert.That(result.SoftwareVersion, Is.Null); // Software version should be null for unhealthy device
@@ -441,7 +485,7 @@ public class DeviceMonitoringServiceTests
         Assert.That(result?.LastChecked, Is.Null);
         Assert.That(result?.ServerLastChecked, Is.Not.EqualTo(default(DateTimeOffset)));
         Assert.That(result?.SoftwareVersion, Is.Null);
-        
+
         // Check if warning was logged
         await Task.Delay(100);
         bool hasWarningLog;
@@ -511,7 +555,7 @@ public class DeviceMonitoringServiceTests
         var db = CreateDbContext(device);
         var eventsService = CreateDeviceEventsService();
         var events = new List<DeviceStatusEvent>();
-        
+
         var service = new DeviceMonitoringService(
             CreateScopeFactory(db),
             Options.Create(GetDefaultSettings()),
@@ -536,7 +580,7 @@ public class DeviceMonitoringServiceTests
 
         // First test the device to populate snapshot
         await service.Test(device.Id);
-        
+
         // Wait a bit for the event to be captured
         await Task.Delay(100);
 
@@ -551,10 +595,10 @@ public class DeviceMonitoringServiceTests
         catch (TimeoutException) { }
 
         cts.Cancel();
-        
+
         // Verify device was removed from snapshot
         Assert.That(service.Snapshot.ContainsKey(device.Id), Is.False);
-        
+
         // Verify deletion event was sent with proper structure
         var deletionEvent = events.LastOrDefault(e => e.DeviceId == device.Id && !e.Snapshot.IsOnline);
         Assert.That(deletionEvent, Is.Not.Null);
@@ -567,6 +611,7 @@ public class DeviceMonitoringServiceTests
             Assert.That(deletionEvent.Snapshot.PlaybackServiceStatus, Is.Null);
             Assert.That(deletionEvent.Snapshot.PlaylistUploadServiceStatus, Is.Null);
             Assert.That(deletionEvent.Snapshot.VideoUploadServiceStatus, Is.Null);
+            Assert.That(deletionEvent.Snapshot.PlaylistActivation, Is.Null);
         }
     }
 
