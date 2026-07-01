@@ -21,7 +21,7 @@ public partial class DevicesController
     [ProducesResponseType(StatusCodes.Status502BadGateway, Type = typeof(ErrMessage))]
     public async Task<IActionResult> CreateScreenshot(int id, CancellationToken ct = default)
     {
-        var (device, error) = await GetDeviceForServiceAsync(id, ct);
+        var (device, error) = await GetDeviceForScreenshotAsync(id, ct);
         if (error != null) return error;
 
         var targetDevice = device!;
@@ -96,6 +96,19 @@ public partial class DevicesController
 
     private static readonly HashSet<char> _unsafeFileNameChars = new(
         Path.GetInvalidFileNameChars().Concat(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }));
+
+    private async Task<(Device? Device, ActionResult? Error)> GetDeviceForScreenshotAsync(int id, CancellationToken ct)
+    {
+        var user = await CurrentUser();
+        if (user == null) return (null, _403());
+
+        var device = await _db.Devices.FindAsync([id], ct);
+        if (device == null) return (null, _404Device(id));
+
+        if (!userInformationService.UserCanCreateScreenshot(user, device)) return (null, _403());
+
+        return (device, null);
+    }
 
     private static string SanitizeScreenshotFilename(string? filename)
     {

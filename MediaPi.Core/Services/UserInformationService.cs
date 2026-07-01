@@ -135,6 +135,20 @@ namespace MediaPi.Core.Services
             return false;
         }
 
+        public bool UserCanViewScreenshot(User user, Device device)
+        {
+            return UserCanViewDevice(user, device);
+        }
+
+        public bool UserCanCreateScreenshot(User user, Device device) => UserCanManageDeviceServices(user, device);
+
+        public bool UserCanDeleteScreenshot(User user, Device device)
+        {
+            if (user == null) return false;
+            if (user.IsAdministrator()) return true;
+            return user.IsEngineer() && device.AccountId == null;
+        }
+
         public bool UserCanAssignGroup(User user, Device device)
         {
             if (user == null) return false;

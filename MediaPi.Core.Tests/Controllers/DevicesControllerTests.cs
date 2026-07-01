@@ -1666,6 +1666,33 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task CreateSnapshot_Engineer_UnassignedDevice_Succeeds()
+    {
+        SetCurrentUser(_engineer.Id);
+        _agentClientMock
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 2), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
+            {
+                Content = [8, 8, 8],
+                ContentType = "image/png",
+                Filename = "engineer-snapshot.png"
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0002/engineer-snapshot.png",
+                OriginalFilename = "engineer-snapshot.png",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateScreenshot(2, CancellationToken.None);
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+    }
+
+    [Test]
     public async Task CreateSnapshot_BlankFilename_FallsBackToDefaultName()
     {
         SetCurrentUser(_admin.Id);

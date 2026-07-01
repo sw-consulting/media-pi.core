@@ -33,7 +33,11 @@ public class ScreenshotsControllerTests
     private UserInformationService _userInformationService;
     private ScreenshotsController _controller;
     private Device _device;
+    private Device _managerDevice;
+    private Device _otherAccountDevice;
     private User _admin;
+    private User _manager;
+    private User _engineer;
     private User _unauthorizedUser;
 #pragma warning restore CS8618
 
@@ -50,7 +54,13 @@ public class ScreenshotsControllerTests
         _mockLogger = new Mock<ILogger<ScreenshotsController>>();
 
         var adminRole = new Role { RoleId = UserRoleConstants.SystemAdministrator, Name = "Admin" };
-        _dbContext.Roles.Add(adminRole);
+        var managerRole = new Role { RoleId = UserRoleConstants.AccountManager, Name = "Manager" };
+        var engineerRole = new Role { RoleId = UserRoleConstants.InstallationEngineer, Name = "Engineer" };
+        _dbContext.Roles.AddRange(adminRole, managerRole, engineerRole);
+
+        var managerAccount = new Account { Id = 1, Name = "Manager account" };
+        var otherAccount = new Account { Id = 2, Name = "Other account" };
+        _dbContext.Accounts.AddRange(managerAccount, otherAccount);
 
         _admin = new User
         {
@@ -58,6 +68,23 @@ public class ScreenshotsControllerTests
             Email = "admin@example.com",
             Password = "test_pwd",
             UserRoles = [new UserRole { UserId = 1, RoleId = adminRole.Id, Role = adminRole }]
+        };
+
+        _manager = new User
+        {
+            Id = 3,
+            Email = "manager@example.com",
+            Password = "test_pwd",
+            UserRoles = [new UserRole { UserId = 3, RoleId = managerRole.Id, Role = managerRole }],
+            UserAccounts = [new UserAccount { UserId = 3, AccountId = managerAccount.Id, Account = managerAccount }]
+        };
+
+        _engineer = new User
+        {
+            Id = 4,
+            Email = "engineer@example.com",
+            Password = "test_pwd",
+            UserRoles = [new UserRole { UserId = 4, RoleId = engineerRole.Id, Role = engineerRole }]
         };
 
         _unauthorizedUser = new User
@@ -68,10 +95,12 @@ public class ScreenshotsControllerTests
             UserRoles = []
         };
 
-        _dbContext.Users.AddRange(_admin, _unauthorizedUser);
+        _dbContext.Users.AddRange(_admin, _unauthorizedUser, _manager, _engineer);
 
         _device = new Device { Id = 1, Name = "Cam", IpAddress = "10.0.0.1", Port = 8080 };
-        _dbContext.Devices.Add(_device);
+        _managerDevice = new Device { Id = 2, Name = "Manager cam", IpAddress = "10.0.0.2", Port = 8080, AccountId = managerAccount.Id };
+        _otherAccountDevice = new Device { Id = 3, Name = "Other cam", IpAddress = "10.0.0.3", Port = 8080, AccountId = otherAccount.Id };
+        _dbContext.Devices.AddRange(_device, _managerDevice, _otherAccountDevice);
         _dbContext.SaveChanges();
 
         _userInformationService = new UserInformationService(_dbContext);
@@ -100,16 +129,20 @@ public class ScreenshotsControllerTests
         };
     }
 
-    private Screenshot MakeScreenshot(int id, string filename, string originalFilename) => new()
+    private Screenshot MakeScreenshot(int id, string filename, string originalFilename, Device? device = null)
     {
-        Id = id,
-        Filename = filename,
-        OriginalFilename = originalFilename,
-        FileSizeBytes = 2048,
-        TimeCreated = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc),
-        DeviceId = _device.Id,
-        Device = _device
-    };
+        var targetDevice = device ?? _device;
+        return new Screenshot
+        {
+            Id = id,
+            Filename = filename,
+            OriginalFilename = originalFilename,
+            FileSizeBytes = 2048,
+            TimeCreated = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc),
+            DeviceId = targetDevice.Id,
+            Device = targetDevice
+        };
+    }
 
     private static PagedResult<ScreenshotViewItem> UnwrapPagedResult(
         ActionResult<PagedResult<ScreenshotViewItem>> result)
@@ -148,6 +181,68 @@ public class ScreenshotsControllerTests
 
         Assert.That(result, Is.TypeOf<ObjectResult>());
         Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetScreenshot_ManagerOwnDevice_ReturnsFile()
+    {
+        var screenshot = MakeScreenshot(1, "0002/manager-shot.jpg", "manager-shot.jpg", _managerDevice);
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        _mockStorageService.Setup(s => s.GetAbsolutePath(screenshot.Filename)).Returns($"/storage/{screenshot.Filename}");
+        SetCurrentUser(_manager.Id);
+
+        var result = await _controller.GetScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<PhysicalFileResult>());
+    }
+
+    [Test]
+    public async Task GetScreenshot_ManagerUnassignedDevice_Returns403()
+    {
+        var screenshot = MakeScreenshot(1, "0001/unassigned-shot.jpg", "unassigned-shot.jpg");
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        SetCurrentUser(_manager.Id);
+
+        var result = await _controller.GetScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _mockStorageService.Verify(s => s.GetAbsolutePath(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public async Task GetScreenshot_EngineerUnassignedDevice_ReturnsFile()
+    {
+        var screenshot = MakeScreenshot(1, "0001/engineer-shot.jpg", "engineer-shot.jpg");
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        _mockStorageService.Setup(s => s.GetAbsolutePath(screenshot.Filename)).Returns($"/storage/{screenshot.Filename}");
+        SetCurrentUser(_engineer.Id);
+
+        var result = await _controller.GetScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<PhysicalFileResult>());
+    }
+
+    [Test]
+    public async Task GetScreenshot_EngineerAssignedDevice_Returns403()
+    {
+        var screenshot = MakeScreenshot(1, "0002/assigned-shot.jpg", "assigned-shot.jpg", _managerDevice);
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        SetCurrentUser(_engineer.Id);
+
+        var result = await _controller.GetScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _mockStorageService.Verify(s => s.GetAbsolutePath(It.IsAny<string>()), Times.Never);
     }
 
     [TestCase("0001/shot.jpg",  "image/jpeg")]
@@ -220,6 +315,59 @@ public class ScreenshotsControllerTests
 
         Assert.That(result, Is.TypeOf<ObjectResult>());
         Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task DeleteScreenshot_ManagerOwnDevice_Returns403()
+    {
+        var screenshot = MakeScreenshot(3, "0002/manager-delete.jpg", "manager-delete.jpg", _managerDevice);
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        SetCurrentUser(_manager.Id);
+
+        var result = await _controller.DeleteScreenshot(3, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _mockStorageService.Verify(s => s.DeleteScreenshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.That(await _dbContext.Screenshots.AnyAsync(s => s.Id == 3), Is.True);
+    }
+
+    [Test]
+    public async Task DeleteScreenshot_EngineerUnassignedDevice_ReturnsNoContent()
+    {
+        var screenshot = MakeScreenshot(3, "0001/engineer-delete.jpg", "engineer-delete.jpg");
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        _mockStorageService
+            .Setup(s => s.DeleteScreenshotAsync(screenshot.Filename, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        SetCurrentUser(_engineer.Id);
+
+        var result = await _controller.DeleteScreenshot(3, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        _mockStorageService.Verify(
+            s => s.DeleteScreenshotAsync(screenshot.Filename, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
+    public async Task DeleteScreenshot_EngineerAssignedDevice_Returns403()
+    {
+        var screenshot = MakeScreenshot(3, "0002/engineer-assigned-delete.jpg", "engineer-assigned-delete.jpg", _managerDevice);
+        _dbContext.Screenshots.Add(screenshot);
+        _dbContext.SaveChanges();
+
+        SetCurrentUser(_engineer.Id);
+
+        var result = await _controller.DeleteScreenshot(3, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _mockStorageService.Verify(s => s.DeleteScreenshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
@@ -316,6 +464,65 @@ public class ScreenshotsControllerTests
     }
 
     [Test]
+    public async Task GetScreenshots_ManagerOwnDevice_ReturnsPage()
+    {
+        _dbContext.Screenshots.Add(MakeScreenshot(1, "0002/manager-list.jpg", "manager-list.jpg", _managerDevice));
+        _dbContext.SaveChanges();
+        SetCurrentUser(_manager.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _managerDevice.Id, ct: CancellationToken.None);
+
+        var paged = UnwrapPagedResult(result);
+        Assert.That(paged.Items.Select(s => s.Id), Is.EqualTo(new[] { 1 }));
+    }
+
+    [Test]
+    public async Task GetScreenshots_ManagerUnassignedDevice_Returns403()
+    {
+        SetCurrentUser(_manager.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetScreenshots_ManagerOtherAccountDevice_Returns403()
+    {
+        SetCurrentUser(_manager.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _otherAccountDevice.Id, ct: CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
+    public async Task GetScreenshots_EngineerUnassignedDevice_ReturnsPage()
+    {
+        _dbContext.Screenshots.Add(MakeScreenshot(1, "0001/engineer-list.jpg", "engineer-list.jpg"));
+        _dbContext.SaveChanges();
+        SetCurrentUser(_engineer.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _device.Id, ct: CancellationToken.None);
+
+        var paged = UnwrapPagedResult(result);
+        Assert.That(paged.Items.Select(s => s.Id), Is.EqualTo(new[] { 1 }));
+    }
+
+    [Test]
+    public async Task GetScreenshots_EngineerAssignedDevice_Returns403()
+    {
+        SetCurrentUser(_engineer.Id);
+
+        var result = await _controller.GetScreenshots(deviceId: _managerDevice.Id, ct: CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result.Result!).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+    }
+
+    [Test]
     public async Task GetScreenshots_InvalidPage_Returns400()
     {
         SetCurrentUser(_admin.Id);
@@ -378,7 +585,7 @@ public class ScreenshotsControllerTests
     [Test]
     public async Task GetScreenshots_ScopedToDevice_ExcludesOtherDevices()
     {
-        var otherDevice = new Device { Id = 2, Name = "Other", IpAddress = "10.0.0.2", Port = 8080 };
+        var otherDevice = new Device { Id = 20, Name = "Other", IpAddress = "10.0.0.20", Port = 8080 };
         _dbContext.Devices.Add(otherDevice);
         _dbContext.Screenshots.Add(MakeScreenshot(10, "0001/own.jpg",   "own.jpg")   );
         _dbContext.Screenshots.Add(new Screenshot

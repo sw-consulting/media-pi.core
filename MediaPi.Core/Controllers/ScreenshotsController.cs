@@ -63,7 +63,7 @@ public class ScreenshotsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        if (!_userInformationService.UserCanViewDevice(user, device)) return _403();
+        if (!_userInformationService.UserCanViewScreenshot(user, device)) return _403();
 
         var query = _db.Screenshots
             .AsNoTracking()
@@ -115,7 +115,7 @@ public class ScreenshotsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        if (!_userInformationService.UserCanViewDevice(user, screenshot.Device)) return _403();
+        if (!_userInformationService.UserCanViewScreenshot(user, screenshot.Device)) return _403();
 
         var path = _screenshotStorageService.GetAbsolutePath(screenshot.Filename);
         var contentType = ResolveContentType(screenshot.Filename);
@@ -137,7 +137,7 @@ public class ScreenshotsController(
         var user = await CurrentUser();
         if (user == null) return _403();
 
-        if (!_userInformationService.UserCanManageDeviceServices(user, screenshot.Device)) return _403();
+        if (!_userInformationService.UserCanDeleteScreenshot(user, screenshot.Device)) return _403();
 
         await _screenshotStorageService.DeleteScreenshotAsync(screenshot.Filename, ct);
         _db.Screenshots.Remove(screenshot);
