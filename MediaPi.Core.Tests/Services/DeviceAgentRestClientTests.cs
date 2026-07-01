@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2025-2026 sw.consulting
+// Copyright (C) 2025-2026 sw.consulting
 // This file is a part of Media Pi backend
 
 using System;
@@ -150,7 +150,7 @@ public class DeviceAgentRestClientTests
             observedUri = request.RequestUri;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("""{"ok":true,"data":{"status":"healthy","uptime":12345.67,"version":"1.0.0","time":"2026-06-28T12:34:56+03:00","serviceStatus":{"playbackServiceStatus":true,"playlistUploadServiceStatus":false,"videoUploadServiceStatus":true}}}""", Encoding.UTF8, "application/json")
+                Content = new StringContent("""{"ok":true,"data":{"status":"healthy","uptime":12345.67,"version":"1.0.0","time":"2026-06-28T12:34:56+03:00","serviceStatus":{"playbackServiceStatus":true,"playlistUploadServiceStatus":false,"videoUploadServiceStatus":true,"playlistActivation":{"state":"running","phase":"playlistSync","trigger":"scheduled","startedAt":"2026-07-01T09:00:00+03:00"}}}}""", Encoding.UTF8, "application/json")
             });
         });
 
@@ -169,6 +169,11 @@ public class DeviceAgentRestClientTests
         Assert.That(result.ServiceStatus!.PlaybackServiceStatus, Is.True);
         Assert.That(result.ServiceStatus.PlaylistUploadServiceStatus, Is.False);
         Assert.That(result.ServiceStatus.VideoUploadServiceStatus, Is.True);
+        Assert.That(result.ServiceStatus.PlaylistActivation, Is.Not.Null);
+        Assert.That(result.ServiceStatus.PlaylistActivation!.State, Is.EqualTo("running"));
+        Assert.That(result.ServiceStatus.PlaylistActivation.Phase, Is.EqualTo("playlistSync"));
+        Assert.That(result.ServiceStatus.PlaylistActivation.Trigger, Is.EqualTo("scheduled"));
+        Assert.That(result.ServiceStatus.PlaylistActivation.StartedAt, Is.EqualTo(new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.FromHours(3))));
         Assert.That(observedUri, Is.Not.Null);
         Assert.That(observedUri!.AbsolutePath, Is.EqualTo("/health"));
     }

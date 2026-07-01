@@ -2,6 +2,7 @@
 // This file is a part of Media Pi backend
 
 using System.Text.Json;
+using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services.Models;
 using MediaPi.Core.Settings;
 
@@ -19,6 +20,7 @@ public class DeviceStatusItem
     public bool? PlaybackServiceStatus { get; set; }
     public bool? PlaylistUploadServiceStatus { get; set; }
     public bool? VideoUploadServiceStatus { get; set; }
+    public PlaylistActivationDto? PlaylistActivation { get; set; }
 
     // Parameterless constructor for JSON deserialization
     public DeviceStatusItem() { }
@@ -35,6 +37,7 @@ public class DeviceStatusItem
         PlaybackServiceStatus = snapshot.PlaybackServiceStatus;
         PlaylistUploadServiceStatus = snapshot.PlaylistUploadServiceStatus;
         VideoUploadServiceStatus = snapshot.VideoUploadServiceStatus;
+        PlaylistActivation = snapshot.PlaylistActivation;
     }
 
     public override string ToString()

@@ -1,6 +1,10 @@
 // Copyright (C) 2025-2026 sw.consulting
 // This file is a part of Media Pi backend
 
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
+using System.Threading.Channels;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
@@ -9,10 +13,6 @@ using MediaPi.Core.Services.Models;
 using MediaPi.Core.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Net;
-using System.Threading.Channels;
 
 namespace MediaPi.Core.Services;
 
@@ -116,7 +116,8 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
                 SoftwareVersion = null,
                 PlaybackServiceStatus = null,
                 PlaylistUploadServiceStatus = null,
-                VideoUploadServiceStatus = null
+                VideoUploadServiceStatus = null,
+                PlaylistActivation = null
             }));
         }
     }
@@ -143,7 +144,8 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
             SoftwareVersion = probeResult.SoftwareVersion,
             PlaybackServiceStatus = probeResult.ServiceStatus?.PlaybackServiceStatus,
             PlaylistUploadServiceStatus = probeResult.ServiceStatus?.PlaylistUploadServiceStatus,
-            VideoUploadServiceStatus = probeResult.ServiceStatus?.VideoUploadServiceStatus
+            VideoUploadServiceStatus = probeResult.ServiceStatus?.VideoUploadServiceStatus,
+            PlaylistActivation = probeResult.ServiceStatus?.PlaylistActivation
         };
         _snapshot[device.Id] = snap;
         Broadcast(new DeviceStatusEvent(device.Id, snap));
@@ -314,7 +316,7 @@ public class DeviceMonitoringService : BackgroundService, IDeviceMonitoringServi
 
             if (!healthResponse.Ok)
             {
-                _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}", 
+                _logger.LogDebug("Health probe for device {DeviceId} ({IpAddress}) returned error: {Error}",
                     device.Id, device.IpAddress, healthResponse.ErrMsg);
                 return new DeviceProbeResult(false, healthResponse.Time, serverLastChecked, connectMs, sw.ElapsedMilliseconds, null, healthResponse.ServiceStatus);
             }

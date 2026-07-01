@@ -1,6 +1,8 @@
 // Copyright (C) 2025-2026 sw.consulting
 // This file is a part of Media Pi backend
 
+using MediaPi.Core.RestModels.Device;
+
 namespace MediaPi.Core.Services.Models;
 
 public class DeviceStatusSnapshot
@@ -15,4 +17,5 @@ public class DeviceStatusSnapshot
     public bool? PlaybackServiceStatus { get; set; }
     public bool? PlaylistUploadServiceStatus { get; set; }
     public bool? VideoUploadServiceStatus { get; set; }
+    public PlaylistActivationDto? PlaylistActivation { get; set; }
 }

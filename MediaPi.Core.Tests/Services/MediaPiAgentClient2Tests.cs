@@ -415,7 +415,16 @@ public class MediaPiAgentClient2Tests
                 {
                     playbackServiceStatus = true,
                     playlistUploadServiceStatus = false,
-                    videoUploadServiceStatus = false
+                    videoUploadServiceStatus = false,
+                    playlistActivation = new
+                    {
+                        state = "failed",
+                        phase = "playbackRestart",
+                        trigger = "manual",
+                        startedAt = "2026-07-01T10:00:00+03:00",
+                        finishedAt = "2026-07-01T10:00:05+03:00",
+                        error = "restart failed"
+                    }
                 }
             });
 
@@ -447,6 +456,13 @@ public class MediaPiAgentClient2Tests
         Assert.That(model!.PlaybackServiceStatus, Is.True);
         Assert.That(model.PlaylistUploadServiceStatus, Is.False);
         Assert.That(model.VideoUploadServiceStatus, Is.False);
+        Assert.That(model.PlaylistActivation, Is.Not.Null);
+        Assert.That(model.PlaylistActivation!.State, Is.EqualTo("failed"));
+        Assert.That(model.PlaylistActivation.Phase, Is.EqualTo("playbackRestart"));
+        Assert.That(model.PlaylistActivation.Trigger, Is.EqualTo("manual"));
+        Assert.That(model.PlaylistActivation.StartedAt, Is.EqualTo(new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.FromHours(3))));
+        Assert.That(model.PlaylistActivation.FinishedAt, Is.EqualTo(new DateTimeOffset(2026, 7, 1, 10, 0, 5, TimeSpan.FromHours(3))));
+        Assert.That(model.PlaylistActivation.Error, Is.EqualTo("restart failed"));
     }
 
     private static MediaPiAgentClient2 CreateClient(HttpMessageHandler handler, TestLogger<MediaPiAgentClient2>? logger = null)
