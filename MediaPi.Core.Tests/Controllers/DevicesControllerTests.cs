@@ -1,29 +1,26 @@
 // Copyright (C) 2025-2026 sw.consulting
 // This file is a part of Media Pi backend
 
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-
-using Moq;
-using NUnit.Framework;
-
 using System;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-
 using MediaPi.Core.Controllers;
 using MediaPi.Core.Data;
 using MediaPi.Core.Models;
 using MediaPi.Core.RestModels;
 using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services;
-using MediaPi.Core.Services.Models;
 using MediaPi.Core.Services.Interfaces;
+using MediaPi.Core.Services.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Moq;
+using NUnit.Framework;
 
 namespace MediaPi.Core.Tests.Controllers;
 
@@ -697,7 +694,7 @@ public class DevicesControllerTests
         var device = await _dbContext.Devices.FindAsync(1);
         device!.AccountId = _account2.Id;
         await _dbContext.SaveChangesAsync();
-        
+
         var dto = new Reference { Id = _group2.Id }; // Group2 belongs to Account2, Device1 now belongs to Account2
         var response = await _controller.AssignGroup(1, dto);
         Assert.That(response, Is.TypeOf<NoContentResult>());
@@ -870,7 +867,7 @@ public class DevicesControllerTests
         var assignDevice = await _dbContext.Devices.FindAsync(2);
         assignDevice!.AccountId = _account1.Id;
         await _dbContext.SaveChangesAsync();
-        
+
         // Now try to unassign with engineer (should be forbidden since device is now assigned)
         var dto = new Reference { Id = 0 };
         var response = await _controller.AssignAccount(2, dto);
@@ -1153,7 +1150,12 @@ public class DevicesControllerTests
     public async Task GetServiceStatus_Admin_ReturnsAgentData()
     {
         SetCurrentUser(_admin.Id);
-        var dto = new ServiceStatusDto { PlaybackServiceStatus = true, PlaylistUploadServiceStatus = false };
+        var dto = new ServiceStatusDto
+        {
+            PlaybackServiceStatus = true,
+            PlaylistUploadServiceStatus = false,
+            PlaylistActivation = new PlaylistActivationDto { State = "succeeded", Phase = "playbackRestart" }
+        };
         var agentResponse = new MediaPiMenuDataResponse<ServiceStatusDto> { Ok = true, Data = dto };
         _agentClient2Mock
             .Setup(c => c.GetServiceStatusAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))

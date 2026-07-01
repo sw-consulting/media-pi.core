@@ -4,6 +4,7 @@
 using System;
 using System.Text.Json;
 using MediaPi.Core.RestModels;
+using MediaPi.Core.RestModels.Device;
 using MediaPi.Core.Services.Models;
 using NUnit.Framework;
 
@@ -18,6 +19,15 @@ public class DeviceStatusItemTests
         // Arrange
         var now = DateTimeOffset.UtcNow;
         var serverNow = now.AddMilliseconds(25);
+        var playlistActivation = new PlaylistActivationDto
+        {
+            State = "failed",
+            Phase = "playbackRestart",
+            Trigger = "manual",
+            StartedAt = now.AddSeconds(-5),
+            FinishedAt = now,
+            Error = "restart failed"
+        };
         var snapshot = new DeviceStatusSnapshot
         {
             IpAddress = "192.168.1.100",
@@ -29,7 +39,8 @@ public class DeviceStatusItemTests
             SoftwareVersion = "5.2.1",
             PlaybackServiceStatus = true,
             PlaylistUploadServiceStatus = false,
-            VideoUploadServiceStatus = true
+            VideoUploadServiceStatus = true,
+            PlaylistActivation = playlistActivation
         };
 
         // Act
@@ -46,6 +57,7 @@ public class DeviceStatusItemTests
         Assert.That(statusItem.PlaybackServiceStatus, Is.True);
         Assert.That(statusItem.PlaylistUploadServiceStatus, Is.False);
         Assert.That(statusItem.VideoUploadServiceStatus, Is.True);
+        Assert.That(statusItem.PlaylistActivation, Is.SameAs(playlistActivation));
     }
 
     [Test]
@@ -117,7 +129,7 @@ public class DeviceStatusItemTests
 
         // Assert
         Assert.That(jsonString, Is.Not.Null.And.Not.Empty);
-        
+
         // Verify it's valid JSON by deserializing it back
         var deserializedItem = JsonSerializer.Deserialize<DeviceStatusItem>(jsonString);
         Assert.That(deserializedItem, Is.Not.Null);
@@ -151,7 +163,7 @@ public class DeviceStatusItemTests
         // Assert
         Assert.That(jsonString, Is.Not.Null.And.Not.Empty);
         Assert.That(jsonString, Does.Contain("\"SoftwareVersion\": null"));
-        
+
         // Verify it's valid JSON by deserializing it back
         var deserializedItem = JsonSerializer.Deserialize<DeviceStatusItem>(jsonString);
         Assert.That(deserializedItem, Is.Not.Null);
