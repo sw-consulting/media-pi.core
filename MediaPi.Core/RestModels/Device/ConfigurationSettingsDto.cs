@@ -25,6 +25,6 @@ public class ConfigurationSettingsDto
     [JsonPropertyName("screenshot")]
     public ScreenshotSettingsDto Screenshot { get; set; } = new()
     {
-        IntervalMinutes = 0
+        Timers = []
     };
 }

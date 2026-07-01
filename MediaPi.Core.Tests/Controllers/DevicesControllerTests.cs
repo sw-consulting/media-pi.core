@@ -142,6 +142,14 @@ public class DevicesControllerTests
         };
     }
 
+    private static ConfigurationSettingsDto CreateConfigurationPayload(params string[] photoTimers) => new()
+    {
+        Playlist = new PlaylistSettingsDto { Destination = "d" },
+        Schedule = new ScheduleSettingsDto { Playlist = ["p1"] },
+        Audio = new AudioSettingsDto { Output = "HDMI" },
+        Screenshot = new ScreenshotSettingsDto { Timers = photoTimers }
+    };
+
     [TearDown]
     public void TearDown()
     {
@@ -1159,6 +1167,38 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task GetServiceStatus_AgentReturnsNoData_Returns502()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClient2Mock
+            .Setup(c => c.GetServiceStatusAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuDataResponse<ServiceStatusDto> { Ok = true, Data = null });
+
+        var result = await _controller.GetServiceStatus(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var message = obj.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("статуса сервисов"));
+    }
+
+    [Test]
+    public async Task GetServiceStatus_AgentThrows_Returns502()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClient2Mock
+            .Setup(c => c.GetServiceStatusAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("agent unavailable"));
+
+        var result = await _controller.GetServiceStatus(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+    [Test]
     public async Task StartPlayback_Admin_ReturnsAgentResponse()
     {
         SetCurrentUser(_admin.Id);
@@ -1172,6 +1212,23 @@ public class DevicesControllerTests
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task StartPlayback_AgentFailure_Returns502()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClient2Mock
+            .Setup(c => c.StartPlaybackAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = false, ErrMsg = "start failed" });
+
+        var result = await _controller.StartPlayback(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var message = obj.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("start failed"));
     }
 
     [Test]
@@ -1204,7 +1261,7 @@ public class DevicesControllerTests
             Playlist = new PlaylistSettingsDto { Destination = "dst" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
         var agentResponse = new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = true, Data = dto };
         _agentClient2Mock
@@ -1234,6 +1291,23 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task GetConfiguration_AgentReturnsNoData_Returns502()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClient2Mock
+            .Setup(c => c.GetConfigurationAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuDataResponse<ConfigurationSettingsDto> { Ok = true, Data = null });
+
+        var result = await _controller.GetConfiguration(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var message = obj.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("конфигурации"));
+    }
+
+    [Test]
     public async Task UpdateConfiguration_Admin_ReturnsAgentResponse()
     {
         SetCurrentUser(_admin.Id);
@@ -1242,7 +1316,7 @@ public class DevicesControllerTests
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p2" } },
             Audio = new AudioSettingsDto { Output = "LINE" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
         var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
         _agentClient2Mock
@@ -1258,6 +1332,173 @@ public class DevicesControllerTests
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         Assert.That(ok!.Value, Is.SameAs(agentResponse));
+    }
+
+    [Test]
+    public async Task UpdateConfiguration_ValidPhotoTimers_UpdatesAndReloadsDevice()
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = CreateConfigurationPayload("00:00:00", " 23:59:59 ");
+        var agentResponse = new MediaPiMenuCommandResponse { Ok = true };
+        var reloadResponse = new MediaPiMenuCommandResponse { Ok = true };
+        _agentClient2Mock
+            .Setup(c => c.UpdateConfigurationAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agentResponse);
+        _agentClient2Mock
+            .Setup(c => c.ReloadSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(reloadResponse);
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        var ok = result.Result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        Assert.That(ok!.Value, Is.SameAs(agentResponse));
+        _agentClient2Mock.Verify(
+            c => c.ReloadSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestCase(null)]
+    [TestCase("")]
+    [TestCase("0:00:30")]
+    [TestCase("00-00-30")]
+    [TestCase("0a:00:30")]
+    [TestCase("24:00:00")]
+    [TestCase("23:60:00")]
+    [TestCase("23:59:60")]
+    public async Task UpdateConfiguration_InvalidPhotoTimer_ReturnsBadRequest(string? timer)
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = CreateConfigurationPayload(timer!);
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        var badRequest = result.Result as BadRequestObjectResult;
+        Assert.That(badRequest, Is.Not.Null);
+        var message = badRequest!.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("HH:mm:ss"));
+        _agentClient2Mock.Verify(
+            c => c.UpdateConfigurationAsync(It.IsAny<Device>(), It.IsAny<ConfigurationSettingsDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateConfiguration_NullPayload_ReturnsBadRequest()
+    {
+        SetCurrentUser(_admin.Id);
+
+        var result = await _controller.UpdateConfiguration(1, null!, CancellationToken.None);
+
+        var badRequest = result.Result as BadRequestObjectResult;
+        Assert.That(badRequest, Is.Not.Null);
+        var message = badRequest!.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("HH:mm:ss"));
+        _agentClient2Mock.Verify(
+            c => c.UpdateConfigurationAsync(It.IsAny<Device>(), It.IsAny<ConfigurationSettingsDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task UpdateConfiguration_MissingScreenshotTimers_ReturnsBadRequest(bool missingScreenshot)
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = CreateConfigurationPayload();
+        if (missingScreenshot)
+        {
+            payload.Screenshot = null!;
+        }
+        else
+        {
+            payload.Screenshot.Timers = null!;
+        }
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        var badRequest = result.Result as BadRequestObjectResult;
+        Assert.That(badRequest, Is.Not.Null);
+        var message = badRequest!.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("HH:mm:ss"));
+        _agentClient2Mock.Verify(
+            c => c.UpdateConfigurationAsync(It.IsAny<Device>(), It.IsAny<ConfigurationSettingsDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateConfiguration_AgentFailure_Returns502AndDoesNotReload()
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = CreateConfigurationPayload();
+        _agentClient2Mock
+            .Setup(c => c.UpdateConfigurationAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = false, ErrMsg = "update failed" });
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var message = obj.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("update failed"));
+        _agentClient2Mock.Verify(
+            c => c.ReloadSystemAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateConfiguration_AgentThrows_Returns502AndDoesNotReload()
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = CreateConfigurationPayload();
+        _agentClient2Mock
+            .Setup(c => c.UpdateConfigurationAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("update unavailable"));
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        _agentClient2Mock.Verify(
+            c => c.ReloadSystemAsync(It.IsAny<Device>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateConfiguration_ReloadFailure_Returns502()
+    {
+        SetCurrentUser(_admin.Id);
+        var payload = CreateConfigurationPayload();
+        _agentClient2Mock
+            .Setup(c => c.UpdateConfigurationAsync(It.Is<Device>(d => d.Id == 1), payload, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = true });
+        _agentClient2Mock
+            .Setup(c => c.ReloadSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaPiMenuCommandResponse { Ok = false, ErrMsg = "reload failed" });
+
+        var result = await _controller.UpdateConfiguration(1, payload, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+        var message = obj.Value as ErrMessage;
+        Assert.That(message!.Msg, Does.Contain("reload failed"));
+    }
+
+    [Test]
+    public async Task UpdateConfiguration_ManagerOtherDevice_ReturnsForbiddenAndDoesNotCallAgent()
+    {
+        SetCurrentUser(_manager.Id);
+        var payload = CreateConfigurationPayload();
+
+        var result = await _controller.UpdateConfiguration(3, payload, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        _agentClient2Mock.Verify(
+            c => c.UpdateConfigurationAsync(It.IsAny<Device>(), It.IsAny<ConfigurationSettingsDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Test]
@@ -1293,6 +1534,41 @@ public class DevicesControllerTests
     }
 
     [Test]
+    public async Task RebootShutdown_Admin_ReturnsAgentResponses()
+    {
+        SetCurrentUser(_admin.Id);
+        var rebootResp = new MediaPiMenuCommandResponse { Ok = true };
+        var shutdownResp = new MediaPiMenuCommandResponse { Ok = true };
+        _agentClient2Mock
+            .Setup(c => c.RebootSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rebootResp);
+        _agentClient2Mock
+            .Setup(c => c.ShutdownSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(shutdownResp);
+
+        var reboot = await _controller.RebootSystem(1, CancellationToken.None);
+        var shutdown = await _controller.ShutdownSystem(1, CancellationToken.None);
+
+        Assert.That((reboot.Result as OkObjectResult)!.Value, Is.SameAs(rebootResp));
+        Assert.That((shutdown.Result as OkObjectResult)!.Value, Is.SameAs(shutdownResp));
+    }
+
+    [Test]
+    public async Task ShutdownSystem_AgentThrows_Returns502()
+    {
+        SetCurrentUser(_admin.Id);
+        _agentClient2Mock
+            .Setup(c => c.ShutdownSystemAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("shutdown unavailable"));
+
+        var result = await _controller.ShutdownSystem(1, CancellationToken.None);
+
+        Assert.That(result.Result, Is.TypeOf<ObjectResult>());
+        var obj = result.Result as ObjectResult;
+        Assert.That(obj!.StatusCode, Is.EqualTo(StatusCodes.Status502BadGateway));
+    }
+
+    [Test]
     public async Task SystemCommands_Admin_ExceptionHandled_Returns502()
     {
         SetCurrentUser(_admin.Id);
@@ -1303,7 +1579,7 @@ public class DevicesControllerTests
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "p1" } },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
 
         // Make UpdateConfiguration succeed
@@ -1385,6 +1661,37 @@ public class DevicesControllerTests
 
         var result = await _controller.CreateScreenshot(1, CancellationToken.None);
         Assert.That(result, Is.TypeOf<FileContentResult>());
+    }
+
+    [Test]
+    public async Task CreateSnapshot_BlankFilename_FallsBackToDefaultName()
+    {
+        SetCurrentUser(_admin.Id);
+        var imageContent = new byte[] { 1, 2, 3 };
+        _agentClientMock
+            .Setup(c => c.CreateScreenshotAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeviceScreenshotResult
+            {
+                Content = imageContent,
+                ContentType = "image/jpeg",
+                Filename = "   "
+            });
+        _screenshotStorageServiceMock
+            .Setup(s => s.SaveScreenshotAsync(It.IsAny<IFormFile>(), "screenshot", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScreenshotSaveResult
+            {
+                Filename = "0001/screenshot.jpg",
+                OriginalFilename = "screenshot.jpg",
+                FileSizeBytes = 3,
+                Sha256 = "sha",
+                TimeCreated = DateTime.UtcNow
+            });
+
+        var result = await _controller.CreateScreenshot(1, CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<FileContentResult>());
+        var file = (FileContentResult)result;
+        Assert.That(file.FileDownloadName, Is.EqualTo("screenshot.jpg"));
     }
 
     [Test]
