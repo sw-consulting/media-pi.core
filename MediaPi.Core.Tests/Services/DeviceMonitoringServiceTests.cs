@@ -221,6 +221,7 @@ public class DeviceMonitoringServiceTests
         Assert.That(snapshot.PlaylistActivation.Error, Is.EqualTo(playlistActivation.Error));
         Assert.That(snapshot.PlaybackServiceStatus, Is.True);
         Assert.That(snapshot.PlaylistUploadServiceStatus, Is.False);
+    }
 
     [Test]
     public async Task ExecuteAsync_UpdatesSnapshot_ForOfflineDevice()
