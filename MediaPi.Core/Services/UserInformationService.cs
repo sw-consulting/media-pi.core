@@ -140,13 +140,7 @@ namespace MediaPi.Core.Services
             return UserCanViewDevice(user, device);
         }
 
-        public bool UserCanCreateScreenshot(User user, Device device)
-        {
-            if (user == null) return false;
-            if (user.IsAdministrator()) return true;
-            if (ManagerOwnsDevice(user, device)) return true;
-            return user.IsEngineer() && device.AccountId == null;
-        }
+        public bool UserCanCreateScreenshot(User user, Device device) => UserCanManageDeviceServices(user, device);
 
         public bool UserCanDeleteScreenshot(User user, Device device)
         {
