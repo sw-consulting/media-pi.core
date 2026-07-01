@@ -527,7 +527,7 @@ public class DevicesControllerErrorTests
             Playlist = new PlaylistSettingsDto { Destination = "d" },
             Schedule = new ScheduleSettingsDto { Playlist = new System.Collections.Generic.List<string> { "one" } },
             Audio = new AudioSettingsDto { Output = "HDMI" },
-            Screenshot = new ScreenshotSettingsDto { IntervalMinutes = 0 }
+            Screenshot = new ScreenshotSettingsDto { Timers = [] }
         };
         _agentClient2Mock
             .Setup(c => c.GetConfigurationAsync(It.Is<Device>(d => d.Id == 1), It.IsAny<CancellationToken>()))
